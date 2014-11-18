@@ -6,7 +6,8 @@ qspn.h
 qspn.vapi
 Makefile.in
 Makefile
-testsuites/test_neighbours/test_neighbours.c
+testsuites/test_qspn/test_qspn.c
+testsuites/test_qspn/generic_naddr.c
 *.lo
 *.la
 .deps

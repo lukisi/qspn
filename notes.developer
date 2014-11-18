@@ -1,0 +1,7 @@
+autoreconf --install
+mkdir finalbuild
+cd finalbuild
+../configure --disable-silent-rules --prefix=/usr --sysconfdir=/etc
+make
+make check
+

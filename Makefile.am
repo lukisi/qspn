@@ -19,6 +19,7 @@ check_PROGRAMS = \
 
 test_qspn_SOURCES = \
 	testsuites/test_qspn/test_qspn.vala \
+	testsuites/test_qspn/generic_naddr.vala \
 	qspn.vapi \
 	$(NULL)
 
@@ -125,6 +126,7 @@ CLEANFILES = \
 	$(srcdir)/main.c \
 	$(srcdir)/qspn.c \
 	$(srcdir)/interfaces.c \
+	$(srcdir)/testsuites/test_qspn/generic_naddr.c \
 	$(srcdir)/testsuites/test_qspn/test_qspn.c \
 	$(NULL)
 
