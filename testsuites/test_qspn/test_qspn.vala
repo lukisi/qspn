@@ -133,7 +133,7 @@ public class FakeArcToStub : Object, IArcToStub
     public IAddressManagerRootDispatcher
                     get_broadcast(
                         IMissingArcHandler? missing_handler=null,
-                        INodeID? ignore_neighbour=null
+                        INeighborhoodNodeID? ignore_neighbour=null
                     )
     {
         return null;
@@ -143,7 +143,7 @@ public class FakeArcToStub : Object, IArcToStub
                     get_broadcast_to_nic(
                         INetworkInterface nic,
                         IMissingArcHandler? missing_handler=null,
-                        INodeID? ignore_neighbour=null
+                        INeighborhoodNodeID? ignore_neighbour=null
                     )
     {
         return null;
