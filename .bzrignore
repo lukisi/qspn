@@ -31,5 +31,6 @@ ltmain.sh
 missing
 test-driver
 compile
+.valencia
 debug
 finalbuild

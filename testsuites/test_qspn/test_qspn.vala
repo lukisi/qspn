@@ -17,7 +17,7 @@ namespace Netsukuku
 
 public class FakeNetworkID : Object, IQspnNetworkID
 {
-    public bool is_same_network(IQspnNetworkID other)
+    public bool i_qspn_is_same_network(IQspnNetworkID other)
     {
         return true;
     }
@@ -36,27 +36,27 @@ public class FakeNodeData : Object, IQspnNodeData
         this.naddr = new FakeGenericNaddr({23, 1, 1, 1, 1, 1, 1, 1, 12});
     }
 
-    public bool equals(IQspnNodeData other)
+    public bool i_qspn_equals(IQspnNodeData other)
     {
         return id == (other as FakeNodeData).id;
     }
 
-    public bool is_on_same_network(IQspnNodeData other)
+    public bool i_qspn_is_on_same_network(IQspnNodeData other)
     {
-        return (other as FakeNodeData).netid.is_same_network(netid);
+        return (other as FakeNodeData).netid.i_qspn_is_same_network(netid);
     }
 
-    public IQspnNetworkID get_netid()
+    public IQspnNetworkID i_qspn_get_netid()
     {
         return netid;
     }
 
-    public IQspnNaddr get_naddr()
+    public IQspnNaddr i_qspn_get_naddr()
     {
         return naddr;
     }
 
-    public IQspnMyNaddr get_naddr_as_mine()
+    public IQspnMyNaddr i_qspn_get_naddr_as_mine()
     {
         return (IQspnMyNaddr)naddr;
     }
@@ -66,12 +66,12 @@ public class FakeREM : RTT, IQspnREM
 {
     public FakeREM(long usec_rtt) {base(usec_rtt);}
 
-    public int qspn_compare_to(IQspnREM other)
+    public int i_qspn_compare_to(IQspnREM other)
     {
         return compare_to(other as FakeREM);
     }
 
-    public IQspnREM qspn_add_segment(IQspnREM other)
+    public IQspnREM i_qspn_add_segment(IQspnREM other)
     {
         return new FakeREM((other as FakeREM).delay + delay);
     }
@@ -87,30 +87,30 @@ public class FakeArc : Object, IQspnArc
         cost = new FakeREM(delay);
     }
 
-    public IQspnNodeData get_node_data()
+    public IQspnNodeData i_qspn_get_node_data()
     {
         return n;
     }
 
-    public IQspnREM qspn_get_cost()
+    public IQspnREM i_qspn_get_cost()
     {
         return cost;
     }
 
-    public bool qspn_equals(IQspnArc other)
+    public bool i_qspn_equals(IQspnArc other)
     {
-        return n.equals((other as FakeArc).n);
+        return n.i_qspn_equals((other as FakeArc).n);
     }
 }
 
 public class FakeFingerprint : Object, IQspnFingerprint
 {
-    public bool equals(IQspnFingerprint other)
+    public bool i_qspn_equals(IQspnFingerprint other)
     {
         return other == this;
     }
 
-    public bool is_elder(IQspnFingerprint other)
+    public bool i_qspn_is_elder(IQspnFingerprint other)
     {
         return true;
     }
@@ -118,17 +118,17 @@ public class FakeFingerprint : Object, IQspnFingerprint
 
 public class FakeFingerprintManager : Object, IQspnFingerprintManager
 {
-    public long mismatch_timeout_msec(IQspnREM sum)
+    public long i_qspn_mismatch_timeout_msec(IQspnREM sum)
     {
         return (sum as FakeREM).delay * 1000;
     }
 }
 
-public class FakeArcToStub : Object, IArcToStub
+public class FakeArcToStub : Object, INeighborhoodArcToStub
 {
     public IAddressManagerRootDispatcher
-                    get_broadcast(
-                        IMissingArcHandler? missing_handler=null,
+                    i_neighborhood_get_broadcast(
+                        INeighborhoodMissingArcHandler? missing_handler=null,
                         INeighborhoodNodeID? ignore_neighbour=null
                     )
     {
@@ -136,9 +136,9 @@ public class FakeArcToStub : Object, IArcToStub
     }
 
     public IAddressManagerRootDispatcher
-                    get_broadcast_to_nic(
-                        INetworkInterface nic,
-                        IMissingArcHandler? missing_handler=null,
+                    i_neighborhood_get_broadcast_to_nic(
+                        INeighborhoodNetworkInterface nic,
+                        INeighborhoodMissingArcHandler? missing_handler=null,
                         INeighborhoodNodeID? ignore_neighbour=null
                     )
     {
@@ -146,8 +146,8 @@ public class FakeArcToStub : Object, IArcToStub
     }
 
     public IAddressManagerRootDispatcher
-                    get_unicast(
-                        IArc arc,
+                    i_neighborhood_get_unicast(
+                        INeighborhoodArc arc,
                         bool wait_reply=true
                     )
     {

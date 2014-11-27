@@ -20,22 +20,22 @@ public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNa
         base(pos, sizes);
     }
 
-    public int get_levels()
+    public int i_qspn_get_levels()
     {
         return sizes.size;
     }
 
-    public int get_gsize(int level)
+    public int i_qspn_get_gsize(int level)
     {
         return sizes[level];
     }
 
-    public int get_pos(int level)
+    public int i_qspn_get_pos(int level)
     {
         return pos[level];
     }
 
-    public int get_level_of_gnode()
+    public int i_qspn_get_level_of_gnode()
     {
         int l = 0;
         while (l < pos.size)
@@ -46,7 +46,7 @@ public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNa
         return pos.size; // the whole network
     }
 
-    public IQspnPartialNaddr get_address_by_coord(HCoord dest)
+    public IQspnPartialNaddr i_qspn_get_address_by_coord(HCoord dest)
     {
         int[] newpos = new int[pos.size];
         for (int i = 0; i < dest.lvl; i++) newpos[i] = -1;
@@ -55,12 +55,12 @@ public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNa
         return new MyNaddr(newpos, sizes.to_array());
     }
 
-    public HCoord get_coord_by_address(IQspnPartialNaddr dest)
+    public HCoord i_qspn_get_coord_by_address(IQspnPartialNaddr dest)
     {
         int l = pos.size-1;
         while (l >= 0)
         {
-            if (pos[l] != dest.get_pos(l)) return new HCoord(l, dest.get_pos(l));
+            if (pos[l] != dest.i_qspn_get_pos(l)) return new HCoord(l, dest.i_qspn_get_pos(l));
             l--;
         }
         // same naddr: error
@@ -71,7 +71,7 @@ public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNa
 
 public class MyNetworkID : Object, IQspnNetworkID
 {
-    public bool is_same_network(IQspnNetworkID other)
+    public bool i_qspn_is_same_network(IQspnNetworkID other)
     {
         return true;
     }
@@ -88,34 +88,34 @@ public abstract class GenericNodeData : Object, IQspnNodeData
         this.naddr = naddr;
     }
 
-    public bool equals(IQspnNodeData other)
+    public bool i_qspn_equals(IQspnNodeData other)
     {
         return this == (other as GenericNodeData);
     }
 
-    public bool is_on_same_network(IQspnNodeData other)
+    public bool i_qspn_is_on_same_network(IQspnNodeData other)
     {
         return true;
     }
 
-    public IQspnNetworkID get_netid()
+    public IQspnNetworkID i_qspn_get_netid()
     {
         return netid;
     }
 
-    public IQspnNaddr get_naddr()
+    public IQspnNaddr i_qspn_get_naddr()
     {
         return (IQspnNaddr)naddr;
     }
 
-    public abstract IQspnMyNaddr get_naddr_as_mine();
+    public abstract IQspnMyNaddr i_qspn_get_naddr_as_mine();
 }
 
 public class MyNodeData : GenericNodeData
 {
     public MyNodeData(MyNaddr naddr) {base(naddr);}
 
-    public override IQspnMyNaddr get_naddr_as_mine()
+    public override IQspnMyNaddr i_qspn_get_naddr_as_mine()
     {
         return (IQspnMyNaddr)naddr;
     }
@@ -125,7 +125,7 @@ public class OtherNodeData : GenericNodeData
 {
     public OtherNodeData(MyNaddr naddr) {base(naddr);}
 
-    public override IQspnMyNaddr get_naddr_as_mine()
+    public override IQspnMyNaddr i_qspn_get_naddr_as_mine()
     {
         assert(false); return null;
     }
@@ -135,12 +135,12 @@ public class MyREM : RTT, IQspnREM
 {
     public MyREM(long usec_rtt) {base(usec_rtt);}
 
-    public int qspn_compare_to(IQspnREM other)
+    public int i_qspn_compare_to(IQspnREM other)
     {
         return compare_to(other as MyREM);
     }
 
-    public IQspnREM qspn_add_segment(IQspnREM other)
+    public IQspnREM i_qspn_add_segment(IQspnREM other)
     {
         return new MyREM((other as MyREM).delay + delay);
     }
@@ -148,12 +148,12 @@ public class MyREM : RTT, IQspnREM
 
 public class MyFingerprint : Object, IQspnFingerprint
 {
-    public bool equals(IQspnFingerprint other)
+    public bool i_qspn_equals(IQspnFingerprint other)
     {
         return other == this;
     }
 
-    public bool is_elder(IQspnFingerprint other)
+    public bool i_qspn_is_elder(IQspnFingerprint other)
     {
         return true;
     }
@@ -161,29 +161,29 @@ public class MyFingerprint : Object, IQspnFingerprint
 
 public class MyFingerprintManager : Object, IQspnFingerprintManager
 {
-    public long mismatch_timeout_msec(IQspnREM sum)
+    public long i_qspn_mismatch_timeout_msec(IQspnREM sum)
     {
         return (sum as MyREM).delay * 1000;
     }
 }
 
-public class MyArcRemover : Object, IArcRemover
+public class MyArcRemover : Object, INeighborhoodArcRemover
 {
-    public void i_arc_remover_remove(IArc arc)
+    public void i_neighborhood_arc_remover_remove(INeighborhoodArc arc)
     {
         assert(false); // do not use in this fake
     }
 }
 
-public class MyMissingArcHandler : Object, IMissingArcHandler
+public class MyMissingArcHandler : Object, INeighborhoodMissingArcHandler
 {
-    public void missing(IArc arc, IArcRemover arc_remover)
+    public void i_neighborhood_missing(INeighborhoodArc arc, INeighborhoodArcRemover arc_remover)
     {
         // do nothing in this fake
     }
 }
 
-public class MyArc : Object, IArc, IQspnArc
+public class MyArc : Object, INeighborhoodArc, IQspnArc
 {
     public MyArc(string dest, IQspnNodeData node_data, IQspnREM cost)
     {
@@ -195,37 +195,37 @@ public class MyArc : Object, IArc, IQspnArc
     private IQspnNodeData node_data;
     private IQspnREM qspn_cost;
 
-    public IQspnNodeData get_node_data() {return node_data;}
-    public IQspnREM qspn_get_cost() {return qspn_cost;}
-    public bool qspn_equals(IQspnArc other) {return this == (other as MyArc);}
+    public IQspnNodeData i_qspn_get_node_data() {return node_data;}
+    public IQspnREM i_qspn_get_cost() {return qspn_cost;}
+    public bool i_qspn_equals(IQspnArc other) {return this == (other as MyArc);}
 
     // unused stuff
-    public INeighborhoodNodeID neighbour_id {get {assert(false); return null;}} // do not use in this fake
-    public string mac {get {assert(false); return null;}} // do not use in this fake
-    public REM cost {get {assert(false); return null;}} // do not use in this fake
-    public bool is_nic(INetworkInterface nic) {assert(false); return false;} // do not use in this fake
-    public bool equals(IArc other) {assert(false); return false;} // do not use in this fake
+    public INeighborhoodNodeID i_neighborhood_neighbour_id {get {assert(false); return null;}} // do not use in this fake
+    public string i_neighborhood_mac {get {assert(false); return null;}} // do not use in this fake
+    public REM i_neighborhood_cost {get {assert(false); return null;}} // do not use in this fake
+    public bool i_neighborhood_is_nic(INeighborhoodNetworkInterface nic) {assert(false); return false;} // do not use in this fake
+    public bool i_neighborhood_equals(INeighborhoodArc other) {assert(false); return false;} // do not use in this fake
 }
 
-public class MyArcToStub : Object, IArcToStub
+public class MyArcToStub : Object, INeighborhoodArcToStub
 {
-    public IAddressManagerRootDispatcher get_broadcast
-    (IMissingArcHandler? missing_handler=null,
+    public IAddressManagerRootDispatcher i_neighborhood_get_broadcast
+    (INeighborhoodMissingArcHandler? missing_handler=null,
      INeighborhoodNodeID? ignore_neighbour=null)
     {
         assert(false); return null; // do not use in this fake
     }
 
-    public IAddressManagerRootDispatcher get_broadcast_to_nic
-    (INetworkInterface nic,
-     IMissingArcHandler? missing_handler=null,
+    public IAddressManagerRootDispatcher i_neighborhood_get_broadcast_to_nic
+    (INeighborhoodNetworkInterface nic,
+     INeighborhoodMissingArcHandler? missing_handler=null,
      INeighborhoodNodeID? ignore_neighbour=null)
     {
         assert(false); return null; // do not use in this fake
     }
 
-    public IAddressManagerRootDispatcher get_unicast
-    (IArc arc, bool wait_reply=true)
+    public IAddressManagerRootDispatcher i_neighborhood_get_unicast
+    (INeighborhoodArc arc, bool wait_reply=true)
     {
         string dest = (arc as MyArc).dest;
         var ret = new AddressManagerTCPClient(dest, null, null, wait_reply);

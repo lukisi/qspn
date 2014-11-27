@@ -21,11 +21,11 @@ namespace Netsukuku
         public int nodes_inside;
 
         /* Interface */
-        public IQspnPartialNaddr get_destination() {return destination;}
-        public IQspnArc get_first_hop() {return first_hop;}
-        public Gee.List<IQspnPartialNaddr> get_following_hops() {return following_hops;}
-        public IQspnREM get_cost() {return cost;}
-        public int get_nodes_inside() {return nodes_inside;}
+        public IQspnPartialNaddr i_qspn_get_destination() {return destination;}
+        public IQspnArc i_qspn_get_first_hop() {return first_hop;}
+        public Gee.List<IQspnPartialNaddr> i_qspn_get_following_hops() {return following_hops;}
+        public IQspnREM i_qspn_get_cost() {return cost;}
+        public int i_qspn_get_nodes_inside() {return nodes_inside;}
     }
 
     internal class Destination : Object
@@ -41,7 +41,7 @@ namespace Netsukuku
         private double max_disjoint_ratio;
         private ArrayList<IQspnArc> my_arcs;
         private ArrayList<IQspnFingerprint> my_fingerprints;
-        private IArcToStub arc_to_stub;
+        private INeighborhoodArcToStub arc_to_stub;
         private IQspnFingerprintManager fingerprint_manager;
         private int levels;
         // This collection can be indexed by level and then by iteration on the
@@ -55,7 +55,7 @@ namespace Netsukuku
                            double max_disjoint_ratio,
                            Gee.List<IQspnArc> my_arcs,
                            Gee.List<IQspnFingerprint> my_fingerprints,
-                           IArcToStub arc_to_stub,
+                           INeighborhoodArcToStub arc_to_stub,
                            IQspnFingerprintManager fingerprint_manager
                            )
         {
@@ -67,20 +67,20 @@ namespace Netsukuku
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
                 (a, b) => {
-                    return a.qspn_equals(b);
+                    return a.i_qspn_equals(b);
                 }
             );
             foreach (IQspnArc arc in my_arcs) this.my_arcs.add(arc);
             this.my_fingerprints = new ArrayList<IQspnFingerprint>(
                 /*EqualDataFunc*/
                 (a, b) => {
-                    return a.equals(b);
+                    return a.i_qspn_equals(b);
                 }
             );
             foreach (IQspnFingerprint fingerprint in my_fingerprints)
                 this.my_fingerprints.add(fingerprint);
             // find levels of the network
-            levels = this.my_node_id.get_naddr().get_levels();
+            levels = this.my_node_id.i_qspn_get_naddr().i_qspn_get_levels();
             // prepare empty map
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int i = 0; i < levels; i++) destinations.add(
@@ -113,7 +113,7 @@ namespace Netsukuku
                 foreach (Path p in destinations[d.lvl][d.pos].paths)
                 {
                     RetPath r = new RetPath();
-                    r.destination = my_node_id.get_naddr_as_mine().get_address_by_coord(d);
+                    r.destination = my_node_id.i_qspn_get_naddr_as_mine().i_qspn_get_address_by_coord(d);
                     r.first_hop = p.first_hop;
                     r.following_hops = new ArrayList<IQspnPartialNaddr>();
                     r.following_hops.add_all(p.following_hops);
