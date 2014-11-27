@@ -67,7 +67,7 @@ namespace Netsukuku
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
                 (a, b) => {
-                    return a.equals(b);
+                    return a.qspn_equals(b);
                 }
             );
             foreach (IQspnArc arc in my_arcs) this.my_arcs.add(arc);

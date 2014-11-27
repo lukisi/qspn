@@ -62,20 +62,16 @@ public class FakeNodeData : Object, IQspnNodeData
     }
 }
 
-public class FakeREM : Object, IQspnREM
+public class FakeREM : RTT, IQspnREM
 {
-    public int delay {get; private set;}
-    public FakeREM(int delay)
+    public FakeREM(long usec_rtt) {base(usec_rtt);}
+
+    public int qspn_compare_to(IQspnREM other)
     {
-        this.delay = delay;
+        return compare_to(other as FakeREM);
     }
 
-    public int compare(IQspnREM other)
-    {
-        return (other as FakeREM).delay - delay;
-    }
-
-    public IQspnREM add_segment(IQspnREM other)
+    public IQspnREM qspn_add_segment(IQspnREM other)
     {
         return new FakeREM((other as FakeREM).delay + delay);
     }
@@ -96,12 +92,12 @@ public class FakeArc : Object, IQspnArc
         return n;
     }
 
-    public IQspnREM get_cost()
+    public IQspnREM qspn_get_cost()
     {
         return cost;
     }
 
-    public bool equals(IQspnArc other)
+    public bool qspn_equals(IQspnArc other)
     {
         return n.equals((other as FakeArc).n);
     }
