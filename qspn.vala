@@ -1,4 +1,5 @@
 using Gee;
+using zcd;
 using Tasklets;
 
 namespace Netsukuku
@@ -6,7 +7,7 @@ namespace Netsukuku
     internal class Path : Object
     {
         public IQspnArc first_hop;
-        public ArrayList<IQspnPartialNaddr> following_hops;
+        public ArrayList<HCoord> following_hops;
         public IQspnREM cost;
         public IQspnFingerprint fp;
         public int nodes_inside;
@@ -34,7 +35,27 @@ namespace Netsukuku
         public ArrayList<Path> paths;
     }
 
-    public class QspnManager : Object
+    class TaskletWork : Object
+    {
+        public ArrayList<Tasklet> tasks;
+        public ArrayList<IQspnArc> arcs;
+        public ArrayList<IAddressManagerRootDispatcher> disps;
+        public IQspnNaddr my_naddr;
+        public ArrayList<IQspnEtp> results;
+        public ArrayList<IQspnArc> toremove;
+        public TaskletWork(IQspnNaddr my_naddr)
+        {
+            tasks = new ArrayList<Tasklet>();
+            arcs = new ArrayList<IQspnArc>();
+            disps = new ArrayList<IAddressManagerRootDispatcher>();
+            results = new ArrayList<IQspnEtp>();
+            toremove = new ArrayList<IQspnArc>();
+            this.my_naddr = my_naddr;
+        }
+    }
+
+    public class QspnManager : Object,
+                               IQspnManager
     {
         private IQspnNodeData my_node_id;
         private int max_paths;
@@ -44,6 +65,8 @@ namespace Netsukuku
         private INeighborhoodArcToStub arc_to_stub;
         private IQspnFingerprintManager fingerprint_manager;
         private int levels;
+        private IQspnMyNaddr my_naddr;
+        private bool mature;
         // This collection can be indexed by level and then by iteration on the
         //  values. This is useful when we want to iterate on a certain level.
         //  In addition we can specify a level and then refer by index to the
@@ -54,7 +77,7 @@ namespace Netsukuku
                            int max_paths,
                            double max_disjoint_ratio,
                            Gee.List<IQspnArc> my_arcs,
-                           Gee.List<IQspnFingerprint> my_fingerprints,
+                           IQspnFingerprint my_fingerprint,
                            INeighborhoodArcToStub arc_to_stub,
                            IQspnFingerprintManager fingerprint_manager
                            )
@@ -64,6 +87,7 @@ namespace Netsukuku
             this.max_disjoint_ratio = max_disjoint_ratio;
             this.arc_to_stub = arc_to_stub;
             this.fingerprint_manager = fingerprint_manager;
+            // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
                 (a, b) => {
@@ -71,27 +95,62 @@ namespace Netsukuku
                 }
             );
             foreach (IQspnArc arc in my_arcs) this.my_arcs.add(arc);
+            // Only the level 0 fingerprint is given. The other ones
+            // will be constructed when the node is mature.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>(
                 /*EqualDataFunc*/
                 (a, b) => {
                     return a.i_qspn_equals(b);
                 }
             );
-            foreach (IQspnFingerprint fingerprint in my_fingerprints)
-                this.my_fingerprints.add(fingerprint);
+            my_fingerprints.add(my_fingerprint); // level 0 fingerprint
             // find levels of the network
-            levels = this.my_node_id.i_qspn_get_naddr().i_qspn_get_levels();
+            my_naddr = this.my_node_id.i_qspn_get_naddr_as_mine();
+            levels = my_naddr.i_qspn_get_levels();
             // prepare empty map
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int i = 0; i < levels; i++) destinations.add(
                 new HashMap<int, Destination>());
-            // 
+            // mature if alone
+            if (this.my_arcs.is_empty)
+            {
+                mature = true;
+                qspn_mature();
+            }
+            else
+            {
+                mature = false;
+                // start in a tasklet the request of an ETP from all neighbors.
+                Tasklet.tasklet_callback(
+                    (t) => {
+                        (t as QspnManager).get_first_etps();
+                    },
+                    this
+                );
+            }
         }
 
-        // The gnode (or node) is now known on the network and the first path towards
+        // The module is notified if an arc is added/changed/removed
+        public void arc_add(IQspnArc arc)
+        {
+            // TODO
+        }
+
+        public void arc_remove(IQspnArc arc)
+        {
+            // TODO
+        }
+
+        // The hook on a particular network has failed.
+        public signal void failed_hook();
+        // The hook on a particular network has completed; the module is mature.
+        public signal void qspn_mature();
+        // An arc (is not working) has been removed from my list.
+        public signal void arc_removed(IQspnArc arc);
+        // A gnode (or node) is now known on the network and the first path towards
         //  it is now available to this node.
         public signal void destination_added(IQspnPartialNaddr d);
-        // The gnode (or node) has been removed from the network and the last path
+        // A gnode (or node) has been removed from the network and the last path
         //  towards it has been deleted from this node.
         public signal void destination_removed(IQspnPartialNaddr d);
         // A new path (might be the first) to a destination has been found.
@@ -102,6 +161,64 @@ namespace Netsukuku
         public signal void path_removed(IQspnPath p);
         // A gnode has splitted and the part reachable by this path MUST migrate.
         public signal void gnode_splitted(IQspnPath p);
+
+        private void get_first_etps()
+        {
+            // Work in parallel then join
+            // Prepare work for n tasklets
+            TaskletWork work = new TaskletWork(my_naddr);
+            int i = 0;
+            foreach (IQspnArc arc in my_arcs)
+            {
+                var disp =
+                    arc_to_stub.i_neighborhood_get_tcp((arc as INeighborhoodArc));
+                work.arcs.add(arc);
+                work.disps.add(disp);
+                Tasklet t = Tasklet.tasklet_callback(
+                    (t_work, t_i) => {
+                        TaskletWork _work = t_work as TaskletWork;
+                        int _i = (t_i as SerializableInt).i;
+                        try
+                        {
+                            IAddressManagerRootDispatcher _disp = _work.disps[_i];
+                            IQspnEtp etp = disp.qspn_manager.get_full_etp(_work.my_naddr);
+                            _work.results.add(etp);
+                        }
+                        catch (RPCError e)
+                        {
+                            _work.toremove.add(_work.arcs[_i]);
+                        }
+                    },
+                    work,
+                    new SerializableInt(i++)
+                );
+                work.tasks.add(t);
+            }
+            // join
+            foreach (Tasklet t in work.tasks) t.join();
+            // remove failed arcs and emit signal
+            foreach (IQspnArc arc in work.toremove)
+            {
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+            }
+            // on everything fail signal fatal error
+            if (work.results.is_empty)
+            {
+                failed_hook();
+            }
+            else
+            {
+                foreach (IQspnEtp etp in work.results)
+                {
+                    // TODO update my map
+                    
+                }
+                mature = true;
+                qspn_mature();
+            }
+        }
 
         /** Provides a collection of known paths to a destination
          */
@@ -123,6 +240,15 @@ namespace Netsukuku
                 }
             }
             return ret;
+        }
+
+        /* Remotable methods
+         */
+
+        public IQspnEtp get_full_etp(IQspnNaddr my_naddr)
+        {
+            // TODO
+            return null;
         }
     }
 

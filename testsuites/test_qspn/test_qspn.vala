@@ -103,19 +103,6 @@ public class FakeArc : Object, IQspnArc
     }
 }
 
-public class FakeFingerprint : Object, IQspnFingerprint
-{
-    public bool i_qspn_equals(IQspnFingerprint other)
-    {
-        return other == this;
-    }
-
-    public bool i_qspn_is_elder(IQspnFingerprint other)
-    {
-        return true;
-    }
-}
-
 public class FakeFingerprintManager : Object, IQspnFingerprintManager
 {
     public long i_qspn_mismatch_timeout_msec(IQspnREM sum)
@@ -153,6 +140,15 @@ public class FakeArcToStub : Object, INeighborhoodArcToStub
     {
         return null;
     }
+
+    public IAddressManagerRootDispatcher
+                    i_neighborhood_get_tcp(
+                        INeighborhoodArc arc,
+                        bool wait_reply=true
+                    )
+    {
+        return null;
+    }
 }
 
 int main()
@@ -166,19 +162,11 @@ int main()
         var arc = new FakeArc(n2, 2);
         var arclist = new ArrayList<IQspnArc>();
         arclist.add(arc);
-        var f1 = new FakeFingerprint();
-        var f2 = new FakeFingerprint();
-        var f3 = new FakeFingerprint();
-        var f4 = new FakeFingerprint();
-        var flist = new ArrayList<IQspnFingerprint>();
-        flist.add(f1);
-        flist.add(f2);
-        flist.add(f3);
-        flist.add(f4);
+        var f1 = new FakeFingerprint(34346, {0, 0, 0, 0, 0, 0, 0, 0, 0});
         var fmgr = new FakeFingerprintManager();
         var tostub = new FakeArcToStub();
         // create module qspn
-        var c = new QspnManager(n1, 2, 0.7, arclist, flist, tostub, fmgr);
+        var c = new QspnManager(n1, 2, 0.7, arclist, f1, tostub, fmgr);
 
     }
     assert(Tasklet.kill());

@@ -146,16 +146,61 @@ public class MyREM : RTT, IQspnREM
     }
 }
 
-public class MyFingerprint : Object, IQspnFingerprint
+public class MyFingerprint : Netsukuku.FingerPrint, IQspnFingerprint
 {
-    public bool i_qspn_equals(IQspnFingerprint other)
+    public MyFingerprint(int id, int[] elderships)
     {
-        return other == this;
+        this.id = id;
+        this.level = 0;
+        this.elderships = elderships;
     }
 
-    public bool i_qspn_is_elder(IQspnFingerprint other)
+    private MyFingerprint.empty() {}
+
+    public bool i_qspn_equals(IQspnFingerprint other)
     {
+        if (! (other is MyFingerprint)) return false;
+        MyFingerprint _other = other as MyFingerprint;
+        if (_other.id != id) return false;
+        if (_other.level != level) return false;
+        if (_other.elderships.length != elderships.length) return false;
+        for (int i = 0; i < elderships.length; i++)
+            if (_other.elderships[i] != elderships[i]) return false;
         return true;
+    }
+
+    public int i_qspn_level {
+        get {
+            return level;
+        }
+    }
+
+    public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers)
+    {
+        // given that:
+        //  levels = level + elderships.length
+        // do not construct for level = levels+1
+        assert(elderships.length > 0);
+        MyFingerprint ret = new MyFingerprint.empty();
+        ret.level = level + 1;
+        ret.id = id;
+        ret.elderships = new int[elderships.length-1];
+        for (int i = 1; i < elderships.length; i++)
+            ret.elderships[i-1] = elderships[i];
+        int cur_eldership = elderships[0];
+        // start comparing
+        foreach (IQspnFingerprint f in fingers)
+        {
+            assert(f is MyFingerprint);
+            MyFingerprint _f = f as MyFingerprint;
+            assert(_f.level == level);
+            if (_f.elderships[0] < cur_eldership)
+            {
+                cur_eldership = _f.elderships[0];
+                ret.id = _f.id;
+            }
+        }
+        return ret;
     }
 }
 
@@ -227,6 +272,12 @@ public class MyArcToStub : Object, INeighborhoodArcToStub
     public IAddressManagerRootDispatcher i_neighborhood_get_unicast
     (INeighborhoodArc arc, bool wait_reply=true)
     {
+        assert(false); return null; // do not use in this fake
+    }
+
+    public IAddressManagerRootDispatcher i_neighborhood_get_tcp
+    (INeighborhoodArc arc, bool wait_reply=true)
+    {
         string dest = (arc as MyArc).dest;
         var ret = new AddressManagerTCPClient(dest, null, null, wait_reply);
         return ret;
@@ -244,27 +295,35 @@ int main(string[] args)
     // PseudoIP 5.1.4
     MyNaddr addr3 = new MyNaddr({4, 1, 5}, {8, 4, 8});
     // fingerprints
-    MyFingerprint fp1 = new MyFingerprint();
-    MyFingerprint fp12 = new MyFingerprint();
-    MyFingerprint fp126 = new MyFingerprint();
-    MyFingerprint fp13 = new MyFingerprint();
-    MyFingerprint fp133 = new MyFingerprint();
-    MyFingerprint fp5 = new MyFingerprint();
-    MyFingerprint fp51 = new MyFingerprint();
-    MyFingerprint fp514 = new MyFingerprint();
-    ArrayList<MyFingerprint> fp_list = new ArrayList<MyFingerprint>();
+    // first node in the network, also first g-node of level 2.
+    MyFingerprint fp126 = new MyFingerprint(8378237, {0, 0, 0});
+    // second in g-node 1
+    MyFingerprint fp133 = new MyFingerprint(2384674, {0, 1, 0});
+    // second g-node of level 2 in the network, first in g-node 5.
+    MyFingerprint fp514 = new MyFingerprint(3466246, {0, 0, 1});
+    // test calculation of fingerprints
+    var i = new ArrayList<IQspnFingerprint>();
+    IQspnFingerprint fp12 = fp126.i_qspn_construct(i);
+    i = new ArrayList<IQspnFingerprint>();
+    IQspnFingerprint fp13 = fp133.i_qspn_construct(i);
+    i = new ArrayList<IQspnFingerprint>();
+    i.add(fp12);
+    IQspnFingerprint fp1 = fp13.i_qspn_construct(i);
+    i = new ArrayList<IQspnFingerprint>();
+    IQspnFingerprint fp51 = fp514.i_qspn_construct(i);
+    i = new ArrayList<IQspnFingerprint>();
+    IQspnFingerprint fp5 = fp51.i_qspn_construct(i);
     // nodes
     MyNodeData me = null;
     OtherNodeData v1 = null;
     OtherNodeData v2 = null;
     MyArc arc1 = null;
     MyArc arc2 = null;
+    IQspnFingerprint fp;
     if (args[1] == "1")
     {
         me = new MyNodeData(addr1);
-        fp_list.add(fp126);
-        fp_list.add(fp12);
-        fp_list.add(fp1);
+        fp = fp126;
         v1 = new OtherNodeData(addr2);
         arc1 = new MyArc("192.168.0.62", v1, new MyREM(1000));
         v2 = new OtherNodeData(addr3);
@@ -273,9 +332,7 @@ int main(string[] args)
     else if (args[1] == "2")
     {
         me = new MyNodeData(addr2);
-        fp_list.add(fp133);
-        fp_list.add(fp13);
-        fp_list.add(fp1);
+        fp = fp133;
         v1 = new OtherNodeData(addr1);
         arc1 = new MyArc("192.168.0.61", v1, new MyREM(1000));
         v2 = new OtherNodeData(addr3);
@@ -284,19 +341,21 @@ int main(string[] args)
     else if (args[1] == "3")
     {
         me = new MyNodeData(addr3);
-        fp_list.add(fp514);
-        fp_list.add(fp51);
-        fp_list.add(fp5);
+        fp = fp514;
         v1 = new OtherNodeData(addr2);
         arc1 = new MyArc("192.168.0.62", v1, new MyREM(1000));
         v2 = new OtherNodeData(addr1);
         arc2 = new MyArc("192.168.0.61", v2, new MyREM(1000));
     }
+    else
+    {
+        return 1;
+    }
     ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>();
     arcs.add(arc1);
     arcs.add(arc2);
     //
-    QspnManager mgr = new QspnManager(me, 4, 0.7, arcs, fp_list, new MyArcToStub(), new MyFingerprintManager());
+    QspnManager mgr = new QspnManager(me, 4, 0.7, arcs, fp, new MyArcToStub(), new MyFingerprintManager());
 
     return 0;
 }
