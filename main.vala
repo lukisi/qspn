@@ -148,7 +148,7 @@ public class MyREM : RTT, IQspnREM
 
 public class MyFingerprint : Netsukuku.FingerPrint, IQspnFingerprint
 {
-    public MyFingerprint(int id, int[] elderships)
+    public MyFingerprint(int64 id, int[] elderships)
     {
         this.id = id;
         this.level = 0;
@@ -296,11 +296,11 @@ int main(string[] args)
     MyNaddr addr3 = new MyNaddr({4, 1, 5}, {8, 4, 8});
     // fingerprints
     // first node in the network, also first g-node of level 2.
-    MyFingerprint fp126 = new MyFingerprint(8378237, {0, 0, 0});
+    MyFingerprint fp126 = new MyFingerprint(837425746848237, {0, 0, 0});
     // second in g-node 1
-    MyFingerprint fp133 = new MyFingerprint(2384674, {0, 1, 0});
+    MyFingerprint fp133 = new MyFingerprint(233468346784674, {0, 1, 0});
     // second g-node of level 2 in the network, first in g-node 5.
-    MyFingerprint fp514 = new MyFingerprint(3466246, {0, 0, 1});
+    MyFingerprint fp514 = new MyFingerprint(346634745457246, {0, 0, 1});
     // test calculation of fingerprints
     var i = new ArrayList<IQspnFingerprint>();
     IQspnFingerprint fp12 = fp126.i_qspn_construct(i);
