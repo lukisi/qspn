@@ -4,16 +4,15 @@ using Tasklets;
 
 namespace Netsukuku
 {
-    internal class Path : Object
+    // in ntkd-rpc  IQspnPath
+
+    internal class NodePath : Object
     {
         public IQspnArc first_hop;
-        public ArrayList<HCoord> following_hops;
-        public IQspnREM cost;
-        public IQspnFingerprint fp;
-        public int nodes_inside;
+        public IQspnPath path;
     }
 
-    internal class RetPath : Object, IQspnPath
+    internal class RetPath : Object, IQspnNodePath
     {
         public IQspnPartialNaddr destination;
         public IQspnArc first_hop;
@@ -32,7 +31,7 @@ namespace Netsukuku
     internal class Destination : Object
     {
         public HCoord dest;
-        public ArrayList<Path> paths;
+        public ArrayList<NodePath> paths;
     }
 
     class TaskletWork : Object
@@ -54,9 +53,35 @@ namespace Netsukuku
         }
     }
 
+    public interface IQspnEtpFactory : Object
+    {
+        public abstract IQspnPath i_qspn_create_path
+                                    (Gee.List<HCoord> hops,
+                                    IQspnFingerprint fp,
+                                    int nodes_inside,
+                                    IQspnREM cost);
+        public abstract bool i_qspn_begin_etp();
+        public abstract void i_qspn_abort_etp();
+        public abstract void i_qspn_set_my_naddr(IQspnNaddr my_naddr);
+        public abstract void i_qspn_set_gnode_fingerprint
+                                    (int level,
+                                    IQspnFingerprint fp);
+        public abstract void i_qspn_set_gnode_nodes_inside
+                                    (int level,
+                                    int nodes_inside);
+        public abstract void i_qspn_add_path(IQspnPath path);
+        public abstract IQspnEtp i_qspn_make_etp();
+    }
+
     public class QspnManager : Object,
                                IQspnManager
     {
+        public static void init()
+        {
+            // Register serializable types
+            // typeof(Xxx).class_peek();
+        }
+
         private IQspnNodeData my_node_id;
         private int max_paths;
         private double max_disjoint_ratio;
@@ -64,6 +89,7 @@ namespace Netsukuku
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private INeighborhoodArcToStub arc_to_stub;
         private IQspnFingerprintManager fingerprint_manager;
+        private IQspnEtpFactory etp_factory;
         private int levels;
         private IQspnMyNaddr my_naddr;
         private bool mature;
@@ -79,7 +105,8 @@ namespace Netsukuku
                            Gee.List<IQspnArc> my_arcs,
                            IQspnFingerprint my_fingerprint,
                            INeighborhoodArcToStub arc_to_stub,
-                           IQspnFingerprintManager fingerprint_manager
+                           IQspnFingerprintManager fingerprint_manager,
+                           IQspnEtpFactory etp_factory
                            )
         {
             this.my_node_id = my_node_id;
@@ -87,6 +114,7 @@ namespace Netsukuku
             this.max_disjoint_ratio = max_disjoint_ratio;
             this.arc_to_stub = arc_to_stub;
             this.fingerprint_manager = fingerprint_manager;
+            this.etp_factory = etp_factory;
             // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
@@ -224,18 +252,18 @@ namespace Netsukuku
          */
         public Gee.List<IQspnPath> get_paths_to(HCoord d)
         {
-            var ret = new ArrayList<IQspnPath>();
+            var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
-                foreach (Path p in destinations[d.lvl][d.pos].paths)
+                foreach (NodePath p in destinations[d.lvl][d.pos].paths)
                 {
                     RetPath r = new RetPath();
                     r.destination = my_node_id.i_qspn_get_naddr_as_mine().i_qspn_get_address_by_coord(d);
                     r.first_hop = p.first_hop;
                     r.following_hops = new ArrayList<IQspnPartialNaddr>();
-                    r.following_hops.add_all(p.following_hops);
-                    r.cost = p.cost;
-                    r.nodes_inside = p.nodes_inside;
+                    r.following_hops.add_all(p.path.i_qspn_get_following_hops());
+                    r.cost = p.path.i_qspn_get_cost();
+                    r.nodes_inside = p.path.i_qspn_get_nodes_inside();
                     ret.add(r);
                 }
             }

@@ -13,7 +13,247 @@ namespace Netsukuku
     public void log_critical(string msg)   {print(msg+"\n");}
 }
 
-public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNaddr
+public class MyEtp : ETP, IQspnEtp
+{
+    public MyEtp(MyNaddr start_node_naddr,
+                 MyTPList etp_list,
+                 Gee.List<MyNpath> known_paths,
+                 Gee.List<MyFingerprint> start_node_fp,
+                 int[] my_start_node_nodes_inside)
+    {
+        base(start_node_naddr, etp_list, known_paths, start_node_fp, my_start_node_nodes_inside);
+    }
+
+    // On a received ETP.
+    // i_qspn_check_network_parameters(IQspnNaddr my_naddr);
+    // i_qspn_tplist_adjust(HCoord exit_gnode);
+    // i_qspn_tplist_acyclic_check(IQspnNaddr my_naddr);
+    // i_qspn_routeset_cleanup(HCoord exit_gnode);
+    // i_qspn_routeset_tplist_adjust(HCoord exit_gnode);
+    // i_qspn_routeset_tplist_acyclic_check(IQspnNaddr my_naddr);
+    // i_qspn_routeset_add_source(HCoord exit_gnode);
+    // _routeset_getter();   (foreach IQspnPath p in x.routeset)
+    
+    // Builds an ETP to be forwarded
+    // i_qspn_prepare_forward(HCoord exit_gnode);
+
+    // On an ETP to be forwarded.
+    // i_qspn_add_path(IQspnPath path);
+
+    public bool i_qspn_check_network_parameters(IQspnNaddr my_naddr)
+    {
+        // check the tp-list
+        // level has to be between 0 and levels-1
+        // level has to grow only
+        // pos has to be between 0 and gsize(level)-1
+        int curlvl = 0;
+        foreach (HCoord c in ((MyTPList)etp_list).get_hops())
+        {
+            if (c.lvl < curlvl) return false;
+            if (c.lvl >= my_naddr.i_qspn_get_levels()) return false;
+            curlvl = c.lvl;
+            if (c.pos < 0) return false;
+            if (c.pos >= my_naddr.i_qspn_get_gsize(c.lvl)) return false;
+        }
+        return true;
+    }
+
+    public void i_qspn_tplist_adjust(HCoord exit_gnode)
+    {
+        // grouping rule
+        ArrayList<HCoord> hops = new ArrayList<HCoord>();
+        hops.add(exit_gnode);
+        foreach (HCoord c in ((MyTPList)etp_list).get_hops())
+        {
+            if (c.lvl >= exit_gnode.lvl)
+            {
+                hops.add(c);
+            }
+        }
+        MyTPList n = new MyTPList(hops);
+        etp_list = n;
+    }
+
+    public bool i_qspn_tplist_acyclic_check(IQspnNaddr my_naddr)
+    {
+        // acyclic rule
+        foreach (HCoord c in ((MyTPList)etp_list).get_hops())
+        {
+            if (c.pos == my_naddr.i_qspn_get_pos(c.lvl)) return false;
+        }
+        return true;
+    }
+
+    public void i_qspn_routeset_cleanup(HCoord exit_gnode)
+    {
+        // remove paths internal to the exit_gnode
+        int i = 0;
+        while (i < known_paths.size)
+        {
+            MyNpath p = (MyNpath)known_paths[i];
+            Gee.List<HCoord> l = p.i_qspn_get_following_hops();
+            HCoord dest = l.last();
+            if (dest.lvl < exit_gnode.lvl)
+            {
+                known_paths.remove_at(i);
+            }
+            else
+            {
+                i++;
+            }
+        }
+    }
+
+    public void i_qspn_routeset_tplist_adjust(HCoord exit_gnode)
+    {
+        foreach (Npath _p in known_paths)
+        {
+            MyNpath p = (MyNpath)_p;
+            MyTPList lst_hops = p.get_lst_hops();
+            // grouping rule
+            ArrayList<HCoord> new_hops = new ArrayList<HCoord>();
+            new_hops.add(exit_gnode);
+            foreach (HCoord c in lst_hops.get_hops())
+            {
+                if (c.lvl >= exit_gnode.lvl)
+                {
+                    new_hops.add(c);
+                }
+            }
+            MyTPList lst_new_hops = new MyTPList(new_hops);
+            p.set_lst_hops(lst_new_hops);
+        }
+    }
+
+    public void i_qspn_routeset_tplist_acyclic_check(IQspnNaddr my_naddr)
+    {
+        // remove paths that does not meet acyclic rule
+        int i = 0;
+        while (i < known_paths.size)
+        {
+            MyNpath p = (MyNpath)known_paths[i];
+            // acyclic rule
+            foreach (HCoord c in p.get_lst_hops().get_hops())
+            {
+                if (c.pos == my_naddr.i_qspn_get_pos(c.lvl))
+                {
+                    // unmet
+                    known_paths.remove_at(i);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+        }
+    }
+
+    public void i_qspn_routeset_add_source(HCoord exit_gnode)
+    {
+        ArrayList<HCoord> to_exit_gnode_hops = new ArrayList<HCoord>();
+        to_exit_gnode_hops.add(exit_gnode);
+        MyTPList to_exit_gnode_list = new MyTPList(to_exit_gnode_hops);
+        int nodes_inside = start_node_nodes_inside[exit_gnode.lvl];
+        MyFingerprint fp = (MyFingerprint)start_node_fp[exit_gnode.lvl];
+        REM nullrem = new MyREM(0); // TODO constructor MyREM.null() and MyREM.dead() 
+        MyNpath to_exit_gnode = new MyNpath(to_exit_gnode_list,
+                                            nodes_inside,
+                                            (IQspnREM)nullrem,
+                                            fp);
+        known_paths.add(to_exit_gnode);
+    }
+
+    private ArrayList<Npath> real_routeset;
+    private IQspnEtpRoutesetIterable my_routeset;
+    public unowned IQspnEtpRoutesetIterable _routeset_getter()
+    {
+        my_routeset = new MyEtpRoutesetIterable(this);
+        return my_routeset;
+    }
+
+    private class MyEtpRoutesetIterable : Object, IQspnEtpRoutesetIterable
+    {
+        private Iterator<Npath> it;
+        public MyEtpRoutesetIterable(MyEtp etp)
+        {
+            it = etp.real_routeset.iterator();
+        }
+
+        public IQspnPath? next_value ()
+        {
+            if (! it.has_next()) return null;
+            it.next();
+            return (IQspnPath)it.@get();
+        }
+    }
+
+    public IQspnEtp i_qspn_prepare_forward(HCoord exit_gnode)
+    {
+        // TODO
+        return null;
+    }
+
+    public void i_qspn_add_path(IQspnPath path)
+    {
+        // TODO
+    }
+
+}
+
+public class MyTPList : TPList
+{
+    public MyTPList(Gee.List<HCoord> hops)
+    {
+        base(hops);
+    }
+
+    public MyTPList.empty()
+    {
+        base(new ArrayList<HCoord>());
+    }
+
+    public Gee.List<HCoord> get_hops() {return hops;}
+}
+
+public class MyNpath : Npath, IQspnPath
+{
+    public MyNpath(MyTPList hops, int nodes_inside, IQspnREM cost, IQspnFingerprint fp)
+    {
+        base(hops, nodes_inside, (REM)cost, (FingerPrint)fp);
+    }
+
+    public MyTPList get_lst_hops()
+    {
+        return (MyTPList)hops;
+    }
+
+    public void set_lst_hops(MyTPList hops)
+    {
+        this.hops = hops;
+    }
+
+    public IQspnREM i_qspn_get_cost()
+    {
+        return (IQspnREM)cost;
+    }
+
+    public Gee.List<HCoord> i_qspn_get_following_hops()
+    {
+        return ((MyTPList)hops).get_hops();
+    }
+
+    public IQspnFingerprint i_qspn_get_fp()
+    {
+        return (IQspnFingerprint)fp;
+    }
+
+    public int i_qspn_get_nodes_inside()
+    {
+        return nodes_inside;
+    }
+}
+
+public class MyNaddr : Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNaddr
 {
     public MyNaddr(int[] pos, int[] sizes)
     {
@@ -55,7 +295,7 @@ public class MyNaddr : Netsukuku.Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNa
         return new MyNaddr(newpos, sizes.to_array());
     }
 
-    public HCoord i_qspn_get_coord_by_address(IQspnPartialNaddr dest)
+    public HCoord i_qspn_get_coord_by_address(IQspnNaddr dest)
     {
         int l = pos.size-1;
         while (l >= 0)
@@ -146,7 +386,7 @@ public class MyREM : RTT, IQspnREM
     }
 }
 
-public class MyFingerprint : Netsukuku.FingerPrint, IQspnFingerprint
+public class MyFingerprint : FingerPrint, IQspnFingerprint
 {
     public MyFingerprint(int64 id, int[] elderships)
     {
@@ -284,9 +524,69 @@ public class MyArcToStub : Object, INeighborhoodArcToStub
     }
 }
 
+public class MyEtpFactory : Object, IQspnEtpFactory
+{
+    public IQspnPath i_qspn_create_path
+                                (Gee.List<HCoord> hops,
+                                IQspnFingerprint fp,
+                                int nodes_inside,
+                                IQspnREM cost)
+    {
+        // TODO
+        return null;
+    }
+
+    public bool i_qspn_begin_etp()
+    {
+        // TODO
+        return true;
+    }
+
+    public void i_qspn_abort_etp()
+    {
+        // TODO
+    }
+
+    public void i_qspn_set_my_naddr(IQspnNaddr my_naddr)
+    {
+        // TODO
+    }
+
+    public void i_qspn_set_gnode_fingerprint
+                                (int level,
+                                IQspnFingerprint fp)
+    {
+        // TODO
+    }
+
+    public void i_qspn_set_gnode_nodes_inside
+                                (int level,
+                                int nodes_inside)
+    {
+        // TODO
+    }
+
+    public void i_qspn_add_path(IQspnPath path)
+    {
+        // TODO
+    }
+
+    public IQspnEtp i_qspn_make_etp()
+    {
+        // TODO
+        return null;
+    }
+
+}
+
 
 int main(string[] args)
 {
+    // Register serializable types
+    typeof(MyNaddr).class_peek();
+    typeof(MyREM).class_peek();
+    typeof(MyFingerprint).class_peek();
+
     // A network with 8 bits as address space. 3 to level 0, 2 to level 1, 3 to level 2.
     // Node 6 on gnode 2 on ggnode 1. PseudoIP 1.2.6
     MyNaddr addr1 = new MyNaddr({6, 2, 1}, {8, 4, 8});
@@ -355,7 +655,14 @@ int main(string[] args)
     arcs.add(arc1);
     arcs.add(arc2);
     //
-    QspnManager mgr = new QspnManager(me, 4, 0.7, arcs, fp, new MyArcToStub(), new MyFingerprintManager());
+    QspnManager mgr = new QspnManager(me,
+                                      4,
+                                      0.7,
+                                      arcs,
+                                      fp,
+                                      new MyArcToStub(),
+                                      new MyFingerprintManager(),
+                                      new MyEtpFactory());
 
     return 0;
 }
