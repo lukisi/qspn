@@ -19,12 +19,13 @@ public class MyEtp : ETP, IQspnEtp
                  MyTPList etp_list,
                  Gee.List<MyNpath> known_paths,
                  Gee.List<MyFingerprint> start_node_fp,
-                 int[] my_start_node_nodes_inside)
+                 int[] start_node_nodes_inside)
     {
-        base(start_node_naddr, etp_list, known_paths, start_node_fp, my_start_node_nodes_inside);
+        base(start_node_naddr, etp_list, known_paths, start_node_fp, start_node_nodes_inside);
     }
 
     // On a received ETP.
+    // IQspnNaddr i_qspn_get_naddr();
     // i_qspn_check_network_parameters(IQspnNaddr my_naddr);
     // i_qspn_tplist_adjust(HCoord exit_gnode);
     // i_qspn_tplist_acyclic_check(IQspnNaddr my_naddr);
@@ -39,6 +40,11 @@ public class MyEtp : ETP, IQspnEtp
 
     // On an ETP to be forwarded.
     // i_qspn_add_path(IQspnPath path);
+
+    public IQspnNaddr i_qspn_get_naddr()
+    {
+        return (MyNaddr)start_node_naddr;
+    }
 
     public bool i_qspn_check_network_parameters(IQspnNaddr my_naddr)
     {
@@ -91,7 +97,7 @@ public class MyEtp : ETP, IQspnEtp
         while (i < known_paths.size)
         {
             MyNpath p = (MyNpath)known_paths[i];
-            Gee.List<HCoord> l = p.i_qspn_get_following_hops();
+            Gee.List<HCoord> l = p.i_qspn_get_hops();
             HCoord dest = l.last();
             if (dest.lvl < exit_gnode.lvl)
             {
@@ -155,17 +161,16 @@ public class MyEtp : ETP, IQspnEtp
         MyTPList to_exit_gnode_list = new MyTPList(to_exit_gnode_hops);
         int nodes_inside = start_node_nodes_inside[exit_gnode.lvl];
         MyFingerprint fp = (MyFingerprint)start_node_fp[exit_gnode.lvl];
-        REM nullrem = new MyREM(0); // TODO constructor MyREM.null() and MyREM.dead() 
+        REM nullrem = new NullREM();
         MyNpath to_exit_gnode = new MyNpath(to_exit_gnode_list,
                                             nodes_inside,
-                                            (IQspnREM)nullrem,
+                                            nullrem,
                                             fp);
         known_paths.add(to_exit_gnode);
     }
 
-    private ArrayList<Npath> real_routeset;
     private IQspnEtpRoutesetIterable my_routeset;
-    public unowned IQspnEtpRoutesetIterable _routeset_getter()
+    public unowned IQspnEtpRoutesetIterable _i_qspn_routeset_getter()
     {
         my_routeset = new MyEtpRoutesetIterable(this);
         return my_routeset;
@@ -176,7 +181,7 @@ public class MyEtp : ETP, IQspnEtp
         private Iterator<Npath> it;
         public MyEtpRoutesetIterable(MyEtp etp)
         {
-            it = etp.real_routeset.iterator();
+            it = etp.known_paths.iterator();
         }
 
         public IQspnPath? next_value ()
@@ -187,17 +192,13 @@ public class MyEtp : ETP, IQspnEtp
         }
     }
 
-    public IQspnEtp i_qspn_prepare_forward(HCoord exit_gnode)
+    public Gee.List<HCoord> i_qspn_get_tplist()
     {
-        // TODO
-        return null;
+        // add the exit_gnode to my list
+        Gee.List<HCoord> ret = new ArrayList<HCoord>();
+        ret.add_all(((MyTPList)etp_list).get_hops());
+        return ret;
     }
-
-    public void i_qspn_add_path(IQspnPath path)
-    {
-        // TODO
-    }
-
 }
 
 public class MyTPList : TPList
@@ -232,12 +233,17 @@ public class MyNpath : Npath, IQspnPath
         this.hops = hops;
     }
 
+    public void set_cost(REM cost)
+    {
+        this.cost = cost;
+    }
+
     public IQspnREM i_qspn_get_cost()
     {
         return (IQspnREM)cost;
     }
 
-    public Gee.List<HCoord> i_qspn_get_following_hops()
+    public Gee.List<HCoord> i_qspn_get_hops()
     {
         return ((MyTPList)hops).get_hops();
     }
@@ -371,21 +377,6 @@ public class OtherNodeData : GenericNodeData
     }
 }
 
-public class MyREM : RTT, IQspnREM
-{
-    public MyREM(long usec_rtt) {base(usec_rtt);}
-
-    public int i_qspn_compare_to(IQspnREM other)
-    {
-        return compare_to(other as MyREM);
-    }
-
-    public IQspnREM i_qspn_add_segment(IQspnREM other)
-    {
-        return new MyREM((other as MyREM).delay + delay);
-    }
-}
-
 public class MyFingerprint : FingerPrint, IQspnFingerprint
 {
     public MyFingerprint(int64 id, int[] elderships)
@@ -402,10 +393,14 @@ public class MyFingerprint : FingerPrint, IQspnFingerprint
         if (! (other is MyFingerprint)) return false;
         MyFingerprint _other = other as MyFingerprint;
         if (_other.id != id) return false;
-        if (_other.level != level) return false;
-        if (_other.elderships.length != elderships.length) return false;
-        for (int i = 0; i < elderships.length; i++)
-            if (_other.elderships[i] != elderships[i]) return false;
+        return true;
+    }
+
+    public bool i_qspn_elder(IQspnFingerprint other)
+    {
+        assert(other is MyFingerprint);
+        MyFingerprint _other = other as MyFingerprint;
+        if (_other.elderships[0] < elderships[0]) return false; // other is elder
         return true;
     }
 
@@ -448,7 +443,11 @@ public class MyFingerprintManager : Object, IQspnFingerprintManager
 {
     public long i_qspn_mismatch_timeout_msec(IQspnREM sum)
     {
-        return (sum as MyREM).delay * 1000;
+        if (sum is RTT)
+        {
+            return (sum as RTT).delay * 1000;
+        }
+        assert(false); return 0;
     }
 }
 
@@ -526,57 +525,119 @@ public class MyArcToStub : Object, INeighborhoodArcToStub
 
 public class MyEtpFactory : Object, IQspnEtpFactory
 {
+    private bool busy;
+    private int state;
+    private MyNaddr? start_node_naddr;
+    private MyTPList? etp_list;
+    private Gee.List<MyNpath> known_paths;
+    private Gee.List<MyFingerprint> start_node_fp;
+    private int[] start_node_nodes_inside;
+
+    public MyEtpFactory()
+    {
+        reset();
+    }
+
     public IQspnPath i_qspn_create_path
                                 (Gee.List<HCoord> hops,
                                 IQspnFingerprint fp,
                                 int nodes_inside,
                                 IQspnREM cost)
     {
-        // TODO
-        return null;
+        MyTPList list = new MyTPList(hops);
+        MyNpath ret = new MyNpath(list,
+                                  nodes_inside,
+                                  cost,
+                                  fp);
+        return ret;
+    }
+
+    public void i_qspn_set_path_cost_dead
+                                (IQspnPath path)
+    {
+        assert(path is MyNpath);
+        MyNpath _path = (MyNpath)path;
+        _path.set_cost(new DeadREM());
     }
 
     public bool i_qspn_begin_etp()
     {
-        // TODO
+        if (busy) return false;
+        busy = true;
         return true;
     }
 
     public void i_qspn_abort_etp()
     {
-        // TODO
+        reset();
     }
 
     public void i_qspn_set_my_naddr(IQspnNaddr my_naddr)
     {
-        // TODO
+        assert(state == 0);
+        state = 1;
+        start_node_naddr = (MyNaddr)my_naddr;
+        known_paths = new ArrayList<MyNpath>();
+        start_node_fp = new ArrayList<MyFingerprint>();
+        start_node_nodes_inside = new int[my_naddr.i_qspn_get_levels()];
     }
 
     public void i_qspn_set_gnode_fingerprint
                                 (int level,
                                 IQspnFingerprint fp)
     {
-        // TODO
+        assert(state == 1 || state == 2);
+        state = 2;
+        start_node_fp[level] = (MyFingerprint)fp;
     }
 
     public void i_qspn_set_gnode_nodes_inside
                                 (int level,
                                 int nodes_inside)
     {
-        // TODO
+        assert(state == 1 || state == 2);
+        state = 2;
+        start_node_nodes_inside[level] = nodes_inside;
     }
 
     public void i_qspn_add_path(IQspnPath path)
     {
-        // TODO
+        assert(state == 2 || state == 3);
+        state = 3;
+        known_paths.add((MyNpath)path);
+    }
+
+    public void i_qspn_set_tplist(Gee.List<HCoord> hops)
+    {
+        assert(state == 2 || state == 3);
+        state = 4;
+        etp_list = new MyTPList(hops);
     }
 
     public IQspnEtp i_qspn_make_etp()
     {
-        // TODO
-        return null;
+        assert(state == 2 || state == 3 || state == 4);
+        if (etp_list == null)
+        {
+            // new ETP
+            etp_list = new MyTPList.empty();
+        }
+        var ret = new MyEtp(start_node_naddr,
+                            etp_list,
+                            known_paths,
+                            start_node_fp,
+                            start_node_nodes_inside);
+        reset();
+        return ret;
     }
 
+    private void reset()
+    {
+        state = 0;
+        busy = false;
+        start_node_naddr = null;
+        etp_list = null;
+    }
 }
 
 
@@ -584,7 +645,6 @@ int main(string[] args)
 {
     // Register serializable types
     typeof(MyNaddr).class_peek();
-    typeof(MyREM).class_peek();
     typeof(MyFingerprint).class_peek();
 
     // A network with 8 bits as address space. 3 to level 0, 2 to level 1, 3 to level 2.
@@ -625,27 +685,27 @@ int main(string[] args)
         me = new MyNodeData(addr1);
         fp = fp126;
         v1 = new OtherNodeData(addr2);
-        arc1 = new MyArc("192.168.0.62", v1, new MyREM(1000));
+        arc1 = new MyArc("192.168.0.62", v1, new RTT(1000));
         v2 = new OtherNodeData(addr3);
-        arc2 = new MyArc("192.168.0.63", v2, new MyREM(1000));
+        arc2 = new MyArc("192.168.0.63", v2, new RTT(1000));
     }
     else if (args[1] == "2")
     {
         me = new MyNodeData(addr2);
         fp = fp133;
         v1 = new OtherNodeData(addr1);
-        arc1 = new MyArc("192.168.0.61", v1, new MyREM(1000));
+        arc1 = new MyArc("192.168.0.61", v1, new RTT(1000));
         v2 = new OtherNodeData(addr3);
-        arc2 = new MyArc("192.168.0.63", v2, new MyREM(1000));
+        arc2 = new MyArc("192.168.0.63", v2, new RTT(1000));
     }
     else if (args[1] == "3")
     {
         me = new MyNodeData(addr3);
         fp = fp514;
         v1 = new OtherNodeData(addr2);
-        arc1 = new MyArc("192.168.0.62", v1, new MyREM(1000));
+        arc1 = new MyArc("192.168.0.62", v1, new RTT(1000));
         v2 = new OtherNodeData(addr1);
-        arc2 = new MyArc("192.168.0.61", v2, new MyREM(1000));
+        arc2 = new MyArc("192.168.0.61", v2, new RTT(1000));
     }
     else
     {
@@ -656,8 +716,8 @@ int main(string[] args)
     arcs.add(arc2);
     //
     QspnManager mgr = new QspnManager(me,
-                                      4,
-                                      0.7,
+                                      5,
+                                      0.6,
                                       arcs,
                                       fp,
                                       new MyArcToStub(),

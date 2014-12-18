@@ -6,51 +6,72 @@ namespace Netsukuku
 {
     // in ntkd-rpc  IQspnPath
 
+    internal bool hcoord_equals(HCoord a, HCoord b)
+    {
+        return (a.lvl == b.lvl) && (a.pos == b.pos);
+    }
+
+    internal bool variations_are_important(IQspnPath oldpath, IQspnPath newpath)
+    {
+        if (! oldpath.i_qspn_get_fp().i_qspn_equals(newpath.i_qspn_get_fp())) return true;
+        int old_num = oldpath.i_qspn_get_nodes_inside();
+        int threshod = (int)(old_num * 0.1);
+        int new_num = newpath.i_qspn_get_nodes_inside();
+        if (new_num > old_num + threshod) return true;
+        if (new_num < old_num - threshod) return true;
+        if (oldpath.i_qspn_get_cost()
+            .i_qspn_important_variation(newpath.i_qspn_get_cost()))
+            return true;
+        return false;
+    }
+
     internal class NodePath : Object
     {
-        public IQspnArc first_hop;
+        public NodePath(IQspnArc arc_to_first_hop, IQspnPath path)
+        {
+            this.arc_to_first_hop = arc_to_first_hop;
+            this.path = path;
+        }
+        public IQspnArc arc_to_first_hop;
         public IQspnPath path;
+        public bool hops_are_equal(NodePath q)
+        {
+            if (! arc_to_first_hop.i_qspn_equals(arc_to_first_hop)) return false;
+            Gee.List<HCoord> mylist = path.i_qspn_get_hops();
+            Gee.List<HCoord> qlist = q.path.i_qspn_get_hops();
+            if (mylist.size != qlist.size) return false;
+            for (int i = 0; i < mylist.size; i++)
+                if (! hcoord_equals(mylist[i], qlist[i])) return false;
+            return true;
+        }
     }
 
     internal class RetPath : Object, IQspnNodePath
     {
         public IQspnPartialNaddr destination;
-        public IQspnArc first_hop;
-        public ArrayList<IQspnPartialNaddr> following_hops;
+        public IQspnArc arc_to_first_hop;
+        public ArrayList<IQspnPartialNaddr> hops;
         public IQspnREM cost;
         public int nodes_inside;
 
         /* Interface */
         public IQspnPartialNaddr i_qspn_get_destination() {return destination;}
-        public IQspnArc i_qspn_get_first_hop() {return first_hop;}
-        public Gee.List<IQspnPartialNaddr> i_qspn_get_following_hops() {return following_hops;}
+        public IQspnArc i_qspn_get_arc_to_first_hop() {return arc_to_first_hop;}
+        public Gee.List<IQspnPartialNaddr> i_qspn_get_hops() {return hops;}
         public IQspnREM i_qspn_get_cost() {return cost;}
         public int i_qspn_get_nodes_inside() {return nodes_inside;}
     }
 
     internal class Destination : Object
     {
+        public Destination(HCoord dest, Gee.List<NodePath> paths)
+        {
+            this.dest = dest;
+            this.paths = new ArrayList<NodePath>();
+            this.paths.add_all(paths);
+        }
         public HCoord dest;
         public ArrayList<NodePath> paths;
-    }
-
-    class TaskletWork : Object
-    {
-        public ArrayList<Tasklet> tasks;
-        public ArrayList<IQspnArc> arcs;
-        public ArrayList<IAddressManagerRootDispatcher> disps;
-        public IQspnNaddr my_naddr;
-        public ArrayList<IQspnEtp> results;
-        public ArrayList<IQspnArc> toremove;
-        public TaskletWork(IQspnNaddr my_naddr)
-        {
-            tasks = new ArrayList<Tasklet>();
-            arcs = new ArrayList<IQspnArc>();
-            disps = new ArrayList<IAddressManagerRootDispatcher>();
-            results = new ArrayList<IQspnEtp>();
-            toremove = new ArrayList<IQspnArc>();
-            this.my_naddr = my_naddr;
-        }
     }
 
     public interface IQspnEtpFactory : Object
@@ -60,6 +81,8 @@ namespace Netsukuku
                                     IQspnFingerprint fp,
                                     int nodes_inside,
                                     IQspnREM cost);
+        public abstract void i_qspn_set_path_cost_dead
+                                    (IQspnPath path);
         public abstract bool i_qspn_begin_etp();
         public abstract void i_qspn_abort_etp();
         public abstract void i_qspn_set_my_naddr(IQspnNaddr my_naddr);
@@ -70,6 +93,7 @@ namespace Netsukuku
                                     (int level,
                                     int nodes_inside);
         public abstract void i_qspn_add_path(IQspnPath path);
+        public abstract void i_qspn_set_tplist(Gee.List<HCoord> hops);
         public abstract IQspnEtp i_qspn_make_etp();
     }
 
@@ -84,9 +108,10 @@ namespace Netsukuku
 
         private IQspnNodeData my_node_id;
         private int max_paths;
-        private double max_disjoint_ratio;
+        private double max_common_hops_ratio;
         private ArrayList<IQspnArc> my_arcs;
         private ArrayList<IQspnFingerprint> my_fingerprints;
+        private ArrayList<int> my_nodes_inside;
         private INeighborhoodArcToStub arc_to_stub;
         private IQspnFingerprintManager fingerprint_manager;
         private IQspnEtpFactory etp_factory;
@@ -101,7 +126,7 @@ namespace Netsukuku
 
         public QspnManager(IQspnNodeData my_node_id,
                            int max_paths,
-                           double max_disjoint_ratio,
+                           double max_common_hops_ratio,
                            Gee.List<IQspnArc> my_arcs,
                            IQspnFingerprint my_fingerprint,
                            INeighborhoodArcToStub arc_to_stub,
@@ -111,7 +136,7 @@ namespace Netsukuku
         {
             this.my_node_id = my_node_id;
             this.max_paths = max_paths;
-            this.max_disjoint_ratio = max_disjoint_ratio;
+            this.max_common_hops_ratio = max_common_hops_ratio;
             this.arc_to_stub = arc_to_stub;
             this.fingerprint_manager = fingerprint_manager;
             this.etp_factory = etp_factory;
@@ -123,6 +148,9 @@ namespace Netsukuku
                 }
             );
             foreach (IQspnArc arc in my_arcs) this.my_arcs.add(arc);
+            // find levels of the network
+            my_naddr = this.my_node_id.i_qspn_get_naddr_as_mine();
+            levels = my_naddr.i_qspn_get_levels();
             // Only the level 0 fingerprint is given. The other ones
             // will be constructed when the node is mature.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>(
@@ -131,10 +159,18 @@ namespace Netsukuku
                     return a.i_qspn_equals(b);
                 }
             );
+            this.my_nodes_inside = new ArrayList<int>();
             my_fingerprints.add(my_fingerprint); // level 0 fingerprint
-            // find levels of the network
-            my_naddr = this.my_node_id.i_qspn_get_naddr_as_mine();
-            levels = my_naddr.i_qspn_get_levels();
+            my_nodes_inside.add(1); // level 0 nodes_inside
+            for (int lvl = 1; lvl <= levels; lvl++)
+            {
+                // At start build fingerprint at level lvl with fingerprint at
+                // level lvl-1 and an ampty set.
+                my_fingerprints.add(my_fingerprints[lvl-1]
+                        .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
+                // The same with the number of nodes inside our g-node.
+                my_nodes_inside.add(1);
+            }
             // prepare empty map
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int i = 0; i < levels; i++) destinations.add(
@@ -158,15 +194,142 @@ namespace Netsukuku
             }
         }
 
+        class MissingArcSendEtp : Object, INeighborhoodMissingArcHandler
+        {
+            public MissingArcSendEtp(QspnManager qspnman, IQspnEtp etp)
+            {
+                this.qspnman = qspnman;
+                this.etp = etp;
+            }
+            public QspnManager qspnman;
+            public IQspnEtp etp;
+            public void i_neighborhood_missing(
+                            INeighborhoodArc arc,
+                            INeighborhoodArcRemover arc_remover
+                        )
+            {
+                IAddressManagerRootDispatcher disp =
+                        qspnman.arc_to_stub.i_neighborhood_get_tcp(arc);
+                try {
+                    disp.qspn_manager.send_etp(etp);
+                }
+                catch (RPCError e) {
+                    // remove failed arcs and emit signal
+                    qspnman.arc_remove(arc as IQspnArc);
+                    // emit signal
+                    qspnman.arc_removed(arc as IQspnArc);
+                    return;
+                }
+            }
+        }
+
         // The module is notified if an arc is added/changed/removed
         public void arc_add(IQspnArc arc)
         {
+            // From outside the module is notified of the creation of this new arc.
+            if (arc in my_arcs)
+            {
+                log_warn("QspnManager.arc_add: already in my arcs.");
+                return;
+            }
+            my_arcs.add(arc);
+            IAddressManagerRootDispatcher disp_get_etp =
+                    arc_to_stub.i_neighborhood_get_tcp((arc as INeighborhoodArc));
+            IQspnEtp? etp = null;
+            try {
+                while (true)
+                {
+                    try {
+                        etp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
+                        break;
+                    }
+                    catch (QspnNotMatureError e) {
+                        // wait for it to become mature
+                        ms_wait(2000);
+                    }
+                }
+            }
+            catch (RPCError e) {
+                // remove failed arc and emit signal
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            // Got ETP from new neighbor/arc. Purify it.
+            etp = process_etp(etp);
+            if (etp == null)
+            {
+                // should not happen
+                log_warn("QspnManager.arc_add: get_full_etp returned invalid etp");
+                // remove failed arc and emit signal
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            // Update my map with it.
+            ArrayList<PairArcEtp> etps = new ArrayList<PairArcEtp>();
+            etps.add(new PairArcEtp(etp, arc));
+            UpdateMapResult ret = update_map(etps);
+            // create a new etp for old arcs (not the new one)
+            if (ret.interesting)
+            {
+                IQspnEtp new_etp = prepare_new_etp(ret.changed_paths);
+                IAddressManagerRootDispatcher disp_send_to_old =
+                        arc_to_stub.i_neighborhood_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp),
+                        /* Ignore this neighbor */
+                        (arc as INeighborhoodArc).i_neighborhood_neighbour_id);
+                try {
+                    disp_send_to_old.qspn_manager.send_etp(new_etp);
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.arc_add: RPCError in send to broadcast to old: $(e.message)");
+                }
+            }
+            // create a new etp for arc
+            IQspnEtp full_etp = prepare_full_etp();
+            IAddressManagerRootDispatcher disp_send_to_arc =
+                    arc_to_stub.i_neighborhood_get_tcp((arc as INeighborhoodArc));
+            try {
+                disp_send_to_arc.qspn_manager.send_etp(full_etp);
+            }
+            catch (RPCError e) {
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            // That's it.
+        }
+
+        public void arc_is_changed(IQspnArc arc)
+        {
+            // From outside the module is notified that the cost of this arc of mine
+            // is changed.
+            if (!(arc in my_arcs))
+            {
+                log_warn("QspnManager.arc_is_changed: not in my arcs.");
+                return;
+            }
             // TODO
         }
 
         public void arc_remove(IQspnArc arc)
         {
+            // From outside the module is notified that this arc of mine
+            // has been removed.
+            // Or, either, the module itself wants to remove this arc (possibly
+            // because it failed to send a message).
+            if (!(arc in my_arcs))
+            {
+                log_warn("QspnManager.arc_remove: not in my arcs.");
+                return;
+            }
             // TODO
+            my_arcs.remove(arc);
         }
 
         // The hook on a particular network has failed.
@@ -182,14 +345,91 @@ namespace Netsukuku
         //  towards it has been deleted from this node.
         public signal void destination_removed(IQspnPartialNaddr d);
         // A new path (might be the first) to a destination has been found.
-        public signal void path_added(IQspnPath p);
+        public signal void path_added(IQspnNodePath p);
         // A path to a destination has changed.
-        public signal void path_changed(IQspnPath p);
+        public signal void path_changed(IQspnNodePath p);
         // A path (might be the last) to a destination has been deleted.
-        public signal void path_removed(IQspnPath p);
+        public signal void path_removed(IQspnNodePath p);
+        // My g-node of level l changed its fingerprint.
+        public signal void changed_fp(int l);
+        // My g-node of level l changed its nodes_inside.
+        public signal void changed_nodes_inside(int l);
         // A gnode has splitted and the part reachable by this path MUST migrate.
         public signal void gnode_splitted(IQspnPath p);
 
+        // Helper: get IQspnNodePath from NodePath
+        private RetPath get_ret_path(NodePath np)
+        {
+            IQspnPath p = np.path;
+            IQspnArc arc = np.arc_to_first_hop;
+            HCoord dest = p.i_qspn_get_hops().last();
+            RetPath r = new RetPath();
+            r.destination = my_naddr.i_qspn_get_address_by_coord(dest);
+            r.arc_to_first_hop = arc;
+            r.hops = new ArrayList<IQspnPartialNaddr>();
+            foreach (HCoord h in p.i_qspn_get_hops())
+                r.hops.add(my_naddr.i_qspn_get_address_by_coord(h));
+            r.cost = p.i_qspn_get_cost().i_qspn_add_segment(arc.i_qspn_get_cost());
+            r.nodes_inside = p.i_qspn_get_nodes_inside();
+            return r;
+        }
+
+        // Helper: prepare new ETP
+        private IQspnEtp prepare_new_etp(Collection<NodePath> node_paths)
+        {
+            // ? try
+            while (! etp_factory.i_qspn_begin_etp()) ms_wait(100);
+            etp_factory.i_qspn_set_my_naddr(my_naddr);
+            for (int level = 0; level < levels; level++)
+            {
+                etp_factory.i_qspn_set_gnode_fingerprint(level, my_fingerprints[level]);
+                etp_factory.i_qspn_set_gnode_nodes_inside(level, my_nodes_inside[level]);
+            }
+            foreach (NodePath np in node_paths)
+            {
+                IQspnREM cost = np.arc_to_first_hop.i_qspn_get_cost()
+                        .i_qspn_add_segment(np.path.i_qspn_get_cost());
+                int nodes_inside = np.path.i_qspn_get_nodes_inside();
+                IQspnFingerprint fp = np.path.i_qspn_get_fp();
+                Gee.List<HCoord> hops = np.path.i_qspn_get_hops();
+                IQspnPath tosend = etp_factory.i_qspn_create_path
+                        (hops, fp, nodes_inside, cost);
+                etp_factory.i_qspn_add_path(tosend);
+            }
+            return etp_factory.i_qspn_make_etp();
+            // ? catch XxxError: etp_factory.i_qspn_abort_etp(); throw new YyyError || return null
+        }
+
+        // Helper: prepare full ETP
+        private IQspnEtp prepare_full_etp()
+        {
+            Collection<NodePath> all_paths = new ArrayList<NodePath>();
+            foreach (var d1 in destinations)
+                foreach (Destination d in d1.values)
+                {
+                    all_paths.add_all(d.paths);
+                }
+            return prepare_new_etp(all_paths);
+        }
+
+        class TaskletWork : Object
+        {
+            public ArrayList<Tasklet> tasks;
+            public ArrayList<IQspnArc> arcs;
+            public ArrayList<IAddressManagerRootDispatcher> disps;
+            public IQspnNaddr my_naddr;
+            public ArrayList<PairArcEtp> results;
+            public ArrayList<IQspnArc> toremove;
+            public TaskletWork(IQspnNaddr my_naddr)
+            {
+                tasks = new ArrayList<Tasklet>();
+                arcs = new ArrayList<IQspnArc>();
+                disps = new ArrayList<IAddressManagerRootDispatcher>();
+                results = new ArrayList<PairArcEtp>();
+                toremove = new ArrayList<IQspnArc>();
+                this.my_naddr = my_naddr;
+            }
+        }
         private void get_first_etps()
         {
             // Work in parallel then join
@@ -209,8 +449,13 @@ namespace Netsukuku
                         try
                         {
                             IAddressManagerRootDispatcher _disp = _work.disps[_i];
-                            IQspnEtp etp = disp.qspn_manager.get_full_etp(_work.my_naddr);
-                            _work.results.add(etp);
+                            IQspnEtp etp = _disp.qspn_manager.get_full_etp(_work.my_naddr);
+                            PairArcEtp res = new PairArcEtp(etp, _work.arcs[_i]);
+                            _work.results.add(res);
+                        }
+                        catch (QspnNotMatureError e)
+                        {
+                            // ignore
                         }
                         catch (RPCError e)
                         {
@@ -231,21 +476,340 @@ namespace Netsukuku
                 // emit signal
                 arc_removed(arc);
             }
-            // on everything fail signal fatal error
+            // on everything fail signal hook impossible
             if (work.results.is_empty)
             {
                 failed_hook();
             }
             else
             {
-                foreach (IQspnEtp etp in work.results)
+                ArrayList<PairArcEtp> etp_to_process = new ArrayList<PairArcEtp>();
+                foreach (PairArcEtp pair_arc_etp in work.results)
                 {
-                    // TODO update my map
-                    
+                    // Purify received etp.
+                    IQspnEtp? etp = process_etp(pair_arc_etp.etp);
+                    // if it's not to be dropped...
+                    if (etp != null) etp_to_process.add(pair_arc_etp);
                 }
+                update_map(etp_to_process);
                 mature = true;
                 qspn_mature();
             }
+        }
+
+        // Helper: process received ETP to make it valid for me.
+        // It returns the same instance if ok, or null if to be dropped.
+        private IQspnEtp? process_etp(IQspnEtp etp)
+        {
+            IQspnEtp? ret = null;
+            if (etp.i_qspn_check_network_parameters(my_naddr))
+            {
+                HCoord exit_gnode = my_naddr.
+                        i_qspn_get_coord_by_address(
+                        etp.i_qspn_get_naddr());
+                etp.i_qspn_tplist_adjust(exit_gnode);
+                if (etp.i_qspn_tplist_acyclic_check(my_naddr))
+                {
+                    etp.i_qspn_routeset_cleanup(exit_gnode);
+                    etp.i_qspn_routeset_tplist_adjust(exit_gnode);
+                    etp.i_qspn_routeset_tplist_acyclic_check(my_naddr);
+                    etp.i_qspn_routeset_add_source(exit_gnode);
+                    ret = etp;
+                }
+                else
+                {
+                    // dropped because of acyclic rule
+                }
+            }
+            else
+            {
+                // malformed ETP
+                log_warn("ETP malformed");
+            }
+            return ret;
+        }
+
+        class PairArcEtp : Object {
+            public PairArcEtp(IQspnEtp etp, IQspnArc arc)
+            {
+                this.etp = etp;
+                this.arc = arc;
+            }
+            public IQspnEtp etp;
+            public IQspnArc arc;
+        }
+        class PairStatePath : Object {
+            public PairStatePath(int state, NodePath path)
+            {
+                this.state = state;
+                this.path = path;
+            }
+            public int state;
+            public NodePath path;
+        }
+        class UpdateMapResult : Object {
+            public bool interesting;
+            public Gee.List<NodePath> changed_paths;
+        }
+        private UpdateMapResult update_map(Collection<PairArcEtp> etps)
+        {
+            HashMap<HCoord,Gee.List<PairStatePath>> temp_dict =
+                    new HashMap<HCoord,Gee.List<PairStatePath>>(
+                    /*HashDataFunc<K>? key_hash_func*/(v) => {return 1;},
+                    /*EqualDataFunc<K>? key_equal_func*/(a, b) => {
+                        return hcoord_equals(a, b);
+                    });
+            foreach (PairArcEtp pair in etps)
+            {
+                IQspnEtp e = pair.etp;
+                IQspnArc arc = pair.arc;
+                foreach (IQspnPath v in e.i_qspn_routeset)
+                {
+                    NodePath q = new NodePath(arc, v);
+                    HCoord dst = q.path.i_qspn_get_hops().last();
+                    if (! temp_dict.has_key(dst))
+                    {
+                        temp_dict[dst] = new ArrayList<PairStatePath>();
+                        foreach (NodePath p in destinations[dst.lvl][dst.pos].paths)
+                        {
+                            // old path.
+                            temp_dict[dst].add(new PairStatePath(1, p));
+                        }
+                    }
+                    bool exists = false;
+                    for (int i = 0; i < temp_dict[dst].size; i++)
+                    {
+                        int n = temp_dict[dst][i].state;
+                        NodePath r = temp_dict[dst][i].path;
+                        if (r.hops_are_equal(q))
+                        {
+                            exists = true;
+                            if (variations_are_important(r.path, q.path))
+                            {
+                                // substitute.
+                                temp_dict[dst][i] = new PairStatePath(4, q);
+                            }
+                            // else   unchanged. ignore.
+                            break;
+                        }
+                    }
+                    if (! exists)
+                    {
+                        // new path.
+                        if (temp_dict[dst].is_empty)
+                        {
+                            // new destination.
+                            temp_dict[dst].add(new PairStatePath(2, q));
+                        }
+                        else
+                        {
+                            temp_dict[dst].add(new PairStatePath(3, q));
+                        }
+                    }
+                }
+            }
+
+            // process available paths
+            Gee.List<NodePath> changed_paths = new ArrayList<NodePath>();
+            foreach (HCoord dst in temp_dict.keys)
+            {
+                // sort set temp_dict[dst] which is ArrayList<PairStatePath>
+                temp_dict[dst].sort((a, b) => {
+                    IQspnREM _a = a.path.path.i_qspn_get_cost();
+                    _a = _a.i_qspn_add_segment(a.path.arc_to_first_hop.i_qspn_get_cost());
+                    IQspnREM _b = b.path.path.i_qspn_get_cost();
+                    _b = _b.i_qspn_add_segment(b.path.arc_to_first_hop.i_qspn_get_cost());
+                    return _a.i_qspn_compare_to(_b);
+                });
+                int i = 0;
+                int good_paths = 0;
+                Gee.List<IQspnFingerprint> distinct_fp = new ArrayList<IQspnFingerprint>((a, b) => {
+                    return a.i_qspn_equals(b);
+                });
+                while (i < temp_dict[dst].size)
+                {
+                    int n = temp_dict[dst][i].state;
+                    NodePath q = temp_dict[dst][i].path;
+                    IQspnFingerprint fp = q.path.i_qspn_get_fp();
+                    if (!(fp in distinct_fp))
+                    {
+                        distinct_fp.add(fp);
+                        good_paths++;
+                    }
+                    else
+                    {
+                        if (good_paths >= max_paths)
+                        {
+                            etp_factory.i_qspn_set_path_cost_dead(q.path);
+                            if (n == 1) temp_dict[dst][i].state = 4;
+                        }
+                        else
+                        {
+                            if (! q.path.i_qspn_get_cost().i_qspn_is_dead())
+                            {
+                                bool disjoint = true;
+                                for (int j = 0; j < i; j++)
+                                {
+                                    int n1 = temp_dict[dst][j].state;
+                                    NodePath q1 = temp_dict[dst][j].path;
+                                    if (! q1.path.i_qspn_get_cost().i_qspn_is_dead())
+                                    {
+                                        // how many hops in q1 (exclude destination)
+                                        int denominator = q1.path.i_qspn_get_hops().size-1;
+                                        if (denominator != 0)
+                                        {
+                                            int common_hops = 0;
+                                            foreach (HCoord h in q1.path.i_qspn_get_hops())
+                                            {
+                                                bool contains = false;
+                                                foreach (HCoord h_test in q.path.i_qspn_get_hops())
+                                                {
+                                                    if (hcoord_equals(h, h_test))
+                                                    {
+                                                        contains = true;
+                                                        break;
+                                                    }
+                                                }
+                                                if (contains)
+                                                {
+                                                    common_hops++;
+                                                }
+                                            }
+                                            double common_hops_ratio = ((double)common_hops) / ((double)denominator);
+                                            if (common_hops_ratio > max_common_hops_ratio)
+                                            {
+                                                disjoint = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (! disjoint)
+                                {
+                                    etp_factory.i_qspn_set_path_cost_dead(q.path);
+                                    if (n == 1) temp_dict[dst][i].state = 4;
+                                }
+                                else
+                                {
+                                    good_paths++;
+                                }
+                            }
+                        }
+                    }
+                    i++;
+                }
+                bool destination_was_known = false;
+                bool destination_exists = false;
+                Gee.List<NodePath> current_paths = new ArrayList<NodePath>();
+                foreach (PairStatePath pair_nq in temp_dict[dst])
+                {
+                    int n = pair_nq.state;
+                    NodePath q = pair_nq.path;
+                    if ((! destination_was_known) && (n == 4 || n == 1))
+                        destination_was_known = true;
+                    if ((! destination_exists) && (! q.path.i_qspn_get_cost().i_qspn_is_dead()))
+                        destination_exists = true;
+                }
+                if (destination_exists && (! destination_was_known))
+                {
+                    destination_added(my_naddr.i_qspn_get_address_by_coord(dst));
+                }
+                foreach (PairStatePath pair_nq in temp_dict[dst])
+                {
+                    int n = pair_nq.state;
+                    NodePath q = pair_nq.path;
+                    if (n == 1)
+                    {
+                        // path unchanged and not dead
+                        current_paths.add(q);
+                    }
+                    else if (n == 2 || n == 3)
+                    {
+                        if (! q.path.i_qspn_get_cost().i_qspn_is_dead())
+                        {
+                            current_paths.add(q);
+                            changed_paths.add(q);
+                            path_added(get_ret_path(q));
+                        }
+                    }
+                    else if (n == 4)
+                    {
+                        changed_paths.add(q);
+                        if (! q.path.i_qspn_get_cost().i_qspn_is_dead())
+                        {
+                            current_paths.add(q);
+                            path_changed(get_ret_path(q));
+                        }
+                        else
+                        {
+                            path_removed(get_ret_path(q));
+                        }
+                    }
+                }
+                if (destination_was_known && (! destination_exists))
+                {
+                    destination_removed(my_naddr.i_qspn_get_address_by_coord(dst));
+                    destinations[dst.lvl].unset(dst.pos);
+                }
+                if (destination_exists)
+                {
+                    destinations[dst.lvl][dst.pos] = new Destination(dst, current_paths);
+                }
+            }
+            bool variations = false;
+            for (int l = 1; l < levels; l++)
+            {
+                Gee.List<IQspnFingerprint> sibling_fp = new ArrayList<IQspnFingerprint>();
+                int sum_nodes = 0;
+                foreach (int pos in destinations[l-1].keys)
+                {
+                    IQspnFingerprint? fp_dst = null;
+                    Destination d = destinations[l-1][pos];
+                    foreach (NodePath p in d.paths)
+                    {
+                        IQspnFingerprint fp_dst_p = p.path.i_qspn_get_fp();
+                        if (fp_dst == null)
+                        {
+                            fp_dst = fp_dst_p;
+                        }
+                        else
+                        {
+                            if (! fp_dst.i_qspn_equals(fp_dst_p))
+                                if (! fp_dst.i_qspn_elder(fp_dst_p))
+                                    fp_dst = fp_dst_p;
+                        }
+                    }
+                    sibling_fp.add(fp_dst);
+                    d.paths.sort((a, b) => {
+                        IQspnREM _a = a.path.i_qspn_get_cost();
+                        _a = _a.i_qspn_add_segment(a.arc_to_first_hop.i_qspn_get_cost());
+                        IQspnREM _b = b.path.i_qspn_get_cost();
+                        _b = _b.i_qspn_add_segment(b.arc_to_first_hop.i_qspn_get_cost());
+                        return _a.i_qspn_compare_to(_b);
+                    });
+                    NodePath p = d.paths.first();
+                    int nn_dst = p.path.i_qspn_get_nodes_inside();
+                    sum_nodes += nn_dst;
+                }
+                IQspnFingerprint current_fp_l = my_fingerprints[l-1].i_qspn_construct(sibling_fp);
+                if (! current_fp_l.i_qspn_equals(my_fingerprints[l]))
+                {
+                    my_fingerprints[l] = current_fp_l;
+                    variations = true;
+                    changed_fp(l);
+                }
+                int current_nn_l = my_nodes_inside[l-1] + sum_nodes;
+                if (current_nn_l != my_nodes_inside[l])
+                {
+                    my_nodes_inside[l] = current_nn_l;
+                    variations = true;
+                    changed_nodes_inside(l);
+                }
+            }
+            UpdateMapResult ret = new UpdateMapResult();
+            ret.interesting = (! changed_paths.is_empty) || variations;
+            ret.changed_paths = changed_paths;
+            return ret;
         }
 
         /** Provides a collection of known paths to a destination
@@ -255,17 +819,8 @@ namespace Netsukuku
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
-                foreach (NodePath p in destinations[d.lvl][d.pos].paths)
-                {
-                    RetPath r = new RetPath();
-                    r.destination = my_node_id.i_qspn_get_naddr_as_mine().i_qspn_get_address_by_coord(d);
-                    r.first_hop = p.first_hop;
-                    r.following_hops = new ArrayList<IQspnPartialNaddr>();
-                    r.following_hops.add_all(p.path.i_qspn_get_following_hops());
-                    r.cost = p.path.i_qspn_get_cost();
-                    r.nodes_inside = p.path.i_qspn_get_nodes_inside();
-                    ret.add(r);
-                }
+                foreach (NodePath np in destinations[d.lvl][d.pos].paths)
+                    ret.add(get_ret_path(np));
             }
             return ret;
         }
@@ -278,6 +833,11 @@ namespace Netsukuku
             // TODO
             return null;
         }
-    }
 
+        public void send_etp(IQspnEtp etp)
+        {
+            // TODO
+        }
+
+    }
 }
