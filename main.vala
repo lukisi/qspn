@@ -314,69 +314,6 @@ public class MyNaddr : Naddr, IQspnNaddr, IQspnMyNaddr, IQspnPartialNaddr
     }
 }
 
-
-public class MyNetworkID : Object, IQspnNetworkID
-{
-    public bool i_qspn_is_same_network(IQspnNetworkID other)
-    {
-        return true;
-    }
-}
-
-public abstract class GenericNodeData : Object, IQspnNodeData
-{
-    private MyNetworkID netid;
-    protected MyNaddr naddr;
-
-    public GenericNodeData(MyNaddr naddr)
-    {
-        this.netid = new MyNetworkID();
-        this.naddr = naddr;
-    }
-
-    public bool i_qspn_equals(IQspnNodeData other)
-    {
-        return this == (other as GenericNodeData);
-    }
-
-    public bool i_qspn_is_on_same_network(IQspnNodeData other)
-    {
-        return true;
-    }
-
-    public IQspnNetworkID i_qspn_get_netid()
-    {
-        return netid;
-    }
-
-    public IQspnNaddr i_qspn_get_naddr()
-    {
-        return (IQspnNaddr)naddr;
-    }
-
-    public abstract IQspnMyNaddr i_qspn_get_naddr_as_mine();
-}
-
-public class MyNodeData : GenericNodeData
-{
-    public MyNodeData(MyNaddr naddr) {base(naddr);}
-
-    public override IQspnMyNaddr i_qspn_get_naddr_as_mine()
-    {
-        return (IQspnMyNaddr)naddr;
-    }
-}
-
-public class OtherNodeData : GenericNodeData
-{
-    public OtherNodeData(MyNaddr naddr) {base(naddr);}
-
-    public override IQspnMyNaddr i_qspn_get_naddr_as_mine()
-    {
-        assert(false); return null;
-    }
-}
-
 public class MyFingerprint : FingerPrint, IQspnFingerprint
 {
     public MyFingerprint(int64 id, int[] elderships)
@@ -469,24 +406,25 @@ public class MyMissingArcHandler : Object, INeighborhoodMissingArcHandler
 
 public class MyArc : Object, INeighborhoodArc, IQspnArc
 {
-    public MyArc(string dest, IQspnNodeData node_data, IQspnREM cost)
+    public MyArc(string dest, IQspnNaddr addr, IQspnREM cost)
     {
         this.dest = dest;
-        this.node_data = node_data;
+        this.addr = addr;
         this.qspn_cost = cost;
     }
     public string dest {get; private set;}
-    private IQspnNodeData node_data;
+    public IQspnNaddr addr {get; private set;}
     private IQspnREM qspn_cost;
 
-    public IQspnNodeData i_qspn_get_node_data() {return node_data;}
     public IQspnREM i_qspn_get_cost() {return qspn_cost;}
+    public IQspnNaddr i_qspn_get_naddr() {return addr;}
     public bool i_qspn_equals(IQspnArc other) {return this == (other as MyArc);}
+    public bool i_neighborhood_comes_from(zcd.CallerInfo rpc_caller) {return true; /*TODO*/}
 
     // unused stuff
     public INeighborhoodNodeID i_neighborhood_neighbour_id {get {assert(false); return null;}} // do not use in this fake
     public string i_neighborhood_mac {get {assert(false); return null;}} // do not use in this fake
-    public REM i_neighborhood_cost {get {assert(false); return null;}} // do not use in this fake
+    public Object i_neighborhood_cost {get {assert(false); return null;}} // do not use in this fake
     public bool i_neighborhood_is_nic(INeighborhoodNetworkInterface nic) {assert(false); return false;} // do not use in this fake
     public bool i_neighborhood_equals(INeighborhoodArc other) {assert(false); return false;} // do not use in this fake
 }
@@ -674,38 +612,30 @@ int main(string[] args)
     i = new ArrayList<IQspnFingerprint>();
     IQspnFingerprint fp5 = fp51.i_qspn_construct(i);
     // nodes
-    MyNodeData me = null;
-    OtherNodeData v1 = null;
-    OtherNodeData v2 = null;
+    MyNaddr me = null;
     MyArc arc1 = null;
     MyArc arc2 = null;
     IQspnFingerprint fp;
     if (args[1] == "1")
     {
-        me = new MyNodeData(addr1);
+        me = addr1;
         fp = fp126;
-        v1 = new OtherNodeData(addr2);
-        arc1 = new MyArc("192.168.0.62", v1, new RTT(1000));
-        v2 = new OtherNodeData(addr3);
-        arc2 = new MyArc("192.168.0.63", v2, new RTT(1000));
+        arc1 = new MyArc("192.168.0.62", addr2, new RTT(1000));
+        arc2 = new MyArc("192.168.0.63", addr3, new RTT(1000));
     }
     else if (args[1] == "2")
     {
-        me = new MyNodeData(addr2);
+        me = addr2;
         fp = fp133;
-        v1 = new OtherNodeData(addr1);
-        arc1 = new MyArc("192.168.0.61", v1, new RTT(1000));
-        v2 = new OtherNodeData(addr3);
-        arc2 = new MyArc("192.168.0.63", v2, new RTT(1000));
+        arc1 = new MyArc("192.168.0.61", addr1, new RTT(1000));
+        arc2 = new MyArc("192.168.0.63", addr3, new RTT(1000));
     }
     else if (args[1] == "3")
     {
-        me = new MyNodeData(addr3);
+        me = addr3;
         fp = fp514;
-        v1 = new OtherNodeData(addr2);
-        arc1 = new MyArc("192.168.0.62", v1, new RTT(1000));
-        v2 = new OtherNodeData(addr1);
-        arc2 = new MyArc("192.168.0.61", v2, new RTT(1000));
+        arc1 = new MyArc("192.168.0.62", addr2, new RTT(1000));
+        arc2 = new MyArc("192.168.0.61", addr1, new RTT(1000));
     }
     else
     {

@@ -72,6 +72,22 @@ namespace Netsukuku
         }
         public HCoord dest;
         public ArrayList<NodePath> paths;
+
+        private NodePath? _best_path;
+        public NodePath? best_path {
+            get {
+                if (paths.is_empty) return null;
+                paths.sort((a, b) => {
+                    IQspnREM _a = a.path.i_qspn_get_cost();
+                    _a = _a.i_qspn_add_segment(a.arc_to_first_hop.i_qspn_get_cost());
+                    IQspnREM _b = b.path.i_qspn_get_cost();
+                    _b = _b.i_qspn_add_segment(b.arc_to_first_hop.i_qspn_get_cost());
+                    return _a.i_qspn_compare_to(_b);
+                });
+                _best_path = paths.first();
+                return _best_path;
+            }
+        }
     }
 
     public interface IQspnEtpFactory : Object
@@ -106,7 +122,6 @@ namespace Netsukuku
             // typeof(Xxx).class_peek();
         }
 
-        private IQspnNodeData my_node_id;
         private int max_paths;
         private double max_common_hops_ratio;
         private ArrayList<IQspnArc> my_arcs;
@@ -118,13 +133,15 @@ namespace Netsukuku
         private int levels;
         private IQspnMyNaddr my_naddr;
         private bool mature;
+        private Tasklet? periodical_update_tasklet = null;
+        private ArrayList<QueuedEvent> queued_events;
         // This collection can be indexed by level and then by iteration on the
         //  values. This is useful when we want to iterate on a certain level.
         //  In addition we can specify a level and then refer by index to the
         //  position. This is useful when we want to remove one item.
         private ArrayList<HashMap<int, Destination>> destinations;
 
-        public QspnManager(IQspnNodeData my_node_id,
+        public QspnManager(IQspnMyNaddr my_naddr,
                            int max_paths,
                            double max_common_hops_ratio,
                            Gee.List<IQspnArc> my_arcs,
@@ -134,7 +151,7 @@ namespace Netsukuku
                            IQspnEtpFactory etp_factory
                            )
         {
-            this.my_node_id = my_node_id;
+            this.my_naddr = my_naddr;
             this.max_paths = max_paths;
             this.max_common_hops_ratio = max_common_hops_ratio;
             this.arc_to_stub = arc_to_stub;
@@ -149,7 +166,6 @@ namespace Netsukuku
             );
             foreach (IQspnArc arc in my_arcs) this.my_arcs.add(arc);
             // find levels of the network
-            my_naddr = this.my_node_id.i_qspn_get_naddr_as_mine();
             levels = my_naddr.i_qspn_get_levels();
             // Only the level 0 fingerprint is given. The other ones
             // will be constructed when the node is mature.
@@ -176,6 +192,7 @@ namespace Netsukuku
             for (int i = 0; i < levels; i++) destinations.add(
                 new HashMap<int, Destination>());
             // mature if alone
+            qspn_mature.connect(on_mature);
             if (this.my_arcs.is_empty)
             {
                 mature = true;
@@ -184,6 +201,7 @@ namespace Netsukuku
             else
             {
                 mature = false;
+                queued_events = new ArrayList<QueuedEvent>();
                 // start in a tasklet the request of an ETP from all neighbors.
                 Tasklet.tasklet_callback(
                     (t) => {
@@ -192,6 +210,23 @@ namespace Netsukuku
                     this
                 );
             }
+        }
+
+        public void stop_operations()
+        {
+            if (periodical_update_tasklet != null)
+                periodical_update_tasklet.abort();
+        }
+
+        private void on_mature()
+        {
+            // start in a tasklet the periodical send of full updates.
+            periodical_update_tasklet = Tasklet.tasklet_callback(
+                (t) => {
+                    (t as QspnManager).periodical_update();
+                },
+                this
+            );
         }
 
         class MissingArcSendEtp : Object, INeighborhoodMissingArcHandler
@@ -213,6 +248,10 @@ namespace Netsukuku
                 try {
                     disp.qspn_manager.send_etp(etp);
                 }
+                catch (QspnNotAcceptedError e) {
+                    // possibly we're not in its arcs; log and ignore.
+                    log_warn(@"MissingArcSendEtp: $(e.message)");
+                }
                 catch (RPCError e) {
                     // remove failed arcs and emit signal
                     qspnman.arc_remove(arc as IQspnArc);
@@ -223,10 +262,47 @@ namespace Netsukuku
             }
         }
 
+        class QueuedEvent : Object
+        {
+            public QueuedEvent.arc_add(IQspnArc arc)
+            {
+                this.arc = arc;
+                type = 1;
+            }
+            public QueuedEvent.arc_is_changed(IQspnArc arc)
+            {
+                this.arc = arc;
+                type = 2;
+            }
+            public QueuedEvent.arc_remove(IQspnArc arc)
+            {
+                this.arc = arc;
+                type = 3;
+            }
+            public QueuedEvent.etp_received(IQspnEtp etp, IQspnArc arc)
+            {
+                this.etp = etp;
+                this.arc = arc;
+                type = 4;
+            }
+            public int type;
+            // 1 arc_add
+            // 2 arc_is_changed
+            // 3 arc_remove
+            // 4 etp_received
+            public IQspnArc arc;
+            public IQspnEtp etp;
+        }
+
         // The module is notified if an arc is added/changed/removed
         public void arc_add(IQspnArc arc)
         {
             // From outside the module is notified of the creation of this new arc.
+            if (!mature)
+            {
+                queued_events.add(new QueuedEvent.arc_add(arc));
+                return;
+            }
             if (arc in my_arcs)
             {
                 log_warn("QspnManager.arc_add: already in my arcs.");
@@ -242,6 +318,11 @@ namespace Netsukuku
                     try {
                         etp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
                         break;
+                    }
+                    catch (QspnNotAcceptedError e) {
+                        // possibly temporary.
+                        log_warn(@"QspnManager.arc_add: get_full_etp not accepted: $(e.message)");
+                        ms_wait(2000);
                     }
                     catch (QspnNotMatureError e) {
                         // wait for it to become mature
@@ -285,6 +366,10 @@ namespace Netsukuku
                 try {
                     disp_send_to_old.qspn_manager.send_etp(new_etp);
                 }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert(false);
+                }
                 catch (RPCError e) {
                     log_error(@"QspnManager.arc_add: RPCError in send to broadcast to old: $(e.message)");
                 }
@@ -296,6 +381,14 @@ namespace Netsukuku
             try {
                 disp_send_to_arc.qspn_manager.send_etp(full_etp);
             }
+            catch (QspnNotAcceptedError e) {
+                // should definitely not happen.
+                log_warn(@"QspnManager.arc_add: send_etp not accepted: $(e.message)");
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
             catch (RPCError e) {
                 arc_remove(arc);
                 // emit signal
@@ -305,31 +398,142 @@ namespace Netsukuku
             // That's it.
         }
 
-        public void arc_is_changed(IQspnArc arc)
+        public void arc_is_changed(IQspnArc changed_arc)
         {
             // From outside the module is notified that the cost of this arc of mine
             // is changed.
-            if (!(arc in my_arcs))
+            if (!mature)
+            {
+                queued_events.add(new QueuedEvent.arc_is_changed(changed_arc));
+                return;
+            }
+            if (!(changed_arc in my_arcs))
             {
                 log_warn("QspnManager.arc_is_changed: not in my arcs.");
                 return;
             }
-            // TODO
+            // gather ETP from all of my arcs
+            Collection<PairArcEtp> results =
+                gather_full_etp_set(my_arcs, (arc) => {
+                    // remove failed arcs and emit signal
+                    arc_remove(arc);
+                    // emit signal
+                    arc_removed(arc);
+                });
+            // Process ETPs and update my map
+            ArrayList<PairArcEtp> valid_etp_set = new ArrayList<PairArcEtp>();
+            foreach (PairArcEtp pair_arc_etp in results)
+            {
+                // Purify received etp.
+                IQspnEtp? etp = process_etp(pair_arc_etp.etp);
+                // if it's not to be dropped...
+                if (etp != null) valid_etp_set.add(pair_arc_etp);
+            }
+            UpdateMapResult ret = update_map(valid_etp_set, changed_arc);
+            // create a new etp for all
+            if (ret.interesting)
+            {
+                IQspnEtp new_etp = prepare_new_etp(ret.changed_paths);
+                IAddressManagerRootDispatcher disp_send_to_all =
+                        arc_to_stub.i_neighborhood_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp));
+                try {
+                    disp_send_to_all.qspn_manager.send_etp(new_etp);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert(false);
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.arc_is_changed: RPCError in send to broadcast to all: $(e.message)");
+                }
+            }
         }
 
-        public void arc_remove(IQspnArc arc)
+        public void arc_remove(IQspnArc removed_arc)
         {
             // From outside the module is notified that this arc of mine
             // has been removed.
             // Or, either, the module itself wants to remove this arc (possibly
             // because it failed to send a message).
-            if (!(arc in my_arcs))
+            if (!mature)
+            {
+                queued_events.add(new QueuedEvent.arc_remove(removed_arc));
+                return;
+            }
+            if (!(removed_arc in my_arcs))
             {
                 log_warn("QspnManager.arc_remove: not in my arcs.");
                 return;
             }
-            // TODO
-            my_arcs.remove(arc);
+            // First, remove the arc...
+            my_arcs.remove(removed_arc);
+            // ... and all the NodePath from it.
+            var dest_to_remove = new ArrayList<Destination>();
+            var path_to_add_to_changed_paths = new ArrayList<NodePath>();
+            for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l])
+            {
+                int i = 0;
+                while (i < d.paths.size)
+                {
+                    NodePath np = d.paths[i];
+                    if (np.arc_to_first_hop.i_qspn_equals(removed_arc))
+                    {
+                        d.paths.remove_at(i);
+                        etp_factory.i_qspn_set_path_cost_dead(np.path);
+                        path_to_add_to_changed_paths.add(np);
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
+                if (d.paths.is_empty) dest_to_remove.add(d);
+            }
+            foreach (Destination d in dest_to_remove)
+            {
+                destination_removed(my_naddr.i_qspn_get_address_by_coord(d.dest));
+                destinations[d.dest.lvl].unset(d.dest.pos);
+            }
+            // Then do the same as when arc is changed:
+            // gather ETP from all of my arcs
+            Collection<PairArcEtp> results =
+                gather_full_etp_set(my_arcs, (arc) => {
+                    // remove failed arcs and emit signal
+                    arc_remove(arc);
+                    // emit signal
+                    arc_removed(arc);
+                });
+            // Process ETPs and update my map
+            ArrayList<PairArcEtp> valid_etp_set = new ArrayList<PairArcEtp>();
+            foreach (PairArcEtp pair_arc_etp in results)
+            {
+                // Purify received etp.
+                IQspnEtp? etp = process_etp(pair_arc_etp.etp);
+                // if it's not to be dropped...
+                if (etp != null) valid_etp_set.add(pair_arc_etp);
+            }
+            UpdateMapResult ret = update_map(valid_etp_set);
+            // create a new etp for all
+            ArrayList<NodePath> changed_paths = new ArrayList<NodePath>();
+            changed_paths.add_all(ret.changed_paths);
+            changed_paths.add_all(path_to_add_to_changed_paths);
+            IQspnEtp new_etp = prepare_new_etp(changed_paths);
+            IAddressManagerRootDispatcher disp_send_to_all =
+                    arc_to_stub.i_neighborhood_get_broadcast(
+                    /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                    new MissingArcSendEtp(this, new_etp));
+            try {
+                disp_send_to_all.qspn_manager.send_etp(new_etp);
+            }
+            catch (QspnNotAcceptedError e) {
+                // a broadcast will never get a return value nor an error
+                assert(false);
+            }
+            catch (RPCError e) {
+                log_error(@"QspnManager.arc_remove: RPCError in send to broadcast to all: $(e.message)");
+            }
         }
 
         // The hook on a particular network has failed.
@@ -375,7 +579,7 @@ namespace Netsukuku
         }
 
         // Helper: prepare new ETP
-        private IQspnEtp prepare_new_etp(Collection<NodePath> node_paths)
+        private IQspnEtp prepare_new_etp(Collection<NodePath> node_paths, Gee.List<HCoord>? tplist=null)
         {
             // ? try
             while (! etp_factory.i_qspn_begin_etp()) ms_wait(100);
@@ -396,6 +600,7 @@ namespace Netsukuku
                         (hops, fp, nodes_inside, cost);
                 etp_factory.i_qspn_add_path(tosend);
             }
+            if (tplist != null) etp_factory.i_qspn_set_tplist(tplist);
             return etp_factory.i_qspn_make_etp();
             // ? catch XxxError: etp_factory.i_qspn_abort_etp(); throw new YyyError || return null
         }
@@ -412,31 +617,38 @@ namespace Netsukuku
             return prepare_new_etp(all_paths);
         }
 
-        class TaskletWork : Object
+        // Helper: prepare full ETP
+        private IQspnEtp prepare_fwd_etp(IQspnEtp etp, Collection<NodePath> node_paths)
+        {
+            Gee.List<HCoord> tplist = etp.i_qspn_get_tplist();
+            return prepare_new_etp(node_paths, tplist);
+        }
+
+        // Helper: gather ETP from a set of arcs
+        class GatherEtpSetData : Object
         {
             public ArrayList<Tasklet> tasks;
             public ArrayList<IQspnArc> arcs;
             public ArrayList<IAddressManagerRootDispatcher> disps;
-            public IQspnNaddr my_naddr;
             public ArrayList<PairArcEtp> results;
-            public ArrayList<IQspnArc> toremove;
-            public TaskletWork(IQspnNaddr my_naddr)
-            {
-                tasks = new ArrayList<Tasklet>();
-                arcs = new ArrayList<IQspnArc>();
-                disps = new ArrayList<IAddressManagerRootDispatcher>();
-                results = new ArrayList<PairArcEtp>();
-                toremove = new ArrayList<IQspnArc>();
-                this.my_naddr = my_naddr;
-            }
+            public IQspnNaddr my_naddr;
+            public unowned FailedArcHandler failed_arc_handler;
         }
-        private void get_first_etps()
+        private delegate void FailedArcHandler(IQspnArc failed_arc);
+        private Collection<PairArcEtp>
+        gather_full_etp_set(Collection<IQspnArc> arcs, FailedArcHandler failed_arc_handler)
         {
             // Work in parallel then join
-            // Prepare work for n tasklets
-            TaskletWork work = new TaskletWork(my_naddr);
+            // Prepare (one instance for this run) an object work for the tasklets
+            GatherEtpSetData work = new GatherEtpSetData();
+            work.tasks = new ArrayList<Tasklet>();
+            work.arcs = new ArrayList<IQspnArc>();
+            work.disps = new ArrayList<IAddressManagerRootDispatcher>();
+            work.results = new ArrayList<PairArcEtp>();
+            work.my_naddr = my_naddr;
+            work.failed_arc_handler = failed_arc_handler;
             int i = 0;
-            foreach (IQspnArc arc in my_arcs)
+            foreach (IQspnArc arc in arcs)
             {
                 var disp =
                     arc_to_stub.i_neighborhood_get_tcp((arc as INeighborhoodArc));
@@ -444,7 +656,7 @@ namespace Netsukuku
                 work.disps.add(disp);
                 Tasklet t = Tasklet.tasklet_callback(
                     (t_work, t_i) => {
-                        TaskletWork _work = t_work as TaskletWork;
+                        GatherEtpSetData _work = t_work as GatherEtpSetData;
                         int _i = (t_i as SerializableInt).i;
                         try
                         {
@@ -459,7 +671,7 @@ namespace Netsukuku
                         }
                         catch (RPCError e)
                         {
-                            _work.toremove.add(_work.arcs[_i]);
+                            _work.failed_arc_handler(_work.arcs[_i]);
                         }
                     },
                     work,
@@ -469,31 +681,89 @@ namespace Netsukuku
             }
             // join
             foreach (Tasklet t in work.tasks) t.join();
-            // remove failed arcs and emit signal
-            foreach (IQspnArc arc in work.toremove)
-            {
-                arc_remove(arc);
-                // emit signal
-                arc_removed(arc);
-            }
+            var ret = new ArrayList<PairArcEtp>();
+            ret.add_all(work.results);
+            return ret;
+        }
+
+        private void get_first_etps()
+        {
+            // gather ETP from all of my arcs
+            Collection<PairArcEtp> results =
+                gather_full_etp_set(my_arcs, (arc) => {
+                    // remove failed arcs and emit signal
+                    arc_remove(arc);
+                    // emit signal
+                    arc_removed(arc);
+                });
             // on everything fail signal hook impossible
-            if (work.results.is_empty)
+            if (results.is_empty)
             {
                 failed_hook();
             }
             else
             {
-                ArrayList<PairArcEtp> etp_to_process = new ArrayList<PairArcEtp>();
-                foreach (PairArcEtp pair_arc_etp in work.results)
+                // Process ETPs and update my map
+                ArrayList<PairArcEtp> valid_etp_set = new ArrayList<PairArcEtp>();
+                foreach (PairArcEtp pair_arc_etp in results)
                 {
                     // Purify received etp.
                     IQspnEtp? etp = process_etp(pair_arc_etp.etp);
                     // if it's not to be dropped...
-                    if (etp != null) etp_to_process.add(pair_arc_etp);
+                    if (etp != null) valid_etp_set.add(pair_arc_etp);
                 }
-                update_map(etp_to_process);
+                update_map(valid_etp_set);
+                // prepare ETP and send to all my neighbors.
+                IQspnEtp full_etp = prepare_full_etp();
+                IAddressManagerRootDispatcher disp_send_to_all =
+                        arc_to_stub.i_neighborhood_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, full_etp));
+                try {
+                    disp_send_to_all.qspn_manager.send_etp(full_etp);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert(false);
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.get_first_etps: RPCError in send to broadcast to all: $(e.message)");
+                }
+                // Now we are hooked to the network and mature.
+                foreach (QueuedEvent ev in queued_events)
+                {
+                    if (ev.type == 1) arc_add(ev.arc);
+                    if (ev.type == 2) arc_is_changed(ev.arc);
+                    if (ev.type == 3) arc_remove(ev.arc);
+                    if (ev.type == 4) got_etp_from_arc(ev.etp, ev.arc);
+                }
                 mature = true;
                 qspn_mature();
+            }
+        }
+
+        /** Periodically update full
+          */
+        private void periodical_update()
+        {
+            while (true)
+            {
+                ms_wait(600000); // 10 minutes
+                IQspnEtp full_etp = prepare_full_etp();
+                IAddressManagerRootDispatcher disp_send_to_all =
+                        arc_to_stub.i_neighborhood_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, full_etp));
+                try {
+                    disp_send_to_all.qspn_manager.send_etp(full_etp);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert(false);
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.periodical_update: RPCError in send to broadcast to all: $(e.message)");
+                }
             }
         }
 
@@ -551,7 +821,7 @@ namespace Netsukuku
             public bool interesting;
             public Gee.List<NodePath> changed_paths;
         }
-        private UpdateMapResult update_map(Collection<PairArcEtp> etps)
+        private UpdateMapResult update_map(Collection<PairArcEtp> etps, IQspnArc? changed_arc=null)
         {
             HashMap<HCoord,Gee.List<PairStatePath>> temp_dict =
                     new HashMap<HCoord,Gee.List<PairStatePath>>(
@@ -572,8 +842,11 @@ namespace Netsukuku
                         temp_dict[dst] = new ArrayList<PairStatePath>();
                         foreach (NodePath p in destinations[dst.lvl][dst.pos].paths)
                         {
-                            // old path.
-                            temp_dict[dst].add(new PairStatePath(1, p));
+                            // old path. maybe changed its arc.
+                            int s = 1;
+                            if (p.arc_to_first_hop.i_qspn_equals(changed_arc))
+                                s = 4;
+                            temp_dict[dst].add(new PairStatePath(s, p));
                         }
                     }
                     bool exists = false;
@@ -655,14 +928,22 @@ namespace Netsukuku
                                     if (! q1.path.i_qspn_get_cost().i_qspn_is_dead())
                                     {
                                         // how many hops in q1 (exclude destination)
-                                        int denominator = q1.path.i_qspn_get_hops().size-1;
+                                        double denominator = 0.0;
+                                        var q1_hops = q1.path.i_qspn_get_hops();
+                                        q1_hops = q1_hops[0:q1_hops.size-1];
+                                        foreach (HCoord h1 in q1_hops)
+                                        {
+                                            denominator += diam(h1);
+                                        }
                                         if (denominator != 0)
                                         {
-                                            int common_hops = 0;
-                                            foreach (HCoord h in q1.path.i_qspn_get_hops())
+                                            double common_hops = 0;
+                                            foreach (HCoord h in q1_hops)
                                             {
                                                 bool contains = false;
-                                                foreach (HCoord h_test in q.path.i_qspn_get_hops())
+                                                var q_hops = q.path.i_qspn_get_hops();
+                                                q_hops = q_hops[0:q_hops.size-1];
+                                                foreach (HCoord h_test in q_hops)
                                                 {
                                                     if (hcoord_equals(h, h_test))
                                                     {
@@ -672,10 +953,10 @@ namespace Netsukuku
                                                 }
                                                 if (contains)
                                                 {
-                                                    common_hops++;
+                                                    common_hops += diam(h);
                                                 }
                                             }
-                                            double common_hops_ratio = ((double)common_hops) / ((double)denominator);
+                                            double common_hops_ratio = common_hops / denominator;
                                             if (common_hops_ratio > max_common_hops_ratio)
                                             {
                                                 disjoint = false;
@@ -780,15 +1061,7 @@ namespace Netsukuku
                         }
                     }
                     sibling_fp.add(fp_dst);
-                    d.paths.sort((a, b) => {
-                        IQspnREM _a = a.path.i_qspn_get_cost();
-                        _a = _a.i_qspn_add_segment(a.arc_to_first_hop.i_qspn_get_cost());
-                        IQspnREM _b = b.path.i_qspn_get_cost();
-                        _b = _b.i_qspn_add_segment(b.arc_to_first_hop.i_qspn_get_cost());
-                        return _a.i_qspn_compare_to(_b);
-                    });
-                    NodePath p = d.paths.first();
-                    int nn_dst = p.path.i_qspn_get_nodes_inside();
+                    int nn_dst = d.best_path.path.i_qspn_get_nodes_inside();
                     sum_nodes += nn_dst;
                 }
                 IQspnFingerprint current_fp_l = my_fingerprints[l-1].i_qspn_construct(sibling_fp);
@@ -812,10 +1085,27 @@ namespace Netsukuku
             return ret;
         }
 
-        /** Provides a collection of known paths to a destination
-         */
-        public Gee.List<IQspnPath> get_paths_to(HCoord d)
+        // Helper: estimate of nodes in a path while traversing a certain g-node
+        private double diam(HCoord h)
         {
+            if (h.lvl == 0) return 1;
+            if (destinations[h.lvl].has_key(h.pos))
+            {
+                Destination d = destinations[h.lvl][h.pos];
+                NodePath? np = d.best_path;
+                if (np != null)
+                {
+                    return Math.sqrt(np.path.i_qspn_get_nodes_inside());
+                }
+            }
+            return 1.0;
+        }
+
+        /** Provides a collection of known paths to a destination
+          */
+        public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnNotMatureError
+        {
+            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
@@ -825,19 +1115,134 @@ namespace Netsukuku
             return ret;
         }
 
+        /** Gives the estimate of the number of nodes that are inside my g-node
+          */
+        public int get_nodes_inside(int level) throws QspnNotMatureError
+        {
+            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            return my_nodes_inside[level];
+        }
+
+        /** Gives the fingerprint of my g-node
+          */
+        public IQspnFingerprint get_fingerprint(int level) throws QspnNotMatureError
+        {
+            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            return my_fingerprints[level];
+        }
+
+        /** Informs whether the node is mature
+          */
+        public bool is_mature()
+        {
+            return mature;
+        }
+
+        /** Gives the list of current arcs
+          */
+        public Gee.List<IQspnArc> current_arcs()
+        {
+            var ret = new ArrayList<IQspnArc>();
+            ret.add_all(my_arcs);
+            return ret;
+        }
+
         /* Remotable methods
          */
 
-        public IQspnEtp get_full_etp(IQspnNaddr my_naddr)
+        public IQspnEtp get_full_etp(IQspnNaddr requesting_naddr, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError, QspnNotMatureError
         {
-            // TODO
-            return null;
+            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+
+            assert(_rpc_caller != null);
+            CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
+            // The message comes from this arc.
+            IQspnArc? arc = null;
+            foreach (IQspnArc _arc in my_arcs)
+            {
+                INeighborhoodArc iarc = (INeighborhoodArc) _arc;
+                if (iarc.i_neighborhood_comes_from(rpc_caller))
+                {
+                    arc = _arc;
+                    break;
+                }
+            }
+            if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
+
+            HCoord b = my_naddr.i_qspn_get_coord_by_address(requesting_naddr);
+            var node_paths = new ArrayList<NodePath>();
+            for (int l = b.lvl; l < levels; l++) foreach (Destination d in destinations[l])
+            {
+                foreach (NodePath np in d.paths)
+                {
+                    bool found = false;
+                    foreach (HCoord h in np.path.i_qspn_get_hops())
+                    {
+                        if (hcoord_equals(h, b)) found = true;
+                        if (found) break;
+                    }
+                    if (!found) node_paths.add(np);
+                }
+            }
+            return prepare_new_etp(node_paths);
         }
 
-        public void send_etp(IQspnEtp etp)
+        public void send_etp(IQspnEtp etp, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
         {
-            // TODO
-        }
+            assert(_rpc_caller != null);
+            CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
+            // The message comes from this arc.
+            IQspnArc? arc = null;
+            foreach (IQspnArc _arc in my_arcs)
+            {
+                INeighborhoodArc iarc = (INeighborhoodArc) _arc;
+                if (iarc.i_neighborhood_comes_from(rpc_caller))
+                {
+                    arc = _arc;
+                    break;
+                }
+            }
+            if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
+            got_etp_from_arc(etp, arc);
+        }
+        
+        private void got_etp_from_arc(IQspnEtp etp, IQspnArc arc)
+        {
+            if (!mature)
+            {
+                queued_events.add(new QueuedEvent.etp_received(etp, arc));
+                return;
+            }
+            IQspnEtp? processed = process_etp(etp);
+            // if it's not to be dropped...
+            if (processed != null)
+            {
+                // ... update my map with it.
+                ArrayList<PairArcEtp> etps = new ArrayList<PairArcEtp>();
+                etps.add(new PairArcEtp(processed, arc));
+                UpdateMapResult ret = update_map(etps);
+                if (ret.interesting)
+                {
+                    IQspnEtp fwd_etp = prepare_fwd_etp(processed, ret.changed_paths);
+                    IAddressManagerRootDispatcher disp_send_to_others =
+                            arc_to_stub.i_neighborhood_get_broadcast(
+                            /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                            new MissingArcSendEtp(this, fwd_etp),
+                            /* Ignore this neighbor */
+                            (arc as INeighborhoodArc).i_neighborhood_neighbour_id);
+                    try {
+                        disp_send_to_others.qspn_manager.send_etp(fwd_etp);
+                    }
+                    catch (QspnNotAcceptedError e) {
+                        // a broadcast will never get a return value nor an error
+                        assert(false);
+                    }
+                    catch (RPCError e) {
+                        log_error(@"QspnManager.got_etp_from_arc: RPCError in send to broadcast to others: $(e.message)");
+                    }
+                }
+            }
+        }
     }
 }

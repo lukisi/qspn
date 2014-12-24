@@ -8,6 +8,7 @@ Makefile.in
 Makefile
 testsuites/test_qspn/test_qspn.c
 testsuites/test_qspn/generic_naddr.c
+testsuites/test_qspn/base_dispatcher.c
 *.lo
 *.la
 .deps
