@@ -84,6 +84,19 @@ public class FakeArc : Object, IQspnArc, INeighborhoodArc
     public bool i_neighborhood_comes_from(zcd.CallerInfo rpc_caller) {return neighbour_nic_addr == rpc_caller.caller_ip;}
 }
 
+class BroadcastSendEtp : Object
+{
+    public BroadcastSendEtp(QspnManager target_mgr, IQspnEtp etp, CallerInfo caller)
+    {
+        this.target_mgr = target_mgr;
+        this.etp = etp;
+        this.caller = caller;
+    }
+    public QspnManager target_mgr;
+    public IQspnEtp etp;
+    public CallerInfo caller;
+}
+
 public class FakeBroadcastClient : FakeAddressManager
 {
     private ArrayList<FakeArc> target_arcs;
@@ -102,7 +115,14 @@ public class FakeBroadcastClient : FakeAddressManager
             QspnManager target_mgr = target_arc.neighbour_qspnmgr;
             string my_ip = target_arc.my_nic_addr;
             CallerInfo caller = new CallerInfo(my_ip, null, null);
-            target_mgr.send_etp(etp, caller);
+            // tasklet for:  target_mgr.send_etp(etp, caller);
+            Tasklet.tasklet_callback(
+                (o) => {
+                    BroadcastSendEtp t_o = (BroadcastSendEtp)o;
+                    t_o.target_mgr.send_etp(t_o.etp, t_o.caller);
+                },
+                new BroadcastSendEtp(target_mgr, etp, caller)
+                );
         }
     }
 }
@@ -127,8 +147,7 @@ public class FakeTCPClient : FakeAddressManager
     }
 }
 
-public class FakeArcToStub : Object,
-                             INeighborhoodArcToStub
+public class FakeArcToStub : Object, INeighborhoodArcToStub
 {
     public QspnManager my_mgr;
     public FakeArcToStub()
