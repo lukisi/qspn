@@ -138,18 +138,24 @@ public class MyEtp : ETP, IQspnEtp
         while (i < known_paths.size)
         {
             MyNpath p = (MyNpath)known_paths[i];
+            bool unmet = false;
             // acyclic rule
             foreach (HCoord c in p.get_lst_hops().get_hops())
             {
                 if (c.pos == my_naddr.i_qspn_get_pos(c.lvl))
                 {
                     // unmet
-                    known_paths.remove_at(i);
+                    unmet = true;
+                    break;
                 }
-                else
-                {
-                    i++;
-                }
+            }
+            if (unmet)
+            {
+                known_paths.remove_at(i);
+            }
+            else
+            {
+                i++;
             }
         }
     }

@@ -338,18 +338,24 @@ public class FakeEtp : Object, IQspnEtp
         while (i < known_paths.size)
         {
             FakePath p = known_paths[i];
+            bool unmet = false;
             // acyclic rule
             foreach (HCoord c in p.get_lst_hops().get_hops())
             {
                 if (c.pos == my_naddr.i_qspn_get_pos(c.lvl))
                 {
                     // unmet
-                    known_paths.remove_at(i);
+                    unmet = true;
+                    break;
                 }
-                else
-                {
-                    i++;
-                }
+            }
+            if (unmet)
+            {
+                known_paths.remove_at(i);
+            }
+            else
+            {
+                i++;
             }
         }
     }
@@ -475,7 +481,7 @@ public class FakeEtpFactory : Object, IQspnEtpFactory
     private FakeGenericNaddr? start_node_naddr;
     private FakeTPList? etp_list;
     private Gee.List<FakePath> known_paths;
-    private Gee.List<FakeFingerprint> start_node_fp;
+    private Gee.List<FakeFingerprint?> start_node_fp;
     private int[] start_node_nodes_inside;
 
     public FakeEtpFactory()
@@ -523,8 +529,10 @@ public class FakeEtpFactory : Object, IQspnEtpFactory
         state = 1;
         start_node_naddr = (FakeGenericNaddr)my_naddr;
         known_paths = new ArrayList<FakePath>();
-        start_node_fp = new ArrayList<FakeFingerprint>();
-        start_node_nodes_inside = new int[my_naddr.i_qspn_get_levels()];
+        start_node_fp = new ArrayList<FakeFingerprint?>();
+        int levels = my_naddr.i_qspn_get_levels();
+        start_node_nodes_inside = new int[levels];
+        for (int i = 0; i < levels; i++) start_node_fp.add(null);
     }
 
     public void i_qspn_set_gnode_fingerprint
@@ -603,7 +611,7 @@ int main()
         ms_wait(100);
         assert(c1.is_mature());
 
-/*
+
         var n2 = new FakeGenericNaddr({0, 0, 10, 1}, {16, 16, 16, 256});
         var n2_id = new FakeNodeID();
         string n2_nic1_addr = "100.10.0.2";
@@ -619,7 +627,9 @@ int main()
 
         var arc1to2 = new FakeArc(c2, n2, new FakeREM(2000), n2_id, n1_nic1_addr, "nic1", n2_nic1_addr);
         c1.arc_add(arc1to2);
-*/
+/**/
+        c1.stop_operations();
+        c2.stop_operations();
     }
     assert(Tasklet.kill());
     return 0;

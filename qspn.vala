@@ -675,7 +675,10 @@ namespace Netsukuku
                         }
                     },
                     work,
-                    new SerializableInt(i++)
+                    new SerializableInt(i++),
+                    null,
+                    null,
+                    true /* joinable */
                 );
                 work.tasks.add(t);
             }
@@ -840,13 +843,16 @@ namespace Netsukuku
                     if (! temp_dict.has_key(dst))
                     {
                         temp_dict[dst] = new ArrayList<PairStatePath>();
-                        foreach (NodePath p in destinations[dst.lvl][dst.pos].paths)
+                        if (destinations[dst.lvl].has_key(dst.pos))
                         {
-                            // old path. maybe changed its arc.
-                            int s = 1;
-                            if (p.arc_to_first_hop.i_qspn_equals(changed_arc))
-                                s = 4;
-                            temp_dict[dst].add(new PairStatePath(s, p));
+                            foreach (NodePath p in destinations[dst.lvl][dst.pos].paths)
+                            {
+                                // old path. maybe changed its arc.
+                                int s = 1;
+                                if (p.arc_to_first_hop.i_qspn_equals(changed_arc))
+                                    s = 4;
+                                temp_dict[dst].add(new PairStatePath(s, p));
+                            }
                         }
                     }
                     bool exists = false;
