@@ -84,19 +84,6 @@ public class FakeArc : Object, IQspnArc, INeighborhoodArc
     public bool i_neighborhood_comes_from(zcd.CallerInfo rpc_caller) {return neighbour_nic_addr == rpc_caller.caller_ip;}
 }
 
-class BroadcastSendEtp : Object
-{
-    public BroadcastSendEtp(QspnManager target_mgr, IQspnEtp etp, CallerInfo caller)
-    {
-        this.target_mgr = target_mgr;
-        this.etp = etp;
-        this.caller = caller;
-    }
-    public QspnManager target_mgr;
-    public IQspnEtp etp;
-    public CallerInfo caller;
-}
-
 public class FakeBroadcastClient : FakeAddressManager
 {
     private ArrayList<FakeArc> target_arcs;
@@ -117,11 +104,15 @@ public class FakeBroadcastClient : FakeAddressManager
             CallerInfo caller = new CallerInfo(my_ip, null, null);
             // tasklet for:  target_mgr.send_etp(etp, caller);
             Tasklet.tasklet_callback(
-                (o) => {
-                    BroadcastSendEtp t_o = (BroadcastSendEtp)o;
-                    t_o.target_mgr.send_etp(t_o.etp, t_o.caller);
+                (_target_mgr, _etp, _caller) => {
+                    QspnManager t_target_mgr = (QspnManager)_target_mgr;
+                    IQspnEtp t_etp           = (IQspnEtp)_etp;
+                    CallerInfo t_caller      = (CallerInfo)_caller;
+                    t_target_mgr.send_etp(t_etp, t_caller);
                 },
-                new BroadcastSendEtp(target_mgr, etp, caller)
+                target_mgr,
+                etp,
+                caller
                 );
         }
     }
@@ -142,6 +133,7 @@ public class FakeTCPClient : FakeAddressManager
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         CallerInfo caller = new CallerInfo(my_ip, null, null);
+        Tasklet.schedule();
         IQspnEtp ret = target_mgr.get_full_etp(my_naddr, caller);
         return ret;
     }
@@ -179,7 +171,7 @@ public class FakeArcToStub : Object, INeighborhoodArcToStub
                         INeighborhoodNodeID? ignore_neighbour=null
                     )
     {
-        return null; // will not be used by this module
+        assert_not_reached(); // will not be used by this module
     }
 
     public IAddressManagerRootDispatcher
@@ -188,7 +180,7 @@ public class FakeArcToStub : Object, INeighborhoodArcToStub
                         bool wait_reply=true
                     )
     {
-        return null; // will not be used by this module
+        assert_not_reached(); // will not be used by this module
     }
 
     public IAddressManagerRootDispatcher
@@ -608,8 +600,9 @@ int main()
         // create module qspn
         var c1 = new QspnManager(n1, 2, 0.7, arclist, f1, tostub, fmgr, new FakeEtpFactory());
         tostub.my_mgr = c1;
-        ms_wait(100);
         assert(c1.is_mature());
+        debug("1 is mature");
+        ms_wait(2000);
 
 
         var n2 = new FakeGenericNaddr({0, 0, 10, 1}, {16, 16, 16, 256});
@@ -624,11 +617,16 @@ int main()
         // create module qspn
         var c2 = new QspnManager(n2, 2, 0.7, arclist, f2, tostub, fmgr, new FakeEtpFactory());
         tostub.my_mgr = c2;
+        debug("2 is created");
 
         var arc1to2 = new FakeArc(c2, n2, new FakeREM(2000), n2_id, n1_nic1_addr, "nic1", n2_nic1_addr);
         c1.arc_add(arc1to2);
+        debug("1 has a new arc");
+        ms_wait(2000);
 /**/
+        debug("stopping 1");
         c1.stop_operations();
+        debug("stopping 2");
         c2.stop_operations();
     }
     assert(Tasklet.kill());

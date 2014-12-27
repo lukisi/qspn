@@ -220,6 +220,7 @@ namespace Netsukuku
 
         private void on_mature()
         {
+            debug("Event qspn_mature");
             // start in a tasklet the periodical send of full updates.
             periodical_update_tasklet = Tasklet.tasklet_callback(
                 (t) => {
@@ -245,6 +246,7 @@ namespace Netsukuku
             {
                 IAddressManagerRootDispatcher disp =
                         qspnman.arc_to_stub.i_neighborhood_get_tcp(arc);
+                debug("Sending ETP to missing arc");
                 try {
                     disp.qspn_manager.send_etp(etp);
                 }
@@ -297,6 +299,17 @@ namespace Netsukuku
         // The module is notified if an arc is added/changed/removed
         public void arc_add(IQspnArc arc)
         {
+            Tasklet.tasklet_callback((_qspnmgr, _arc) => {
+                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
+                    qspnmgr.tasklet_arc_add((IQspnArc)_arc);
+                },
+                this,
+                arc
+                );
+        }
+
+        private void tasklet_arc_add(IQspnArc arc)
+        {
             // From outside the module is notified of the creation of this new arc.
             if (!mature)
             {
@@ -316,6 +329,7 @@ namespace Netsukuku
                 while (true)
                 {
                     try {
+                        debug("Requesting ETP from new arc");
                         etp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
                         break;
                     }
@@ -363,12 +377,13 @@ namespace Netsukuku
                         new MissingArcSendEtp(this, new_etp),
                         /* Ignore this neighbor */
                         (arc as INeighborhoodArc).i_neighborhood_neighbour_id);
+                debug("Sending ETP to old");
                 try {
                     disp_send_to_old.qspn_manager.send_etp(new_etp);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
-                    assert(false);
+                    assert_not_reached();
                 }
                 catch (RPCError e) {
                     log_error(@"QspnManager.arc_add: RPCError in send to broadcast to old: $(e.message)");
@@ -378,6 +393,7 @@ namespace Netsukuku
             IQspnEtp full_etp = prepare_full_etp();
             IAddressManagerRootDispatcher disp_send_to_arc =
                     arc_to_stub.i_neighborhood_get_tcp((arc as INeighborhoodArc));
+            debug("Sending ETP to new arc");
             try {
                 disp_send_to_arc.qspn_manager.send_etp(full_etp);
             }
@@ -399,6 +415,17 @@ namespace Netsukuku
         }
 
         public void arc_is_changed(IQspnArc changed_arc)
+        {
+            Tasklet.tasklet_callback((_qspnmgr, _changed_arc) => {
+                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
+                    qspnmgr.tasklet_arc_is_changed((IQspnArc)_changed_arc);
+                },
+                this,
+                changed_arc
+                );
+        }
+
+        private void tasklet_arc_is_changed(IQspnArc changed_arc)
         {
             // From outside the module is notified that the cost of this arc of mine
             // is changed.
@@ -438,12 +465,13 @@ namespace Netsukuku
                         arc_to_stub.i_neighborhood_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
                         new MissingArcSendEtp(this, new_etp));
+                debug("Sending ETP to all");
                 try {
                     disp_send_to_all.qspn_manager.send_etp(new_etp);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
-                    assert(false);
+                    assert_not_reached();
                 }
                 catch (RPCError e) {
                     log_error(@"QspnManager.arc_is_changed: RPCError in send to broadcast to all: $(e.message)");
@@ -452,6 +480,17 @@ namespace Netsukuku
         }
 
         public void arc_remove(IQspnArc removed_arc)
+        {
+            Tasklet.tasklet_callback((_qspnmgr, _removed_arc) => {
+                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
+                    qspnmgr.tasklet_arc_remove((IQspnArc)_removed_arc);
+                },
+                this,
+                removed_arc
+                );
+        }
+
+        private void tasklet_arc_remove(IQspnArc removed_arc)
         {
             // From outside the module is notified that this arc of mine
             // has been removed.
@@ -524,12 +563,13 @@ namespace Netsukuku
                     arc_to_stub.i_neighborhood_get_broadcast(
                     /* If a neighbor doesnt send its ACK repeat the message via tcp */
                     new MissingArcSendEtp(this, new_etp));
+            debug("Sending ETP to all");
             try {
                 disp_send_to_all.qspn_manager.send_etp(new_etp);
             }
             catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
-                assert(false);
+                assert_not_reached();
             }
             catch (RPCError e) {
                 log_error(@"QspnManager.arc_remove: RPCError in send to broadcast to all: $(e.message)");
@@ -691,6 +731,7 @@ namespace Netsukuku
 
         private void get_first_etps()
         {
+            debug("Gathering ETP from all of my arcs");
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
                 gather_full_etp_set(my_arcs, (arc) => {
@@ -706,6 +747,7 @@ namespace Netsukuku
             }
             else
             {
+                debug("Processing ETP set");
                 // Process ETPs and update my map
                 ArrayList<PairArcEtp> valid_etp_set = new ArrayList<PairArcEtp>();
                 foreach (PairArcEtp pair_arc_etp in results)
@@ -722,12 +764,13 @@ namespace Netsukuku
                         arc_to_stub.i_neighborhood_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
                         new MissingArcSendEtp(this, full_etp));
+                debug("Sending ETP to all");
                 try {
                     disp_send_to_all.qspn_manager.send_etp(full_etp);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
-                    assert(false);
+                    assert_not_reached();
                 }
                 catch (RPCError e) {
                     log_error(@"QspnManager.get_first_etps: RPCError in send to broadcast to all: $(e.message)");
@@ -757,12 +800,13 @@ namespace Netsukuku
                         arc_to_stub.i_neighborhood_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
                         new MissingArcSendEtp(this, full_etp));
+                debug("Sending ETP to all");
                 try {
                     disp_send_to_all.qspn_manager.send_etp(full_etp);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
-                    assert(false);
+                    assert_not_reached();
                 }
                 catch (RPCError e) {
                     log_error(@"QspnManager.periodical_update: RPCError in send to broadcast to all: $(e.message)");
@@ -858,7 +902,6 @@ namespace Netsukuku
                     bool exists = false;
                     for (int i = 0; i < temp_dict[dst].size; i++)
                     {
-                        int n = temp_dict[dst][i].state;
                         NodePath r = temp_dict[dst][i].path;
                         if (r.hops_are_equal(q))
                         {
@@ -929,7 +972,6 @@ namespace Netsukuku
                                 bool disjoint = true;
                                 for (int j = 0; j < i; j++)
                                 {
-                                    int n1 = temp_dict[dst][j].state;
                                     NodePath q1 = temp_dict[dst][j].path;
                                     if (! q1.path.i_qspn_get_cost().i_qspn_is_dead())
                                     {
@@ -1190,6 +1232,7 @@ namespace Netsukuku
                     if (!found) node_paths.add(np);
                 }
             }
+            debug("Sending ETP on request");
             return prepare_new_etp(node_paths);
         }
 
@@ -1220,6 +1263,7 @@ namespace Netsukuku
                 queued_events.add(new QueuedEvent.etp_received(etp, arc));
                 return;
             }
+            debug("Processing ETP");
             IQspnEtp? processed = process_etp(etp);
             // if it's not to be dropped...
             if (processed != null)
@@ -1237,12 +1281,13 @@ namespace Netsukuku
                             new MissingArcSendEtp(this, fwd_etp),
                             /* Ignore this neighbor */
                             (arc as INeighborhoodArc).i_neighborhood_neighbour_id);
+                    debug("Sending ETP to others");
                     try {
                         disp_send_to_others.qspn_manager.send_etp(fwd_etp);
                     }
                     catch (QspnNotAcceptedError e) {
                         // a broadcast will never get a return value nor an error
-                        assert(false);
+                        assert_not_reached();
                     }
                     catch (RPCError e) {
                         log_error(@"QspnManager.got_etp_from_arc: RPCError in send to broadcast to others: $(e.message)");

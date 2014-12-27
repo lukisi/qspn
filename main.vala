@@ -428,11 +428,11 @@ public class MyArc : Object, INeighborhoodArc, IQspnArc
     public bool i_neighborhood_comes_from(zcd.CallerInfo rpc_caller) {return true; /*TODO*/}
 
     // unused stuff
-    public INeighborhoodNodeID i_neighborhood_neighbour_id {get {assert(false); return null;}} // do not use in this fake
-    public string i_neighborhood_mac {get {assert(false); return null;}} // do not use in this fake
-    public Object i_neighborhood_cost {get {assert(false); return null;}} // do not use in this fake
-    public bool i_neighborhood_is_nic(INeighborhoodNetworkInterface nic) {assert(false); return false;} // do not use in this fake
-    public bool i_neighborhood_equals(INeighborhoodArc other) {assert(false); return false;} // do not use in this fake
+    public INeighborhoodNodeID i_neighborhood_neighbour_id {get {assert_not_reached();}} // do not use in this fake
+    public string i_neighborhood_mac {get {assert_not_reached();}} // do not use in this fake
+    public Object i_neighborhood_cost {get {assert_not_reached();}} // do not use in this fake
+    public bool i_neighborhood_is_nic(INeighborhoodNetworkInterface nic) {assert_not_reached();} // do not use in this fake
+    public bool i_neighborhood_equals(INeighborhoodArc other) {assert_not_reached();} // do not use in this fake
 }
 
 public class MyArcToStub : Object, INeighborhoodArcToStub
@@ -441,7 +441,7 @@ public class MyArcToStub : Object, INeighborhoodArcToStub
     (INeighborhoodMissingArcHandler? missing_handler=null,
      INeighborhoodNodeID? ignore_neighbour=null)
     {
-        assert(false); return null; // do not use in this fake
+        assert_not_reached(); // do not use in this fake
     }
 
     public IAddressManagerRootDispatcher i_neighborhood_get_broadcast_to_nic
@@ -449,13 +449,13 @@ public class MyArcToStub : Object, INeighborhoodArcToStub
      INeighborhoodMissingArcHandler? missing_handler=null,
      INeighborhoodNodeID? ignore_neighbour=null)
     {
-        assert(false); return null; // do not use in this fake
+        assert_not_reached(); // do not use in this fake
     }
 
     public IAddressManagerRootDispatcher i_neighborhood_get_unicast
     (INeighborhoodArc arc, bool wait_reply=true)
     {
-        assert(false); return null; // do not use in this fake
+        assert_not_reached(); // do not use in this fake
     }
 
     public IAddressManagerRootDispatcher i_neighborhood_get_tcp
