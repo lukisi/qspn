@@ -36,7 +36,7 @@ namespace Netsukuku
         public IQspnPath path;
         public bool hops_are_equal(NodePath q)
         {
-            if (! arc_to_first_hop.i_qspn_equals(arc_to_first_hop)) return false;
+            if (! q.arc_to_first_hop.i_qspn_equals(arc_to_first_hop)) return false;
             Gee.List<HCoord> mylist = path.i_qspn_get_hops();
             Gee.List<HCoord> qlist = q.path.i_qspn_get_hops();
             if (mylist.size != qlist.size) return false;
@@ -169,12 +169,7 @@ namespace Netsukuku
             levels = my_naddr.i_qspn_get_levels();
             // Only the level 0 fingerprint is given. The other ones
             // will be constructed when the node is mature.
-            this.my_fingerprints = new ArrayList<IQspnFingerprint>(
-                /*EqualDataFunc*/
-                (a, b) => {
-                    return a.i_qspn_equals(b);
-                }
-            );
+            this.my_fingerprints = new ArrayList<IQspnFingerprint>();
             this.my_nodes_inside = new ArrayList<int>();
             my_fingerprints.add(my_fingerprint); // level 0 fingerprint
             my_nodes_inside.add(1); // level 0 nodes_inside
@@ -352,6 +347,7 @@ namespace Netsukuku
                 return;
             }
             // Got ETP from new neighbor/arc. Purify it.
+            debug("Processing ETP from new arc");
             etp = process_etp(etp);
             if (etp == null)
             {
@@ -452,6 +448,7 @@ namespace Netsukuku
             foreach (PairArcEtp pair_arc_etp in results)
             {
                 // Purify received etp.
+                debug("Processing ETP from one of my arcs");
                 IQspnEtp? etp = process_etp(pair_arc_etp.etp);
                 // if it's not to be dropped...
                 if (etp != null) valid_etp_set.add(pair_arc_etp);
@@ -549,6 +546,7 @@ namespace Netsukuku
             foreach (PairArcEtp pair_arc_etp in results)
             {
                 // Purify received etp.
+                debug("Processing ETP from one of my arcs");
                 IQspnEtp? etp = process_etp(pair_arc_etp.etp);
                 // if it's not to be dropped...
                 if (etp != null) valid_etp_set.add(pair_arc_etp);
@@ -836,6 +834,7 @@ namespace Netsukuku
                 else
                 {
                     // dropped because of acyclic rule
+                    debug("Cyclic ETP dropped");
                 }
             }
             else
@@ -893,7 +892,7 @@ namespace Netsukuku
                             {
                                 // old path. maybe changed its arc.
                                 int s = 1;
-                                if (p.arc_to_first_hop.i_qspn_equals(changed_arc))
+                                if (changed_arc != null && p.arc_to_first_hop.i_qspn_equals(changed_arc))
                                     s = 4;
                                 temp_dict[dst].add(new PairStatePath(s, p));
                             }
@@ -1086,7 +1085,7 @@ namespace Netsukuku
                 }
             }
             bool variations = false;
-            for (int l = 1; l < levels; l++)
+            for (int l = 1; l < levels + 1; l++)
             {
                 Gee.List<IQspnFingerprint> sibling_fp = new ArrayList<IQspnFingerprint>();
                 int sum_nodes = 0;

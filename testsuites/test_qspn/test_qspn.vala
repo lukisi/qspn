@@ -137,6 +137,17 @@ public class FakeTCPClient : FakeAddressManager
         IQspnEtp ret = target_mgr.get_full_etp(my_naddr, caller);
         return ret;
     }
+
+    public override void send_etp
+    (IQspnEtp etp, zcd.CallerInfo? _rpc_caller = null)
+    throws QspnNotAcceptedError, zcd.RPCError
+    {
+        QspnManager target_mgr = target_arc.neighbour_qspnmgr;
+        string my_ip = target_arc.my_nic_addr;
+        CallerInfo caller = new CallerInfo(my_ip, null, null);
+        Tasklet.schedule();
+        target_mgr.send_etp(etp, caller);
+    }
 }
 
 public class FakeArcToStub : Object, INeighborhoodArcToStub
@@ -590,44 +601,107 @@ int main()
     // init tasklet
     assert(Tasklet.init());
     {
-        var n1 = new FakeGenericNaddr({0, 0, 0, 1}, {16, 16, 16, 256});
-        var n1_id = new FakeNodeID();
+        const int[] net_topology = {256, 16, 16, 16};
+        const int[] n1_addr = { 1,  0,  0,  0};
+        const int[] n2_addr = { 1, 10,  0,  0};
+        const int[] n3_addr = { 1, 10,  0,  1};
         string n1_nic1_addr = "100.10.0.1";
+        string n2_nic1_addr = "100.10.0.2";
+        string n3_nic1_addr = "100.10.0.3";
+
+        // create module qspn c1
+        FakeGenericNaddr n1 = new FakeGenericNaddr(n1_addr, net_topology);
+        var n1_id = new FakeNodeID();
         var arclist = new ArrayList<IQspnArc>();
         var f1 = new FakeFingerprint(34346, {0, 0, 0, 0});
         var fmgr = new FakeREM.FakeFingerprintManager();
         var tostub = new FakeArcToStub();
-        // create module qspn
         var c1 = new QspnManager(n1, 2, 0.7, arclist, f1, tostub, fmgr, new FakeEtpFactory());
         tostub.my_mgr = c1;
         assert(c1.is_mature());
-        debug("1 is mature");
         ms_wait(2000);
 
-
-        var n2 = new FakeGenericNaddr({0, 0, 10, 1}, {16, 16, 16, 256});
+        // create module qspn c2 with an arc towards c1
+        FakeGenericNaddr n2 = new FakeGenericNaddr(n2_addr, net_topology);
         var n2_id = new FakeNodeID();
-        string n2_nic1_addr = "100.10.0.2";
         var arc2to1 = new FakeArc(c1, n1, new FakeREM(2000), n1_id, n2_nic1_addr, "nic1", n1_nic1_addr);
         arclist = new ArrayList<IQspnArc>();
         arclist.add(arc2to1);
         var f2 = new FakeFingerprint(3467, {0, 1, 0, 0});
         fmgr = new FakeREM.FakeFingerprintManager();
         tostub = new FakeArcToStub();
-        // create module qspn
         var c2 = new QspnManager(n2, 2, 0.7, arclist, f2, tostub, fmgr, new FakeEtpFactory());
         tostub.my_mgr = c2;
-        debug("2 is created");
 
-        var arc1to2 = new FakeArc(c2, n2, new FakeREM(2000), n2_id, n1_nic1_addr, "nic1", n2_nic1_addr);
+        // add an arc to c1 towards c2
+        var arc1to2 = new FakeArc(c2, n2, new FakeREM(2100), n2_id, n1_nic1_addr, "nic1", n2_nic1_addr);
         c1.arc_add(arc1to2);
-        debug("1 has a new arc");
         ms_wait(2000);
-/**/
+        assert(c2.is_mature());
+
+        // Some asserts
+        try {
+            FakeFingerprint c1network;
+            FakeFingerprint c2network;
+            int c1tot;
+            int c2tot;
+            c1network = (FakeFingerprint)c1.get_fingerprint(4);
+            c2network = (FakeFingerprint)c2.get_fingerprint(4);
+            c1tot = c1.get_nodes_inside(4);
+            c2tot = c2.get_nodes_inside(4);
+            assert(c1network.i_qspn_equals(c2network));
+            assert(c1tot == 2);
+            assert(c2tot == 2);
+            assert(c2.get_paths_to(new HCoord(3, 1)).is_empty);
+            bool n2_has_path_towards_n1 = false;
+            foreach (IQspnNodePath np in c2.get_paths_to(n2.i_qspn_get_coord_by_address(n1)))
+            {
+                n2_has_path_towards_n1 = true;
+                FakeREM cost = (FakeREM)(np.i_qspn_get_cost());
+                assert(cost.usec_rtt == 2000);
+            }
+            assert(n2_has_path_towards_n1);
+            assert(c1.get_paths_to(new HCoord(3, 1)).is_empty);
+            bool n1_has_path_towards_n2 = false;
+            foreach (IQspnNodePath np in c1.get_paths_to(n1.i_qspn_get_coord_by_address(n2)))
+            {
+                n1_has_path_towards_n2 = true;
+                FakeREM cost = (FakeREM)(np.i_qspn_get_cost());
+                assert(cost.usec_rtt == 2100);
+            }
+            assert(n1_has_path_towards_n2);
+        } catch (QspnNotMatureError e) {assert_not_reached();}
+
+        // create module qspn c3 with an arc towards c1 and one towards c2
+        FakeGenericNaddr n3 = new FakeGenericNaddr(n3_addr, net_topology);
+        var n3_id = new FakeNodeID();
+        var arc3to1 = new FakeArc(c1, n1, new FakeREM(1900), n1_id, n3_nic1_addr, "nic1", n1_nic1_addr);
+        var arc3to2 = new FakeArc(c2, n2, new FakeREM(1800), n2_id, n3_nic1_addr, "nic1", n2_nic1_addr);
+        arclist = new ArrayList<IQspnArc>();
+        arclist.add(arc3to1);
+        arclist.add(arc3to2);
+        var f3 = new FakeFingerprint(457437, {0, 0, 0, 1});
+        fmgr = new FakeREM.FakeFingerprintManager();
+        tostub = new FakeArcToStub();
+        var c3 = new QspnManager(n3, 2, 0.7, arclist, f3, tostub, fmgr, new FakeEtpFactory());
+        tostub.my_mgr = c3;
+
+        // add an arc to c1 towards c3
+        var arc1to3 = new FakeArc(c3, n3, new FakeREM(1900), n3_id, n3_nic1_addr, "nic1", n3_nic1_addr);
+        c1.arc_add(arc1to3);
+        // add an arc to c2 towards c3
+        var arc2to3 = new FakeArc(c3, n3, new FakeREM(1800), n3_id, n3_nic1_addr, "nic1", n3_nic1_addr);
+        c2.arc_add(arc2to3);
+        // wait
+        ms_wait(2000);
+        assert(c3.is_mature());
+
         debug("stopping 1");
         c1.stop_operations();
         debug("stopping 2");
         c2.stop_operations();
+        debug("stopping 3");
+        c3.stop_operations();
     }
     assert(Tasklet.kill());
     return 0;
