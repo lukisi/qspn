@@ -508,7 +508,7 @@ namespace Netsukuku
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
             var path_to_add_to_changed_paths = new ArrayList<NodePath>();
-            for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l])
+            for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 int i = 0;
                 while (i < d.paths.size)
@@ -1218,7 +1218,7 @@ namespace Netsukuku
 
             HCoord b = my_naddr.i_qspn_get_coord_by_address(requesting_naddr);
             var node_paths = new ArrayList<NodePath>();
-            for (int l = b.lvl; l < levels; l++) foreach (Destination d in destinations[l])
+            for (int l = b.lvl; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 foreach (NodePath np in d.paths)
                 {
