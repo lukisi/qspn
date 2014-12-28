@@ -11,14 +11,17 @@ bin_PROGRAMS =  \
 
 TESTS = \
 	test_qspn \
+	auto_graph \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_qspn \
+	auto_graph \
 	$(NULL)
 
 test_qspn_SOURCES = \
 	testsuites/test_qspn/test_qspn.vala \
+	testsuites/test_qspn/fake_classes.vala \
 	testsuites/test_qspn/generic_naddr.vala \
 	testsuites/test_qspn/base_dispatcher.vala \
 	qspn.vapi \
@@ -42,6 +45,41 @@ test_qspn_CPPFLAGS = \
 	$(NULL)
 
 test_qspn_LDADD = \
+	$(GOBJECT_LIBS) \
+	$(GIO_LIBS) \
+	$(GEE_LIBS) \
+	$(TASKLET_LIBS) \
+	$(ZCD_LIBS) \
+	$(NTKDRPC_LIBS) \
+	$(builddir)/libqspn.la \
+	$(NULL)
+
+auto_graph_SOURCES = \
+	testsuites/auto_graph/auto_graph.vala \
+	testsuites/auto_graph/fake_classes.vala \
+	testsuites/auto_graph/generic_naddr.vala \
+	testsuites/auto_graph/base_dispatcher.vala \
+	qspn.vapi \
+	$(NULL)
+
+auto_graph_VALAFLAGS = \
+	--pkg gio-2.0 \
+	--pkg gee-0.8 \
+	--pkg tasklet \
+	--pkg zcd \
+	--pkg ntkd-rpc\
+	$(NULL)
+
+auto_graph_CPPFLAGS = \
+	$(GOBJECT_CFLAGS) \
+	$(GIO_CFLAGS) \
+	$(GEE_CFLAGS) \
+	$(TASKLET_CFLAGS) \
+	$(ZCD_CFLAGS) \
+	$(NTKDRPC_CFLAGS) \
+	$(NULL)
+
+auto_graph_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GIO_LIBS) \
 	$(GEE_LIBS) \
@@ -127,9 +165,14 @@ CLEANFILES = \
 	$(srcdir)/main.c \
 	$(srcdir)/qspn.c \
 	$(srcdir)/interfaces.c \
+	$(srcdir)/testsuites/test_qspn/test_qspn.c \
 	$(srcdir)/testsuites/test_qspn/generic_naddr.c \
 	$(srcdir)/testsuites/test_qspn/base_dispatcher.c \
-	$(srcdir)/testsuites/test_qspn/test_qspn.c \
+	$(srcdir)/testsuites/test_qspn/fake_classes.c \
+	$(srcdir)/testsuites/auto_graph/auto_graph.c \
+	$(srcdir)/testsuites/auto_graph/generic_naddr.c \
+	$(srcdir)/testsuites/auto_graph/base_dispatcher.c \
+	$(srcdir)/testsuites/auto_graph/fake_classes.c \
 	$(NULL)
 
 qspn.vapi: libqspn_la_vala.stamp

@@ -7,8 +7,13 @@ qspn.vapi
 Makefile.in
 Makefile
 testsuites/test_qspn/test_qspn.c
+testsuites/test_qspn/fake_classes.c
 testsuites/test_qspn/generic_naddr.c
 testsuites/test_qspn/base_dispatcher.c
+testsuites/auto_graph/auto_graph.c
+testsuites/auto_graph/fake_classes.c
+testsuites/auto_graph/generic_naddr.c
+testsuites/auto_graph/base_dispatcher.c
 *.lo
 *.la
 .deps
