@@ -79,7 +79,7 @@ auto_graph_CPPFLAGS = \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
-auto_graph_LDADD = \
+auto_graph_LDADD = -lm \
 	$(GOBJECT_LIBS) \
 	$(GIO_LIBS) \
 	$(GEE_LIBS) \
