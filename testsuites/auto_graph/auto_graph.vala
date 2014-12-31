@@ -40,6 +40,15 @@ class Test.Address : Object
         }
         return new Address(p);
     }
+    public Address get_upper_gnode()
+    {
+        ArrayList<int> p = new ArrayList<int>();
+        for (int l = 1; l < pos.size; l++)
+        {
+            p.add(pos[l]);
+        }
+        return new Address(p);
+    }
     public string to_string()
     {
         string sep = "";
@@ -257,6 +266,30 @@ class GraphBuilder : Object
         }
         return ret;
     }
+
+    int base_gnode(int lvl)
+    {
+        if (lvl == 0) return 0;
+        int ret = base_gnode(lvl - 1);
+        int num = 1;
+        for (int i = lvl - 1; i < levels; i++)
+        {
+            num *= gsizes[i];
+        }
+        return ret + num;
+    }
+    public int id_for_address(Address g)
+    {
+        int l_o_g = levels - g.pos.size;
+        int id = 0;
+        for (int i = levels - 1; i >= l_o_g; i--)
+        {
+            if (i < levels - 1) id *= gsizes[i];
+            id += g.pos[i - l_o_g];
+        }
+        int ret = id + 1 + base_gnode(l_o_g);
+        return ret;
+    }
 }
 
 ArrayList<string> serial;
@@ -290,22 +323,48 @@ void print_graph(GraphBuilder b)
 
 void save_gml(GraphBuilder b)
 {
+    ArrayList<int> nodes_already_written = new ArrayList<int>();
     print("graph [\n");
     foreach (Test.Node n in b.nodes)
     {
-        print("  node [\n");
-        print(@"    id $(n.id)\n");
-        print(@"    label \"$(n.addr)\"\n");
-        print("  ]\n");
+        int id = b.id_for_address(n.addr);
+        string lbl = @"$(n.addr)";
+        int? gid = null;
+        Address g_addr = n.addr.get_upper_gnode();
+        if (g_addr.pos.size > 0) gid = b.id_for_address(g_addr);
+        save_gml_write_node(id, lbl, false, gid);
+        nodes_already_written.add(id);
+        while (true)
+        {
+            if (gid == null) break;
+            if (gid in nodes_already_written) break;
+            id = gid;
+            lbl = @"$(g_addr)";
+            gid = null;
+            g_addr = g_addr.get_upper_gnode();
+            if (g_addr.pos.size > 0) gid = b.id_for_address(g_addr);
+            save_gml_write_node(id, lbl, true, gid);
+            nodes_already_written.add(id);
+        }
     }
     foreach (Edge e in b.edges)
     {
         print("  edge [\n");
-        print(@"    source $(e.src.id)\n");
-        print(@"    target $(e.dst.id)\n");
+        print(@"    source $(b.id_for_address(e.src.addr))\n");
+        print(@"    target $(b.id_for_address(e.dst.addr))\n");
         print("  ]\n");
     }
     print("]\n");
+}
+
+void save_gml_write_node(int id, string lbl, bool is_group, int? gid)
+{
+    print("  node [\n");
+    print(@"    id $(id)\n");
+    print(@"    label \"$(lbl)\"\n");
+    if (is_group) print(@"    isGroup 1\n");
+    if (gid != null) print(@"    gid $(gid)\n");
+    print("  ]\n");
 }
 
 int num_nodes;
@@ -314,6 +373,13 @@ int max_arcs;
 string[] topology;
 bool serialize;
 bool savegml;
+
+Address make_address(int[] ar)
+{
+    ArrayList<int> p = new ArrayList<int>();
+    p.add_all_array(ar);
+    return new Address(p);
+}
 
 int main(string[] args)
 {
