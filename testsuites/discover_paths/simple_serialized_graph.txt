@@ -1,0 +1,13 @@
+topology
+3 3 3
+
+node
+2.1.0
+0 0 0
+
+node
+1.1.0
+1 0 0
+arc to 2.1.0 cost 1175 revcost 673
+
+

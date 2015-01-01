@@ -27,7 +27,23 @@ void print_known_paths(FakeGenericNaddr n, QspnManager c)
         }
 }
 
-int main()
+string[] read_file(string path)
+{
+    string[] ret = new string[0];
+    if (FileUtils.test(path, FileTest.EXISTS))
+    {
+        try
+        {
+            string contents;
+            assert(FileUtils.get_contents(path, out contents));
+            ret = contents.split("\n");
+        }
+        catch (FileError e) {error("%s: %d: %s".printf(e.domain.to_string(), e.code, e.message));}
+    }
+    return ret;
+}
+
+int main(string[] args)
 {
     // init tasklet
     assert(Tasklet.init());
@@ -39,17 +55,54 @@ int main()
         HashMap<string, string> local_addresses = new HashMap<string, string>();
         HashMap<string, FakeNodeID> node_ids = new HashMap<string, FakeNodeID>();
 
-        const int[] net_topology = {3, 3, 3};
-        int levels = net_topology.length;
+        string[] data = read_file(args[1]);
+        int data_cur = 0;
+        while (data[data_cur] != "topology") data_cur++;
+        data_cur++;
+        string s_topology = data[data_cur];
+        string[] s_topology_pieces = s_topology.split(" ");
+        int levels = s_topology_pieces.length;
+        int[] net_topology = new int[levels];
+        int j = levels - 1;
+        foreach (string s_piece in s_topology_pieces) net_topology[j--] = int.parse(s_piece);
 
+        while (true)
         {
-            string s_addr = "2.1.0";
-            string s_elderships = "0 0 0";
+            bool eof = false;
+            while (data[data_cur] != "node")
+            {
+                data_cur++;
+                if (data_cur >= data.length)
+                {
+                    eof = true;
+                    break;
+                }
+            }
+            if (eof) break;
+            data_cur++;
+            string s_addr = data[data_cur++];
+            string s_elderships = data[data_cur++];
             string[] arcs_addr = {};
             int[] arcs_cost = {};
             int[] arcs_revcost = {};
+            while (data[data_cur] != "")
+            {
+                string line = data[data_cur];
+                string[] line_pieces = line.split(" ");
+                if (line_pieces[0] == "arc")
+                {
+                    assert(line_pieces[1] == "to");
+                    arcs_addr += line_pieces[2];
+                    assert(line_pieces[3] == "cost");
+                    arcs_cost += int.parse(line_pieces[4]);
+                    assert(line_pieces[5] == "revcost");
+                    arcs_revcost += int.parse(line_pieces[6]);
+                }
+                data_cur++;
+            }
+            // data input done
             int[] n_addr = new int[levels];
-            int j = levels - 1;
+            j = levels - 1;
             foreach (string s_piece in s_addr.split(".")) n_addr[j--] = int.parse(s_piece);
             FakeGenericNaddr n = new FakeGenericNaddr(n_addr, net_topology);
             naddresses[s_addr] = n;
