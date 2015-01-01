@@ -16,6 +16,16 @@ namespace Netsukuku
     public void log_critical(string msg)   {print(msg+"\n");}
 }
 
+errordomain PickAnotherAddressError
+{
+    GENERIC
+}
+
+errordomain PickAnotherNodeError
+{
+    GENERIC
+}
+
 class Test.Address : Object
 {
     public ArrayList<int> pos;
@@ -111,7 +121,7 @@ class GraphBuilder : Object
     public ArrayList<Edge> edges;
     public ArrayList<Test.Node> nodes;
     public GNode top_gnode;
-    public void add_node()
+    public void add_node() throws PickAnotherNodeError
     {
         if (nodes.size == 0) {first_node(); return;}
         ArrayList<Test.Node> arcs_n = new ArrayList<Test.Node>();
@@ -144,7 +154,7 @@ class GraphBuilder : Object
         int[] elderships;
         while (true)
         {
-            addr = random_addr();
+            addr = random_addr_to_ref(ref_addr);
             elderships = {};
             Address common = addr.get_common_gnode(ref_addr);
             int levels_common = common.pos.size;
@@ -241,6 +251,43 @@ class GraphBuilder : Object
         ArrayList<int> p = new ArrayList<int>();
         for (int i = 0; i < levels; i++) p.add(Random.int_range(0, gsizes[i]));
         return new Address(p);
+    }
+    Address random_addr_to_ref(Address ref_addr) throws PickAnotherNodeError
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            try
+            {
+                ArrayList<int> p = new ArrayList<int>();
+                int iteration_lev = levels-1;
+                GNode? iteration_gnode = top_gnode;
+                while (iteration_lev >= 0)
+                {
+                    ArrayList<int> valid_set = new ArrayList<int>();
+                    for (int pos = 0; pos < gsizes[iteration_lev]; pos++)
+                    {
+                        if (iteration_gnode != null && iteration_gnode.busy_lst.has_key(pos)) continue;
+                        valid_set.add(pos);
+                    }
+                    if (iteration_gnode != null && iteration_lev > 0) valid_set.add(ref_addr.pos[iteration_lev]);
+                    if (valid_set.is_empty) throw new PickAnotherAddressError.GENERIC("");
+                    int c_pos = valid_set[Random.int_range(0, valid_set.size)];
+                    p.insert(0, c_pos);
+                    iteration_lev--;
+                    if (iteration_gnode != null)
+                    {
+                        if (iteration_gnode.busy_lst.has_key(c_pos))
+                            iteration_gnode = iteration_gnode.busy_lst[c_pos];
+                        else
+                            iteration_gnode = null;
+                    }
+                }
+                Address ret = new Address(p);
+                return ret;
+            }
+            catch (PickAnotherAddressError e) {}
+        }
+        throw new PickAnotherNodeError.GENERIC("");
     }
     Gee.List<Test.Node> neighborhood(Test.Node v, int k)
     {
@@ -410,7 +457,16 @@ int main(string[] args)
     foreach (string str_size in topology) net_topology += int.parse(str_size);
     if (net_topology.length == 0) net_topology = {16, 8, 8, 8}; // default
     GraphBuilder b = new GraphBuilder(net_topology, max_arcs, num_nodes);
-    for (int i = 0; i < num_nodes; i++) b.add_node();
+    for (int i = 0; i < num_nodes; i++)
+    {
+        for (int j = 0; j < 100; j++)
+        {
+            try {
+                b.add_node();
+                break;
+            } catch (PickAnotherNodeError e) {}
+        }
+    }
     if (serialize) output_serialization();
     if (savegml) save_gml(b);
     if (! (serialize || savegml)) print_graph(b);
