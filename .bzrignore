@@ -14,6 +14,10 @@ testsuites/auto_graph/auto_graph.c
 testsuites/auto_graph/fake_classes.c
 testsuites/auto_graph/generic_naddr.c
 testsuites/auto_graph/base_dispatcher.c
+testsuites/discover_paths/discover_paths.c
+testsuites/discover_paths/fake_classes.c
+testsuites/discover_paths/generic_naddr.c
+testsuites/discover_paths/base_dispatcher.c
 *.lo
 *.la
 .deps

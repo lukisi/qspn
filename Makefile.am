@@ -12,11 +12,13 @@ bin_PROGRAMS =  \
 TESTS = \
 	test_qspn \
 	auto_graph \
+	discover_paths \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_qspn \
 	auto_graph \
+	discover_paths \
 	$(NULL)
 
 test_qspn_SOURCES = \
@@ -80,6 +82,41 @@ auto_graph_CPPFLAGS = \
 	$(NULL)
 
 auto_graph_LDADD = -lm \
+	$(GOBJECT_LIBS) \
+	$(GIO_LIBS) \
+	$(GEE_LIBS) \
+	$(TASKLET_LIBS) \
+	$(ZCD_LIBS) \
+	$(NTKDRPC_LIBS) \
+	$(builddir)/libqspn.la \
+	$(NULL)
+
+discover_paths_SOURCES = \
+	testsuites/discover_paths/discover_paths.vala \
+	testsuites/discover_paths/fake_classes.vala \
+	testsuites/discover_paths/generic_naddr.vala \
+	testsuites/discover_paths/base_dispatcher.vala \
+	qspn.vapi \
+	$(NULL)
+
+discover_paths_VALAFLAGS = \
+	--pkg gio-2.0 \
+	--pkg gee-0.8 \
+	--pkg tasklet \
+	--pkg zcd \
+	--pkg ntkd-rpc\
+	$(NULL)
+
+discover_paths_CPPFLAGS = \
+	$(GOBJECT_CFLAGS) \
+	$(GIO_CFLAGS) \
+	$(GEE_CFLAGS) \
+	$(TASKLET_CFLAGS) \
+	$(ZCD_CFLAGS) \
+	$(NTKDRPC_CFLAGS) \
+	$(NULL)
+
+discover_paths_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GIO_LIBS) \
 	$(GEE_LIBS) \
@@ -173,6 +210,10 @@ CLEANFILES = \
 	$(srcdir)/testsuites/auto_graph/generic_naddr.c \
 	$(srcdir)/testsuites/auto_graph/base_dispatcher.c \
 	$(srcdir)/testsuites/auto_graph/fake_classes.c \
+	$(srcdir)/testsuites/discover_paths/discover_paths.c \
+	$(srcdir)/testsuites/discover_paths/generic_naddr.c \
+	$(srcdir)/testsuites/discover_paths/base_dispatcher.c \
+	$(srcdir)/testsuites/discover_paths/fake_classes.c \
 	$(NULL)
 
 qspn.vapi: libqspn_la_vala.stamp
