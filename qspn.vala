@@ -1197,7 +1197,9 @@ namespace Netsukuku
         /* Remotable methods
          */
 
-        public IQspnEtp get_full_etp(IQspnNaddr requesting_naddr, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError, QspnNotMatureError
+        public IQspnEtp get_full_etp(IQspnNaddr requesting_naddr,
+                                     zcd.CallerInfo? _rpc_caller=null)
+                                     throws QspnNotAcceptedError, QspnNotMatureError
         {
             if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
 
