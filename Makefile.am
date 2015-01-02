@@ -12,7 +12,6 @@ bin_PROGRAMS =  \
 TESTS = \
 	test_qspn \
 	auto_graph \
-	discover_paths \
 	$(NULL)
 
 check_PROGRAMS = \

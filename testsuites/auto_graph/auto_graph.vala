@@ -93,11 +93,11 @@ class Test.Node : Object
 
 class Test.GNode : Object
 {
-    public int pos;
-    public int gnodes_inside;
+    public int eldership;
     public HashMap<int, GNode> busy_lst;
-    public GNode()
+    public GNode(int eldership)
     {
+        this.eldership = eldership;
         busy_lst = new HashMap<int, GNode>();
     }
 }
@@ -112,7 +112,7 @@ class GraphBuilder : Object
         levels = gsizes.length;
         edges = new ArrayList<Edge>();
         nodes = new ArrayList<Test.Node>();
-        top_gnode = new GNode();
+        top_gnode = new GNode(0);
     }
     public int[] gsizes;
     public int max_arcs;
@@ -164,38 +164,39 @@ class GraphBuilder : Object
                 int iteration_lev = 0;
                 while (iteration_lev < levels_common)
                 {
-                    elderships += iteration_gnode.gnodes_inside - 1;
+                    elderships += iteration_gnode.busy_lst.size - 1;
                     iteration_gnode = iteration_gnode.busy_lst[common.pos[levels_common-iteration_lev-1]];
                     iteration_lev++;
                 }
                 if (! (iteration_gnode.busy_lst.has_key(addr.pos[levels-iteration_lev-1])))
                 {
-                    iteration_gnode.gnodes_inside++;
-                    elderships += iteration_gnode.gnodes_inside - 1;
+                    int next_eldership = iteration_gnode.busy_lst.size;
+                    elderships += next_eldership;
                     while (iteration_lev < levels)
                     {
                         int pos = addr.pos[levels-iteration_lev-1];
-                        GNode new_gnode = new GNode();
-                        new_gnode.pos = pos;
-                        new_gnode.gnodes_inside = 1;
-                        new_gnode.busy_lst = new HashMap<int, GNode>();
+                        GNode new_gnode = new GNode(next_eldership);
                         iteration_gnode.busy_lst[pos] = new_gnode;
                         iteration_gnode = new_gnode;
                         iteration_lev++;
+                        next_eldership = 0;
                         if (iteration_lev < levels) elderships += 0;
                     }
                     break;
                 }
             }
         }
-        serialization_print("New node:\n");
+        serialization_print("node\n");
         Test.Node n = new Test.Node();
         n.addr = addr;
         n.arcs = new ArrayList<Arc>();
         n.id = nodes.size + 1;
-        serialization_print(@" Address: $(n.addr)\n");
-        serialization_print(" Elderships:\n");
-        foreach (int x in elderships) serialization_print(@"  $(x)\n");
+        serialization_print(@"$(n.addr)\n");
+        for (int j = 0; j < levels-1; j++)
+        {
+            serialization_print(@"$(elderships[j]) ");
+        }
+        serialization_print(@"$(elderships[levels-1])\n");
         foreach (Test.Node q in arcs_n)
         {
             Arc n_to_q = new Arc();
@@ -210,40 +211,45 @@ class GraphBuilder : Object
             nq.src = n;
             nq.dst = q;
             edges.add(nq);
-            serialization_print( " Arc:\n");
-            serialization_print(@"   with $(q.addr)\n");
-            serialization_print(@"   cost $(n_to_q.cost)\n");
-            serialization_print(@"   reverse-cost $(q_to_n.cost)\n");
+            serialization_print(@"arc to $(q.addr) cost $(n_to_q.cost) revcost $(q_to_n.cost)\n");
         }
+        serialization_print("\n");
         nodes.add(n);
     }
     void first_node()
     {
+        serialization_print("topology\n");
+        for (int j = levels-1; j > 0; j--)
+        {
+            serialization_print(@"$(gsizes[j]) ");
+        }
+        serialization_print(@"$(gsizes[0])\n");
+        serialization_print("\n");
         Test.Node n = new Test.Node();
-        serialization_print("New node:\n");
+        serialization_print("node\n");
         n.addr = random_addr();
         n.arcs = new ArrayList<Arc>();
         n.id = nodes.size + 1;
         int[] elderships = {};
         GNode iteration_gnode = top_gnode;
         int iteration_lev = 0;
-        iteration_gnode.gnodes_inside++;
-        elderships += iteration_gnode.gnodes_inside - 1;
+        elderships += 0;
         while (iteration_lev < levels)
         {
             int pos = n.addr.pos[levels-iteration_lev-1];
-            GNode new_gnode = new GNode();
-            new_gnode.pos = pos;
-            new_gnode.gnodes_inside = 1;
-            new_gnode.busy_lst = new HashMap<int, GNode>();
+            GNode new_gnode = new GNode(0);
             iteration_gnode.busy_lst[pos] = new_gnode;
             iteration_gnode = new_gnode;
             iteration_lev++;
             if (iteration_lev < levels) elderships += 0;
         }
-        serialization_print(@" Address: $(n.addr)\n");
-        serialization_print(" Elderships:\n");
-        foreach (int x in elderships) serialization_print(@"  $(x)\n");
+        serialization_print(@"$(n.addr)\n");
+        for (int j = 0; j < levels-1; j++)
+        {
+            serialization_print(@"$(elderships[j]) ");
+        }
+        serialization_print(@"$(elderships[levels-1])\n");
+        serialization_print("\n");
         nodes.add(n);
     }
     Address random_addr()
@@ -439,7 +445,7 @@ int main(string[] args)
     OptionContext oc = new OptionContext();
     OptionEntry[] entries = new OptionEntry[6];
     int index = 0;
-    entries[index++] = {"gsize", 's', 0, OptionArg.STRING_ARRAY, ref topology, "Size of gnodes", null};
+    entries[index++] = {"gsize", 's', 0, OptionArg.STRING_ARRAY, ref topology, "Size of gnodes (use it multiple times, one per level starting from lovel 0)", null};
     entries[index++] = {"maxarcs", 'm', 0, OptionArg.INT, ref max_arcs, "Max number of arcs per node", null};
     entries[index++] = {"nodes", 0, 0, OptionArg.INT, ref num_nodes, "Number of nodes", null};
     entries[index++] = {"serialize", 0, 0, OptionArg.NONE, ref serialize, "Produce file to input to tester", null};
