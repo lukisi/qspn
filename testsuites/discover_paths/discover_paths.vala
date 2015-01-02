@@ -17,13 +17,13 @@ namespace Netsukuku
 
 void print_known_paths(FakeGenericNaddr n, QspnManager c)
 {
-        debug(@"For $(n)");
+        print(@"For $(n)\n");
         for (int l = 0; l < n.i_qspn_get_levels(); l++)
         for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
         {
             if (n.i_qspn_get_pos(l) == p) continue;
             int s = c.get_paths_to(new HCoord(l, p)).size;
-            if (s > 0) debug(@" to ($(l), $(p)) $(s) paths");
+            if (s > 0) print(@" to ($(l), $(p)) $(s) paths\n");
         }
 }
 
@@ -43,8 +43,25 @@ string[] read_file(string path)
     return ret;
 }
 
+string test_node_addr;
+
 int main(string[] args)
 {
+    test_node_addr = ""; // default
+    OptionContext oc = new OptionContext("<graph_file_name>");
+    OptionEntry[] entries = new OptionEntry[2];
+    int index = 0;
+    entries[index++] = {"testaddr", 'a', 0, OptionArg.STRING, ref test_node_addr, "Dotted form address of test node", null};
+    entries[index++] = { null };
+    oc.add_main_entries(entries, null);
+    try {
+        oc.parse(ref args);
+    }
+    catch (OptionError e) {
+        print(@"Error parsing options: $(e.message)\n");
+        return 1;
+    }
+
     // init tasklet
     assert(Tasklet.init());
     {
@@ -148,7 +165,19 @@ int main(string[] args)
                 ms_wait(300);
                 if (c.is_mature()) break;
             }
+            ms_wait(20*managers.size);
         }
+        // test a node
+        if (test_node_addr == "")
+        {
+            int rnd_node_num = Random.int_range(0, managers.size);
+            Iterator<string> it_addr = managers.keys.iterator();
+            while ((rnd_node_num--) > 0) it_addr.next();
+            test_node_addr = it_addr.@get();
+        }
+        FakeGenericNaddr n_test_node = naddresses[test_node_addr];
+        QspnManager c_test_node = managers[test_node_addr];
+        print_known_paths(n_test_node, c_test_node);
     }
     assert(Tasklet.kill());
     return 0;

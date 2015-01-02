@@ -17,13 +17,13 @@ namespace Netsukuku
 
 void print_known_paths(FakeGenericNaddr n, QspnManager c)
 {
-        debug(@"For $(n)");
+        print(@"For $(n)\n");
         for (int l = 0; l < n.i_qspn_get_levels(); l++)
         for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
         {
             if (n.i_qspn_get_pos(l) == p) continue;
             int s = c.get_paths_to(new HCoord(l, p)).size;
-            if (s > 0) debug(@" to ($(l), $(p)) $(s) paths");
+            if (s > 0) print(@" to ($(l), $(p)) $(s) paths\n");
         }
 }
 
