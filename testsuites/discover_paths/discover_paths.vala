@@ -15,15 +15,33 @@ namespace Netsukuku
     public void log_critical(string msg)   {print(msg+"\n");}
 }
 
-void print_known_paths(FakeGenericNaddr n, QspnManager c)
+void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
 {
         print(@"For $(n)\n");
         for (int l = 0; l < n.i_qspn_get_levels(); l++)
         for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
         {
             if (n.i_qspn_get_pos(l) == p) continue;
-            int s = c.get_paths_to(new HCoord(l, p)).size;
-            if (s > 0) print(@" to ($(l), $(p)) $(s) paths\n");
+            Gee.List<IQspnNodePath> paths = c.get_paths_to(new HCoord(l, p));
+            int s = paths.size;
+            if (s > 0)
+            {
+                print(@" to ($(l), $(p)) $(s) paths:\n");
+                foreach (IQspnNodePath path in paths)
+                {
+                    IQspnArc arc = path.i_qspn_get_arc_to_first_hop();
+                    IQspnNaddr gw = arc.i_qspn_get_naddr();
+                    print(@"  gw $(gw as FakeGenericNaddr)=");
+                    Gee.List<IQspnPartialNaddr> hops = path.i_qspn_get_hops();
+                    string delimiter = "";
+                    foreach (IQspnPartialNaddr hop in hops)
+                    {
+                        print(@"$(delimiter)$(hop as FakeGenericNaddr)");
+                        delimiter = " - ";
+                    }
+                    print(@"·\n");
+                }
+            }
         }
 }
 
@@ -177,7 +195,7 @@ int main(string[] args)
         }
         FakeGenericNaddr n_test_node = naddresses[test_node_addr];
         QspnManager c_test_node = managers[test_node_addr];
-        print_known_paths(n_test_node, c_test_node);
+        print_all_known_paths(n_test_node, c_test_node);
     }
     assert(Tasklet.kill());
     return 0;
