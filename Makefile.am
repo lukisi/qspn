@@ -37,6 +37,7 @@ test_qspn_VALAFLAGS = \
 	$(NULL)
 
 test_qspn_CPPFLAGS = \
+	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GIO_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -72,6 +73,7 @@ auto_graph_VALAFLAGS = \
 	$(NULL)
 
 auto_graph_CPPFLAGS = \
+	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GIO_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -107,6 +109,7 @@ discover_paths_VALAFLAGS = \
 	$(NULL)
 
 discover_paths_CPPFLAGS = \
+	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GIO_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -141,6 +144,7 @@ qspnclient_VALAFLAGS = \
 	$(NULL)
 
 qspnclient_CPPFLAGS = \
+	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GIO_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -177,6 +181,7 @@ libqspn_la_VALAFLAGS = \
 	$(NULL)
 
 libqspn_la_CPPFLAGS = \
+	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GIO_CFLAGS) \
 	$(GEE_CFLAGS) \
