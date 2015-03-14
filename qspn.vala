@@ -22,46 +22,117 @@ using Tasklets;
 
 namespace Netsukuku
 {
-    // in ntkd-rpc  IQspnPath
-
-    internal bool hcoord_equals(HCoord a, HCoord b)
+    public interface IQspnNaddr : Object
     {
-        return (a.lvl == b.lvl) && (a.pos == b.pos);
+        public abstract int i_qspn_get_levels();
+        public abstract int i_qspn_get_gsize(int level);
+        public abstract int i_qspn_get_pos(int level);
     }
 
-    internal bool variations_are_important(IQspnPath oldpath, IQspnPath newpath)
+    public interface IQspnMyNaddr : Object, IQspnNaddr
     {
-        if (! oldpath.i_qspn_get_fp().i_qspn_equals(newpath.i_qspn_get_fp())) return true;
-        int old_num = oldpath.i_qspn_get_nodes_inside();
-        int threshod = (int)(old_num * 0.1);
-        int new_num = newpath.i_qspn_get_nodes_inside();
-        if (new_num > old_num + threshod) return true;
-        if (new_num < old_num - threshod) return true;
-        if (oldpath.i_qspn_get_cost()
-            .i_qspn_important_variation(newpath.i_qspn_get_cost()))
-            return true;
-        return false;
+        public abstract IQspnPartialNaddr i_qspn_get_address_by_coord(HCoord dest);
+        public abstract HCoord i_qspn_get_coord_by_address(IQspnNaddr dest);
+    }
+
+    public interface IQspnPartialNaddr : Object, IQspnNaddr
+    {
+        public abstract int i_qspn_get_level_of_gnode();
+    }
+
+    public interface IQspnFingerprint : Object
+    {
+        public abstract bool i_qspn_equals(IQspnFingerprint other);
+        public abstract bool i_qspn_elder(IQspnFingerprint other);
+        public abstract int i_qspn_level_todo_delete {get;}
+        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers);
+    }
+
+    public interface IQspnREM : Object
+    {
+        public abstract int i_qspn_compare_to(IQspnREM other);
+        public abstract IQspnREM i_qspn_add_segment(IQspnREM other);
+        public abstract bool i_qspn_important_variation(IQspnREM new_rem);
+        public abstract bool i_qspn_is_dead();
+        public abstract bool i_qspn_is_null();
+    }
+
+    public interface IQspnArc : Object
+    {
+        public abstract IQspnREM i_qspn_get_cost();
+        public abstract IQspnNaddr i_qspn_get_naddr();
+        public abstract bool i_qspn_equals(IQspnArc other);
+    }
+
+    internal class EtpMessage : Object, ISerializable
+    {
+        public IQspnNaddr node_address;
+        public Gee.List<IQspnFingerprint> fingerprints;
+        public Gee.List<int> nodes_inside;
+        public Gee.List<HCoord> hops;
+        public Gee.List<EtpPath> p_list;
+
+        // TODO costruttore e serializzazione
+        public Variant serialize_to_variant()
+        {
+            error("Not implemented serialize_to_variant");
+        }
+
+        public void deserialize_from_variant(Variant v) throws SerializerError
+        {
+            error("Not implemented deserialize_from_variant");
+        }
+
+    }
+
+    internal class EtpPath : Object, ISerializable
+    {
+        public Gee.List<HCoord> hops;
+        public IQspnREM cost;
+        public IQspnFingerprint fingerprint;
+        public int nodes_inside;
+
+        // TODO costruttore e serializzazione
+        public Variant serialize_to_variant()
+        {
+            error("Not implemented serialize_to_variant");
+        }
+
+        public void deserialize_from_variant(Variant v) throws SerializerError
+        {
+            error("Not implemented deserialize_from_variant");
+        }
+
     }
 
     internal class NodePath : Object
     {
-        public NodePath(IQspnArc arc_to_first_hop, IQspnPath path)
+        public NodePath(IQspnArc arc_to_first_hop, EtpPath path)
         {
             this.arc_to_first_hop = arc_to_first_hop;
             this.path = path;
         }
         public IQspnArc arc_to_first_hop;
-        public IQspnPath path;
+        public EtpPath path;
         public bool hops_are_equal(NodePath q)
         {
             if (! q.arc_to_first_hop.i_qspn_equals(arc_to_first_hop)) return false;
-            Gee.List<HCoord> mylist = path.i_qspn_get_hops();
-            Gee.List<HCoord> qlist = q.path.i_qspn_get_hops();
+            Gee.List<HCoord> mylist = path.hops;
+            Gee.List<HCoord> qlist = q.path.hops;
             if (mylist.size != qlist.size) return false;
             for (int i = 0; i < mylist.size; i++)
                 if (! hcoord_equals(mylist[i], qlist[i])) return false;
             return true;
         }
+    }
+
+    public interface IQspnNodePath : Object
+    {
+        public abstract IQspnPartialNaddr i_qspn_get_destination();
+        public abstract IQspnArc i_qspn_get_arc_to_first_hop();
+        public abstract Gee.List<IQspnPartialNaddr> i_qspn_get_hops();
+        public abstract IQspnREM i_qspn_get_cost();
+        public abstract int i_qspn_get_nodes_inside();
     }
 
     internal class RetPath : Object, IQspnNodePath
@@ -78,6 +149,30 @@ namespace Netsukuku
         public Gee.List<IQspnPartialNaddr> i_qspn_get_hops() {return hops;}
         public IQspnREM i_qspn_get_cost() {return cost;}
         public int i_qspn_get_nodes_inside() {return nodes_inside;}
+    }
+
+    public interface IQspnThresholdCalculator : Object
+    {
+        public abstract int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2);
+    }
+
+    public interface IQspnMissingArcHandler : Object
+    {
+        public abstract void i_qspn_missing(IQspnArc arc);
+    }
+
+    public interface IQspnStubFactory : Object
+    {
+        public abstract IAddressManagerRootDispatcher
+                        i_qspn_get_broadcast(
+                            IQspnMissingArcHandler? missing_handler=null,
+                            IQspnArc? ignore_neighbor=null
+                        );
+        public abstract IAddressManagerRootDispatcher
+                        i_qspn_get_tcp(
+                            IQspnArc arc,
+                            bool wait_reply=true
+                        );
     }
 
     internal class Destination : Object
@@ -108,29 +203,6 @@ namespace Netsukuku
         }
     }
 
-    public interface IQspnEtpFactory : Object
-    {
-        public abstract IQspnPath i_qspn_create_path
-                                    (Gee.List<HCoord> hops,
-                                    IQspnFingerprint fp,
-                                    int nodes_inside,
-                                    IQspnREM cost);
-        public abstract void i_qspn_set_path_cost_dead
-                                    (IQspnPath path);
-        public abstract bool i_qspn_begin_etp();
-        public abstract void i_qspn_abort_etp();
-        public abstract void i_qspn_set_my_naddr(IQspnNaddr my_naddr);
-        public abstract void i_qspn_set_gnode_fingerprint
-                                    (int level,
-                                    IQspnFingerprint fp);
-        public abstract void i_qspn_set_gnode_nodes_inside
-                                    (int level,
-                                    int nodes_inside);
-        public abstract void i_qspn_add_path(IQspnPath path);
-        public abstract void i_qspn_set_tplist(Gee.List<HCoord> hops);
-        public abstract IQspnEtp i_qspn_make_etp();
-    }
-
     public class QspnManager : Object,
                                IQspnManager
     {
@@ -140,16 +212,16 @@ namespace Netsukuku
             // typeof(Xxx).class_peek();
         }
 
+        private IQspnMyNaddr my_naddr;
         private int max_paths;
         private double max_common_hops_ratio;
+        private int arc_timeout;
         private ArrayList<IQspnArc> my_arcs;
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private ArrayList<int> my_nodes_inside;
-        private INeighborhoodArcToStub arc_to_stub;
-        private IQspnFingerprintManager fingerprint_manager;
-        private IQspnEtpFactory etp_factory;
+        private IQspnThresholdCalculator threshold_calculator;
+        private IQspnStubFactory stub_factory;
         private int levels;
-        private IQspnMyNaddr my_naddr;
         private bool mature;
         private Tasklet? periodical_update_tasklet = null;
         private ArrayList<QueuedEvent> queued_events;
@@ -1315,4 +1387,10 @@ namespace Netsukuku
             }
         }
     }
+
+    // Defining extern functions.
+    // Do not make them 'public', because they are not exposed by this
+    // module (convenience library), but instead the module use them
+    // as they are provided by the core app.
+    extern void log_warn(string msg);
 }

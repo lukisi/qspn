@@ -165,7 +165,6 @@ qspnclient_LDADD = \
 
 libqspn_la_SOURCES = \
 	qspn.vala \
-	interfaces.vala \
 	$(NULL)
 
 libqspn_la_VALAFLAGS = \
@@ -205,7 +204,6 @@ CLEANFILES = \
 	$(srcdir)/libqspn_la_vala.stamp \
 	$(srcdir)/main.c \
 	$(srcdir)/qspn.c \
-	$(srcdir)/interfaces.c \
 	$(srcdir)/testsuites/test_qspn/test_qspn.c \
 	$(srcdir)/testsuites/test_qspn/generic_naddr.c \
 	$(srcdir)/testsuites/test_qspn/base_dispatcher.c \
