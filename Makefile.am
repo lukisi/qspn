@@ -5,9 +5,9 @@ EXTRA_LTLIBRARIES = \
 	libqspn.la \
 	$(NULL)
 
-#bin_PROGRAMS =  \
-#	qspnclient \
-#	$(NULL)
+bin_PROGRAMS =  \
+	qspnclient \
+	$(NULL)
 
 TESTS = \
 	auto_graph \

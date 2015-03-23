@@ -47,7 +47,7 @@ void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
                 print(@" to ($(l), $(p)) $(s) paths:\n");
                 foreach (IQspnNodePath path in paths)
                 {
-                    IQspnArc arc = path.i_qspn_get_arc_to_first_hop();
+                    IQspnArc arc = path.i_qspn_get_arc();
                     IQspnNaddr gw = arc.i_qspn_get_naddr();
                     print(@"  gw $(gw as FakeGenericNaddr)=");
                     Gee.List<IQspnPartialNaddr> hops = path.i_qspn_get_hops();
@@ -103,10 +103,10 @@ int main(string[] args)
     {
         const int max_paths = 4;
         const double max_common_hops_ratio = 0.7;
+        const int arc_timeout = 3000;
         HashMap<string, FakeGenericNaddr> naddresses = new HashMap<string, FakeGenericNaddr>();
         HashMap<string, QspnManager> managers = new HashMap<string, QspnManager>();
         HashMap<string, string> local_addresses = new HashMap<string, string>();
-        HashMap<string, FakeNodeID> node_ids = new HashMap<string, FakeNodeID>();
 
         string[] data = read_file(args[1]);
         int data_cur = 0;
@@ -165,8 +165,6 @@ int main(string[] args)
             int i3 = Random.int_range(0, 255);
             string local_address = @"100.$(i1).$(i2).$(i3)";
             local_addresses[s_addr] = local_address;
-            var node_id = new FakeNodeID();
-            node_ids[s_addr] = node_id;
             var arclist = new ArrayList<IQspnArc>();
             for (int i = 0; i < arcs_addr.length; i++)
             {
@@ -174,26 +172,24 @@ int main(string[] args)
                 QspnManager c0 = managers[s0_addr];
                 FakeGenericNaddr n0 = naddresses[s0_addr];
                 string local_addr0 = local_addresses[s0_addr];
-                FakeNodeID n0_id = node_ids[s0_addr];
-                var arc = new FakeArc(c0, n0, new FakeREM(arcs_cost[i]), n0_id, local_addr0, local_address);
+                var arc = new FakeArc(c0, n0, new FakeCost(arcs_cost[i]), local_addr0, local_address);
                 arclist.add(arc);
             }
             int[] n_elderships = new int[levels];
             j = levels - 1;
             foreach (string s_piece in s_elderships.split(" ")) n_elderships[j--] = int.parse(s_piece);
             var fp = new FakeFingerprint(Random.int_range(0, 1000000), n_elderships);
-            var fmgr = new FakeREM.FakeFingerprintManager();
-            var tostub = new FakeArcToStub();
-            var factory = new FakeEtpFactory();
-            QspnManager c = new QspnManager(n, max_paths, max_common_hops_ratio, arclist, fp, tostub, fmgr, factory);
-            tostub.my_mgr = c;
+            var stub_f = new FakeStubFactory();
+            var threshold_c = new FakeThresholdCalculator();
+            QspnManager c = new QspnManager(n, max_paths, max_common_hops_ratio, arc_timeout, arclist, fp, threshold_c, stub_f);
+            stub_f.my_mgr = c;
             managers[s_addr] = c;
             for (int i = 0; i < arcs_addr.length; i++)
             {
                 string s0_addr = arcs_addr[i];
                 QspnManager c0 = managers[s0_addr];
                 string local_addr0 = local_addresses[s0_addr];
-                var arc = new FakeArc(c, n, new FakeREM(arcs_revcost[i]), node_id, local_address, local_addr0);
+                var arc = new FakeArc(c, n, new FakeCost(arcs_revcost[i]), local_address, local_addr0);
                 c0.arc_add(arc);
             }
             while (true)
