@@ -145,6 +145,17 @@ namespace Netsukuku
         public abstract bool i_qspn_comes_from(zcd.CallerInfo rpc_caller);
     }
 
+    internal ArrayList<HCoord>
+    create_searchable_list_gnodes()
+    {
+        return new ArrayList<HCoord>(
+            /*EqualDataFunc*/
+            (a, b) => {
+                return a.equals(b);
+            }
+        );
+    }
+
     internal class EtpMessage : Object, ISerializable, IQspnEtpMessage
     {
         public IQspnNaddr node_address;
@@ -225,6 +236,7 @@ namespace Netsukuku
         public Gee.List<bool> ignore_outside;
 
         // TODO costruttore
+        // TODO hops deve permettere la sintassi "if (! (g in p.hops))"
 
         public Variant serialize_to_variant()
         {
@@ -267,7 +279,8 @@ namespace Netsukuku
 
             ListISerializable lst0 = (ListISerializable)Object.new(typeof(ListISerializable));
             lst0.deserialize_from_variant(v0);
-            hops = (Gee.List<HCoord>)lst0.backed;
+            hops = create_searchable_list_gnodes();
+            hops.add_all((Gee.List<HCoord>)lst0.backed);
 
             int[] my_arcs = Serializer.variant_to_int_array(v1);
             arcs = new ArrayList<int>();
@@ -339,6 +352,16 @@ namespace Netsukuku
             return true;
         }
     }
+    internal ArrayList<NodePath>
+    create_searchable_list_nodepaths()
+    {
+        return new ArrayList<NodePath>(
+            /*EqualDataFunc*/
+            (a, b) => {
+                return a.hops_arcs_equal(b);
+            }
+        );
+    }
 
     public interface IQspnHop : Object
     {
@@ -408,7 +431,7 @@ namespace Netsukuku
         {
             assert(! paths.is_empty);
             this.dest = dest;
-            this.paths = new ArrayList<NodePath>();
+            this.paths = create_searchable_list_nodepaths();
             this.paths.add_all(paths);
         }
         public HCoord dest;
@@ -934,7 +957,7 @@ namespace Netsukuku
             id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
-            var path_to_add_to_changed_paths = new ArrayList<NodePath>();
+            var path_to_add_to_changed_paths = create_searchable_list_nodepaths();
             for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 int i = 0;
@@ -1009,7 +1032,7 @@ namespace Netsukuku
         private EtpPath prepare_path(NodePath np)
         {
             EtpPath p = new EtpPath();
-            p.hops = new ArrayList<HCoord>();
+            p.hops = create_searchable_list_gnodes();
             p.hops.add_all(np.path.hops);
             p.arcs = new ArrayList<int>();
             p.arcs.add_all(np.path.arcs);
@@ -1155,7 +1178,7 @@ namespace Netsukuku
             }
             // intrinsic path to v
             EtpPath v_path = new EtpPath();
-            v_path.hops = new ArrayList<HCoord>();
+            v_path.hops = create_searchable_list_gnodes();
             v_path.hops.add(v);
             v_path.arcs = new ArrayList<int>();
             v_path.arcs.add(arc_id);
@@ -1167,7 +1190,7 @@ namespace Netsukuku
             for (j = 0; j < levels; j++) v_path.ignore_outside.add(false);
             m.p_list.add(v_path);
             // return a collection of NodePath
-            ArrayList<NodePath> ret = new ArrayList<NodePath>();
+            ArrayList<NodePath> ret = create_searchable_list_nodepaths();
             foreach (EtpPath p in m.p_list)
             {
                 NodePath np = new NodePath(arc, p);
@@ -1212,7 +1235,7 @@ namespace Netsukuku
             ret.fingerprints.add_all(my_fingerprints);
             ret.nodes_inside = new ArrayList<int>();
             ret.nodes_inside.add_all(my_nodes_inside);
-            ret.hops = new ArrayList<HCoord>();
+            ret.hops = create_searchable_list_gnodes();
             if (etp_hops != null) ret.hops.add_all(etp_hops);
             return ret;
         }
@@ -1220,13 +1243,13 @@ namespace Netsukuku
         // Helper: prepare full ETP
         private EtpMessage prepare_full_etp()
         {
-            var node_paths = new ArrayList<NodePath>();
+            var node_paths = create_searchable_list_nodepaths();
             for (int l = 0; l < levels; l++)
                 foreach (Destination d in destinations[l].values)
                     node_paths.add_all(d.paths);
             return prepare_new_etp(node_paths,
-                                   new ArrayList<NodePath>(),
-                                   new ArrayList<NodePath>());
+                                   create_searchable_list_nodepaths(),
+                                   create_searchable_list_nodepaths());
         }
 
         // Helper: prepare forward ETP
@@ -1351,7 +1374,7 @@ namespace Netsukuku
             else
             {
                 debug("Processing ETP set");
-                var q_set = new ArrayList<NodePath>();
+                var q_set = create_searchable_list_nodepaths();
                 foreach (PairArcEtp pair_arc_etp in results)
                 {
                     // ... preprocess_etp();
@@ -1468,30 +1491,93 @@ namespace Netsukuku
 
         private class SignalToEmit : Object
         {
-            public int t;
+            private int t;
             // 1: path_added
             // 2: path_changed
             // 3: path_removed
             // 4: destination_added
             // 5: destination_removed
-            public IQspnNodePath? p;
-            public IQspnPartialNaddr? d;
+            public IQspnNodePath? p {
+                get;
+                private set;
+                default = null;
+            }
+            public IQspnPartialNaddr? d {
+                get;
+                private set;
+                default = null;
+            }
+            public SignalToEmit.path_added(IQspnNodePath p)
+            {
+                t = 1;
+                this.p = p;
+            }
+            public SignalToEmit.path_changed(IQspnNodePath p)
+            {
+                t = 2;
+                this.p = p;
+            }
+            public SignalToEmit.path_removed(IQspnNodePath p)
+            {
+                t = 3;
+                this.p = p;
+            }
+            public SignalToEmit.destination_added(IQspnPartialNaddr d)
+            {
+                t = 4;
+                this.d = d;
+            }
+            public SignalToEmit.destination_removed(IQspnPartialNaddr d)
+            {
+                t = 5;
+                this.d = d;
+            }
+            public bool is_path_added {
+                get {
+                    return t == 1;
+                }
+            }
+            public bool is_path_changed {
+                get {
+                    return t == 2;
+                }
+            }
+            public bool is_path_removed {
+                get {
+                    return t == 3;
+                }
+            }
+            public bool is_destination_added {
+                get {
+                    return t == 4;
+                }
+            }
+            public bool is_destination_removed {
+                get {
+                    return t == 5;
+                }
+            }
         }
         // Helper: update my map from a set of paths collected from a set
         // of ETP messages.
         internal void
         update_map(Collection<NodePath> q_set,
                    IQspnArc? a_changed,
-                   out Collection<NodePath> p_set,
+                   out Collection<NodePath> added_paths_set,
+                   out Collection<NodePath> changed_paths_set,
+                   out Collection<NodePath> removed_paths_set,
                    out Collection<HCoord> b_set)
         {
             // q_set is the set of new paths that have been detected.
-            // p_set will be the set of paths that have been changed in my map
-            //  so that we have to send them to our neighbors as a forwarded ETP.
+            // *_paths_set will be the sets of paths that have been changed in my map
+            //  so that we have to send an EtpPath for each of them to our neighbors
+            //  in a forwarded EtpMessage.
             // b_set will be the set of g-nodes for which we have to flood a new
             //  ETP because of the rule of first split detection.
-            p_set = new ArrayList<NodePath>();
-            b_set = new ArrayList<HCoord>();
+            added_paths_set = create_searchable_list_nodepaths();
+            changed_paths_set = create_searchable_list_nodepaths();
+            removed_paths_set = create_searchable_list_nodepaths();
+            b_set = create_searchable_list_gnodes();
             // Group by destination, order keys by ascending level.
             HashMap<HCoord, ArrayList<NodePath>> q_by_dest = new HashMap<HCoord, ArrayList<NodePath>>(
                 (a) => {return a.lvl*100+a.pos;},  /* hash_func */
@@ -1499,16 +1585,16 @@ namespace Netsukuku
             foreach (NodePath np in q_set)
             {
                 HCoord d = np.path.hops.last();
-                if (! (d in q_by_dest.keys)) q_by_dest[d] = new ArrayList<NodePath>();
+                if (! (d in q_by_dest.keys)) q_by_dest[d] = create_searchable_list_nodepaths();
                 q_by_dest[d].add(np);
             }
-            ArrayList<HCoord> sorted_keys = new ArrayList<HCoord>();
+            ArrayList<HCoord> sorted_keys = create_searchable_list_gnodes();
             sorted_keys.add_all(q_by_dest.keys);
             sorted_keys.sort((a, b) => {return a.lvl - b.lvl;});
             foreach (HCoord d in sorted_keys)
             {
                 ArrayList<NodePath> qd_set = q_by_dest[d];
-                ArrayList<NodePath> md_set = new ArrayList<NodePath>();
+                ArrayList<NodePath> md_set = create_searchable_list_nodepaths();
                 if (destinations[d.lvl].has_key(d.pos))
                 {
                     Destination dd = destinations[d.lvl][d.pos];
@@ -1518,8 +1604,8 @@ namespace Netsukuku
                 foreach (NodePath np in md_set)
                     if (! (np.path.fingerprint in f1))
                         f1.add(np.path.fingerprint);
-                ArrayList<NodePath> od_set = new ArrayList<NodePath>();
-                ArrayList<NodePath> vd_set = new ArrayList<NodePath>();
+                ArrayList<NodePath> od_set = create_searchable_list_nodepaths();
+                ArrayList<NodePath> vd_set = create_searchable_list_nodepaths();
                 ArrayList<SignalToEmit> sd = new ArrayList<SignalToEmit>();
                 foreach (NodePath p1 in md_set)
                 {
@@ -1560,6 +1646,7 @@ namespace Netsukuku
                     }
                 }
                 od_set.add_all(qd_set);
+                // sort od, then remove paths non-disjoint
                 od_set.sort((np1, np2) => {
                     // np1 > np2 <=> return +1
                     IQspnCost c1 = np1.cost;
@@ -1588,14 +1675,112 @@ namespace Netsukuku
                     }
                 }
                 ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => {return a.i_qspn_equals(b);});
-                ArrayList<NodePath> rd = new ArrayList<NodePath>();
-                ArrayList<HCoord> vnd = new ArrayList<HCoord>((a, b) => {return a.equals(b);});
+                ArrayList<NodePath> rd = create_searchable_list_nodepaths();
+                ArrayList<HCoord> vnd = create_searchable_list_gnodes();
                 foreach (IQspnArc a in my_arcs)
                 {
                     HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
                     if (! (v in vnd)) vnd.add(v);
                 }
-                
+                foreach (NodePath p1 in od_set)
+                {
+                    if (p1.cost.i_qspn_is_dead()) break;
+                    bool mandatory = false;
+                    if (! (p1.path.fingerprint in fd))
+                    {
+                        mandatory = true;
+                        fd.add(p1.path.fingerprint);
+                    }
+                    int g_i = 0;
+                    while (g_i < vnd.size)
+                    {
+                        HCoord g = vnd[g_i];
+                        if (! (g in p1.path.hops))
+                        {
+                            vnd.remove_at(g_i);
+                            mandatory = true;
+                        }
+                        else
+                        {
+                            g_i++;
+                        }
+                    }
+                    if (mandatory)
+                    {
+                        rd.add(p1);
+                    }
+                    else if (rd.size < max_paths)
+                    {
+                        bool insert = true;
+                        foreach (NodePath p2 in rd)
+                        {
+                            double total_hops = 0.0;
+                            double common_hops = 0.0;
+                            for (int g2_i = 0; g2_i < p2.path.hops.size-1; g2_i++)
+                            {
+                                HCoord g2 = p2.path.hops[g2_i];
+                                double n_nodes = Math.floor(1.5 * Math.sqrt(num_nodes_inside[g2]));
+                                total_hops += n_nodes;
+                                if (g2 in p1.path.hops) common_hops += n_nodes;
+                            }
+                            if (total_hops > 0.0 && common_hops / total_hops > max_common_hops_ratio)
+                            {
+                                insert = false;
+                                break;
+                            }
+                        }
+                        if (insert)
+                        {
+                            rd.add(p1);
+                        }
+                    }
+                }
+                // populate collections
+                foreach (NodePath p in od_set)
+                {
+                    if (! (p in md_set))
+                    {
+                        added_paths_set.add(p);
+                        sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                    }
+                }
+                foreach (NodePath p in md_set)
+                {
+                    if (! (p in od_set))
+                    {
+                        removed_paths_set.add(p);
+                        sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
+                    }
+                    else
+                    {
+                        if (p in vd_set)
+                        {
+                            changed_paths_set.add(p);
+                            sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                        }
+                    }
+                }
+                if (md_set.is_empty && !od_set.is_empty)
+                    sd.insert(0, new SignalToEmit.destination_added(
+                    my_naddr.i_qspn_get_address_by_coord(d)
+                    ));
+                if (!md_set.is_empty && od_set.is_empty)
+                    sd.add(new SignalToEmit.destination_removed(
+                    my_naddr.i_qspn_get_address_by_coord(d)
+                    ));
+
+                // update memory
+                if (od_set.is_empty)
+                {
+                    if (destinations[d.lvl].has_key(d.pos))
+                        destinations[d.lvl].unset(d.pos);
+                }
+                else
+                {
+                    destinations[d.lvl][d.pos] = new Destination(d, od_set);
+                }
+                // signals
+                // TODO
             }
         }
 
@@ -1689,7 +1874,7 @@ namespace Netsukuku
             IQspnNaddr requesting_naddr = (IQspnNaddr) requesting_address;
 
             HCoord b = my_naddr.i_qspn_get_coord_by_address(requesting_naddr);
-            var node_paths = new ArrayList<NodePath>();
+            var node_paths = create_searchable_list_nodepaths();
             for (int l = b.lvl; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 foreach (NodePath np in d.paths)
@@ -1705,8 +1890,8 @@ namespace Netsukuku
             }
             debug("Sending ETP on request");
             return prepare_new_etp(node_paths,
-                                   new ArrayList<NodePath>(),
-                                   new ArrayList<NodePath>());
+                                   create_searchable_list_nodepaths(),
+                                   create_searchable_list_nodepaths());
         }
 
         public void send_etp(IQspnEtpMessage m, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
