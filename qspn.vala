@@ -218,9 +218,11 @@ namespace Netsukuku
     internal class EtpPath : Object, ISerializable
     {
         public Gee.List<HCoord> hops;
+        public Gee.List<int> arcs;
         public IQspnCost cost;
         public IQspnFingerprint fingerprint;
         public int nodes_inside;
+        public Gee.List<bool> ignore_outside;
 
         // TODO costruttore
 
@@ -229,15 +231,25 @@ namespace Netsukuku
             ListISerializable lst0 = new ListISerializable.with_backer(hops);
             Variant v0 = lst0.serialize_to_variant();
 
+            Variant v1 = Serializer.int_array_to_variant(arcs.to_array());
+
             assert(cost is ISerializable);
-            Variant v1 = Serializer.uchar_array_to_variant((cost as ISerializable).serialize());
+            Variant v2 = Serializer.uchar_array_to_variant((cost as ISerializable).serialize());
 
             assert(fingerprint is ISerializable);
-            Variant v2 = Serializer.uchar_array_to_variant((fingerprint as ISerializable).serialize());
+            Variant v3 = Serializer.uchar_array_to_variant((fingerprint as ISerializable).serialize());
 
-            Variant v3 = Serializer.int_to_variant(nodes_inside);
+            Variant v4 = Serializer.int_to_variant(nodes_inside);
 
-            Variant vret = Serializer.tuple_to_variant_4(v0, v1, v2, v3);
+            int[] _ignore = new int[ignore_outside.size];
+            for (int i = 0; i < ignore_outside.size; i++)
+            {
+                _ignore[i] = ignore_outside[i] ? 1 : 0;
+            }
+            Variant v5 = Serializer.int_array_to_variant(_ignore);
+
+            Variant vtemp = Serializer.tuple_to_variant_5(v0, v1, v2, v3, v4);
+            Variant vret = Serializer.tuple_to_variant(vtemp, v5);
             return vret;
         }
 
@@ -247,13 +259,21 @@ namespace Netsukuku
             Variant v1;
             Variant v2;
             Variant v3;
-            Serializer.variant_to_tuple_4(v, out v0, out v1, out v2, out v3);
+            Variant v4;
+            Variant v5;
+            Variant vtemp;
+            Serializer.variant_to_tuple(v, out vtemp, out v5);
+            Serializer.variant_to_tuple_5(vtemp, out v0, out v1, out v2, out v3, out v4);
 
             ListISerializable lst0 = (ListISerializable)Object.new(typeof(ListISerializable));
             lst0.deserialize_from_variant(v0);
             hops = (Gee.List<HCoord>)lst0.backed;
 
-            ISerializable ret = ISerializable.deserialize(Serializer.variant_to_uchar_array(v1));
+            int[] my_arcs = Serializer.variant_to_int_array(v1);
+            arcs = new ArrayList<int>();
+            arcs.add_all_array(my_arcs);
+
+            ISerializable ret = ISerializable.deserialize(Serializer.variant_to_uchar_array(v2));
             if (! (ret is IQspnCost))
             {
                 throw new SerializerError.GENERIC(
@@ -264,7 +284,7 @@ namespace Netsukuku
             }
             cost = ret as IQspnCost;
 
-            ISerializable ret2 = ISerializable.deserialize(Serializer.variant_to_uchar_array(v2));
+            ISerializable ret2 = ISerializable.deserialize(Serializer.variant_to_uchar_array(v3));
             if (! (ret2 is IQspnFingerprint))
             {
                 throw new SerializerError.GENERIC(
@@ -275,7 +295,14 @@ namespace Netsukuku
             }
             fingerprint = ret2 as IQspnFingerprint;
 
-            nodes_inside = Serializer.variant_to_int(v3);
+            nodes_inside = Serializer.variant_to_int(v4);
+
+            int[] _ignore = Serializer.variant_to_int_array(v5);
+            ignore_outside = new ArrayList<bool>();
+            for (int i = 0; i < _ignore.length; i++)
+            {
+                ignore_outside.add(_ignore[i] != 0);
+            }
         }
 
     }
@@ -289,36 +316,64 @@ namespace Netsukuku
         }
         public IQspnArc arc;
         public EtpPath path;
-        public bool hops_are_equal(NodePath q)
+        private IQspnCost _cost;
+        public IQspnCost cost {
+            get {
+                _cost = arc.i_qspn_get_cost().i_qspn_add_segment(path.cost);
+                return _cost;
+            }
+        }
+        public bool hops_arcs_equal(NodePath q)
         {
             if (! q.arc.i_qspn_equals(arc)) return false;
-            Gee.List<HCoord> mylist = path.hops;
-            Gee.List<HCoord> qlist = q.path.hops;
-            if (mylist.size != qlist.size) return false;
-            for (int i = 0; i < mylist.size; i++)
-                if (! (mylist[i].equals(qlist[i]))) return false;
+            Gee.List<HCoord> my_hops_list = path.hops;
+            Gee.List<HCoord> q_hops_list = q.path.hops;
+            if (my_hops_list.size != q_hops_list.size) return false;
+            for (int i = 0; i < my_hops_list.size; i++)
+                if (! (my_hops_list[i].equals(q_hops_list[i]))) return false;
+            Gee.List<int> my_arcs_list = path.arcs;
+            Gee.List<int> q_arcs_list = q.path.arcs;
+            if (my_arcs_list.size != q_arcs_list.size) return false;
+            for (int i = 0; i < my_arcs_list.size; i++)
+                if (my_arcs_list[i] != q_arcs_list[i]) return false;
             return true;
         }
+    }
+
+    public interface IQspnHop : Object
+    {
+        public abstract int i_qspn_get_arc_id();
+        public abstract IQspnPartialNaddr i_qspn_get_naddr();
     }
 
     public interface IQspnNodePath : Object
     {
         public abstract IQspnArc i_qspn_get_arc();
-        public abstract Gee.List<IQspnPartialNaddr> i_qspn_get_hops();
+        public abstract Gee.List<IQspnHop> i_qspn_get_hops();
         public abstract IQspnCost i_qspn_get_cost();
         public abstract int i_qspn_get_nodes_inside();
+    }
+
+    internal class RetHop : Object, IQspnHop
+    {
+        public int arc_id;
+        public IQspnPartialNaddr naddr;
+
+        /* Interface */
+        public int i_qspn_get_arc_id() {return arc_id;}
+        public IQspnPartialNaddr i_qspn_get_naddr() {return naddr;}
     }
 
     internal class RetPath : Object, IQspnNodePath
     {
         public IQspnArc arc;
-        public ArrayList<IQspnPartialNaddr> hops;
+        public ArrayList<IQspnHop> hops;
         public IQspnCost cost;
         public int nodes_inside;
 
         /* Interface */
         public IQspnArc i_qspn_get_arc() {return arc;}
-        public Gee.List<IQspnPartialNaddr> i_qspn_get_hops() {return hops;}
+        public Gee.List<IQspnHop> i_qspn_get_hops() {return hops;}
         public IQspnCost i_qspn_get_cost() {return cost;}
         public int i_qspn_get_nodes_inside() {return nodes_inside;}
     }
@@ -390,11 +445,7 @@ namespace Netsukuku
                     }
                     else
                     {
-                        IQspnCost p_cost = p.path.cost
-                            .i_qspn_add_segment(p.arc.i_qspn_get_cost());
-                        IQspnCost best_p_cost = best_p.path.cost
-                            .i_qspn_add_segment(best_p.arc.i_qspn_get_cost());
-                        if (p_cost.i_qspn_compare_to(best_p_cost) < 0)
+                        if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
                         {
                             nnd = nndp;
                             best_p = p;
@@ -426,6 +477,10 @@ namespace Netsukuku
         }
     }
 
+    internal errordomain AcyclicError {
+        GENERIC
+    }
+
     public class QspnManager : Object,
                                IQspnManager
     {
@@ -440,6 +495,7 @@ namespace Netsukuku
         private double max_common_hops_ratio;
         private int arc_timeout;
         private ArrayList<IQspnArc> my_arcs;
+        private HashMap<int, IQspnArc> id_arc_map;
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private ArrayList<int> my_nodes_inside;
         private IQspnThresholdCalculator threshold_calculator;
@@ -454,6 +510,31 @@ namespace Netsukuku
         //  In addition we can specify a level and then refer by index to the
         //  position. This is useful when we want to remove one item.
         private ArrayList<HashMap<int, Destination>> destinations;
+
+        // The hook on a particular network has failed.
+        public signal void failed_hook();
+        // The hook on a particular network has completed; the module is mature.
+        public signal void qspn_mature();
+        // An arc (is not working) has been removed from my list.
+        public signal void arc_removed(IQspnArc arc);
+        // A gnode (or node) is now known on the network and the first path towards
+        //  it is now available to this node.
+        public signal void destination_added(IQspnPartialNaddr d);
+        // A gnode (or node) has been removed from the network and the last path
+        //  towards it has been deleted from this node.
+        public signal void destination_removed(IQspnPartialNaddr d);
+        // A new path (might be the first) to a destination has been found.
+        public signal void path_added(IQspnNodePath p);
+        // A path to a destination has changed.
+        public signal void path_changed(IQspnNodePath p);
+        // A path (might be the last) to a destination has been deleted.
+        public signal void path_removed(IQspnNodePath p);
+        // My g-node of level l changed its fingerprint.
+        public signal void changed_fp(int l);
+        // My g-node of level l changed its nodes_inside.
+        public signal void changed_nodes_inside(int l);
+        // A gnode has splitted and the part reachable by this path MUST migrate.
+        public signal void gnode_splitted(IQspnNodePath p);
 
         public QspnManager(IQspnMyNaddr my_naddr,
                            int max_paths,
@@ -478,13 +559,23 @@ namespace Netsukuku
                     return a.i_qspn_equals(b);
                 }
             );
+            id_arc_map = new HashMap<int, IQspnArc>();
             foreach (IQspnArc arc in my_arcs)
             {
                 // Check data right away
                 IQspnCost c = arc.i_qspn_get_cost();
                 assert(c != null);
 
+                // generate ID for the arc
+                int arc_id = 0;
+                while (arc_id == 0 || id_arc_map.has_key(arc_id))
+                {
+                    arc_id = Random.int_range(0, int.MAX);
+                }
+                // memorize
+                assert(! (arc in my_arcs));
                 this.my_arcs.add(arc);
+                id_arc_map[arc_id] = arc;
             }
             // find parameters of the network
             levels = my_naddr.i_qspn_get_levels();
@@ -520,7 +611,8 @@ namespace Netsukuku
             {
                 mature = false;
                 queued_events = new ArrayList<QueuedEvent>();
-                // start in a tasklet the request of an ETP from all neighbors.
+                // Start a tasklet where we request a full ETP from all our neighbors
+                //  and then we process them.
                 Tasklet.tasklet_callback(
                     (t) => {
                         (t as QspnManager).get_first_etps();
@@ -528,6 +620,19 @@ namespace Netsukuku
                     this
                 );
             }
+        }
+
+        // Helper: get id of arc
+        private int get_arc_id(IQspnArc arc)
+        {
+            foreach (int id in id_arc_map.keys)
+            {
+                if (id_arc_map[id].i_qspn_equals(arc))
+                {
+                    return id;
+                }
+            }
+            return -1;
         }
 
         public void stop_operations()
@@ -641,34 +746,26 @@ namespace Netsukuku
                 log_warn("QspnManager.arc_add: already in my arcs.");
                 return;
             }
+            // generate ID for the arc
+            int arc_id = 0;
+            while (arc_id == 0 || id_arc_map.has_key(arc_id))
+            {
+                arc_id = Random.int_range(0, int.MAX);
+            }
+            // memorize
             my_arcs.add(arc);
+            id_arc_map[arc_id] = arc;
+
             IAddressManagerRootDispatcher disp_get_etp =
                     stub_factory.i_qspn_get_tcp(arc);
-            EtpMessage? etp = null;
+            IQspnEtpMessage? resp = null;
             try {
-                while (true)
-                {
-                    try {
-                        debug("Requesting ETP from new arc");
-                        IQspnEtpMessage resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
-                        if (! (resp is EtpMessage))
-                        {
-                            // The module only knows this class that implements IQspnEtpMessage, so this
-                            //  should not happen. But the rest of the code, who knows? So to be sure
-                            //  we check. If it is the case remove the arc.
-                            arc_remove(arc);
-                            // emit signal
-                            arc_removed(arc);
-                            return;
-                        }
-                        etp = (EtpMessage) resp;
-                        break;
-                    }
-                    catch (QspnNotMatureError e) {
-                        // wait for it to become mature
-                        ms_wait(2000);
-                    }
-                }
+                debug("Requesting ETP from new arc");
+                resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
+            }
+            catch (QspnNotMatureError e) {
+                // Give up. The neighbor will start a flood when it is mature.
+                return;
             }
             catch (RPCError e) {
                 // remove failed arc and emit signal
@@ -684,7 +781,30 @@ namespace Netsukuku
                 arc_removed(arc);
                 return;
             }
-            // Got ETP from new neighbor/arc. preprocess... TODO.
+            if (! (resp is EtpMessage))
+            {
+                // The module only knows this class that implements IQspnEtpMessage, so this
+                //  should not happen. But the rest of the code, who knows? So to be sure
+                //  we check. If it is the case remove the arc.
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            EtpMessage etp = (EtpMessage) resp;
+
+            // Got ETP from new neighbor/arc. Revise the paths in it. TODO.
+            Gee.List<NodePath> q;
+            try
+            {
+                q = revise_etp(etp, arc, arc_id);
+            }
+            catch (AcyclicError e)
+            {
+                // This should not happen.
+                log_warn("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
+                return;
+            }
 
 
             // create a new etp for arc ... TODO.
@@ -809,7 +929,9 @@ namespace Netsukuku
                 return;
             }
             // First, remove the arc...
+            int arc_id = get_arc_id(removed_arc);
             my_arcs.remove(removed_arc);
+            id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
             var path_to_add_to_changed_paths = new ArrayList<NodePath>();
@@ -862,31 +984,6 @@ namespace Netsukuku
             }
         }
 
-        // The hook on a particular network has failed.
-        public signal void failed_hook();
-        // The hook on a particular network has completed; the module is mature.
-        public signal void qspn_mature();
-        // An arc (is not working) has been removed from my list.
-        public signal void arc_removed(IQspnArc arc);
-        // A gnode (or node) is now known on the network and the first path towards
-        //  it is now available to this node.
-        public signal void destination_added(IQspnPartialNaddr d);
-        // A gnode (or node) has been removed from the network and the last path
-        //  towards it has been deleted from this node.
-        public signal void destination_removed(IQspnPartialNaddr d);
-        // A new path (might be the first) to a destination has been found.
-        public signal void path_added(IQspnNodePath p);
-        // A path to a destination has changed.
-        public signal void path_changed(IQspnNodePath p);
-        // A path (might be the last) to a destination has been deleted.
-        public signal void path_removed(IQspnNodePath p);
-        // My g-node of level l changed its fingerprint.
-        public signal void changed_fp(int l);
-        // My g-node of level l changed its nodes_inside.
-        public signal void changed_nodes_inside(int l);
-        // A gnode has splitted and the part reachable by this path MUST migrate.
-        public signal void gnode_splitted(IQspnNodePath p);
-
         // Helper: get IQspnNodePath from NodePath
         private RetPath get_ret_path(NodePath np)
         {
@@ -894,27 +991,220 @@ namespace Netsukuku
             IQspnArc arc = np.arc;
             RetPath r = new RetPath();
             r.arc = arc;
-            r.hops = new ArrayList<IQspnPartialNaddr>();
-            foreach (HCoord h in p.hops)
-                r.hops.add(my_naddr.i_qspn_get_address_by_coord(h));
+            r.hops = new ArrayList<IQspnHop>();
+            for (int j = 0; j < p.arcs.size; j++)
+            {
+                HCoord h = p.hops[j];
+                int arc_id = p.arcs[j];
+                RetHop hop = new RetHop();
+                hop.arc_id = arc_id;
+                hop.naddr = my_naddr.i_qspn_get_address_by_coord(h);
+            }
             r.cost = p.cost.i_qspn_add_segment(arc.i_qspn_get_cost());
             r.nodes_inside = p.nodes_inside;
             return r;
         }
 
+        // Helper: path to send in a ETP
+        private EtpPath prepare_path(NodePath np)
+        {
+            EtpPath p = new EtpPath();
+            p.hops = new ArrayList<HCoord>();
+            p.hops.add_all(np.path.hops);
+            p.arcs = new ArrayList<int>();
+            p.arcs.add_all(np.path.arcs);
+            p.fingerprint = np.path.fingerprint;
+            p.nodes_inside = np.path.nodes_inside;
+            p.cost = np.cost;
+            // Set values for ignore_ouside.
+            p.ignore_outside = new ArrayList<bool>();
+            p.ignore_outside.add(false);
+            for (int i = 1; i < levels; i++)
+            {
+                if (p.hops.last().lvl >= i)
+                {
+                    int j = 0;
+                    while (true)
+                    {
+                        if (p.hops[j].lvl >= i) break;
+                        j++;
+                    }
+                    int d_lvl = p.hops[j].lvl;
+                    int d_pos = p.hops[j].pos;
+                    assert(destinations.size > d_lvl);
+                    assert(destinations[d_lvl].has_key(d_pos));
+                    Destination d = destinations[d_lvl][d_pos];
+                    NodePath? best_to_arc = null;
+                    foreach (NodePath q in d.paths)
+                    {
+                        if (q.path.arcs.last() == p.arcs[j])
+                        {
+                            if (best_to_arc == null)
+                            {
+                                best_to_arc = q;
+                            }
+                            else
+                            {
+                                if (q.cost.i_qspn_compare_to(best_to_arc.cost) < 0)
+                                {
+                                    best_to_arc = q;
+                                }
+                            }
+                        }
+                    }
+                    if (best_to_arc == null)
+                    {
+                        p.ignore_outside.add(false);
+                    }
+                    else
+                    {
+                        bool same = false;
+                        if (best_to_arc.path.hops.size == j-1)
+                        {
+                            same = true;
+                            for (int k = 0; k < j; k++)
+                            {
+                                if (!(best_to_arc.path.hops[k].equals(p.hops[k])) || 
+                                    best_to_arc.path.arcs[k] != p.arcs[k])
+                                {
+                                    same = false;
+                                    break;
+                                }
+                            }
+                        }
+                        p.ignore_outside.add(!same);
+                    }
+                }
+                else
+                {
+                    p.ignore_outside.add(true);
+                }
+            }
+            return p;
+        }
+
+        // Helper: revise an ETP, correct its id_list and the paths inside it. The ETP has been already checked with check_network_parameters.
+        private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id) throws AcyclicError
+        {
+            HCoord v = my_naddr.i_qspn_get_coord_by_address(m.node_address);
+            int i = v.lvl + 1;
+            // grouping rule on m.hops
+            while ((! m.hops.is_empty) && m.hops[0].lvl < i-1)
+            {
+                m.hops.remove_at(0);
+            }
+            m.hops.insert(0, v);
+            // acyclic rule on m.hops
+            foreach (HCoord g in m.hops)
+            {
+                if (g.pos == my_naddr.i_qspn_get_pos(g.lvl))
+                {
+                    // the ETP has done a cycle
+                    debug("Cyclic ETP dropped");
+                    throw new AcyclicError.GENERIC("Cycle in ETP");
+                }
+            }
+            // revise paths:
+            // remove paths to ignore
+            int j = 0;
+            while (j < m.p_list.size)
+            {
+                EtpPath p = m.p_list[j];
+                if (p.ignore_outside[i-1])
+                {
+                    m.p_list.remove_at(j);
+                }
+                else
+                {
+                    j++;
+                }
+            }
+            // grouping rule
+            foreach (EtpPath p in m.p_list)
+            {
+                while ((! p.hops.is_empty) && p.hops[0].lvl < i-1)
+                {
+                    p.hops.remove_at(0);
+                    p.arcs.remove_at(0);
+                }
+                p.hops.insert(0, v);
+                p.arcs.insert(0, arc_id);
+            }
+            // acyclic rule
+            j = 0;
+            while (j < m.p_list.size)
+            {
+                EtpPath p = m.p_list[j];
+                bool cycle = false;
+                foreach (HCoord g in p.hops)
+                {
+                    if (g.pos == my_naddr.i_qspn_get_pos(g.lvl))
+                    {
+                        cycle = true; // the path has done a cycle
+                        break;
+                    }
+                }
+                if (cycle)
+                {
+                    m.p_list.remove_at(j);
+                }
+                else
+                {
+                    j++;
+                }
+            }
+            // intrinsic path to v
+            EtpPath v_path = new EtpPath();
+            v_path.hops = new ArrayList<HCoord>();
+            v_path.hops.add(v);
+            v_path.arcs = new ArrayList<int>();
+            v_path.arcs.add(arc_id);
+            v_path.cost = new NullCost();
+            v_path.fingerprint = m.fingerprints[i-1];
+            v_path.nodes_inside = m.nodes_inside[i-1];
+            // ignore_outside is not important here.
+            v_path.ignore_outside = new ArrayList<bool>();
+            for (j = 0; j < levels; j++) v_path.ignore_outside.add(false);
+            m.p_list.add(v_path);
+            // return a collection of NodePath
+            ArrayList<NodePath> ret = new ArrayList<NodePath>();
+            foreach (EtpPath p in m.p_list)
+            {
+                NodePath np = new NodePath(arc, p);
+                ret.add(np);
+            }
+            return ret;
+        }
+
         // Helper: prepare new ETP
-        private EtpMessage prepare_new_etp(Collection<NodePath> node_paths, Gee.List<HCoord>? tp_list=null)
+        /*
+        Diversamente da come descritto nel documento di dettagli tecnici,
+         si usa questo helper method passando tutta la collezione di NodePath
+         individuati durante le operazioni di aggiornamento della mappa, suddivisa
+         in changed_paths_set, added_paths_set, removed_paths_set.
+        */
+        private EtpMessage prepare_new_etp
+        (Collection<NodePath> added_paths_set,
+         Collection<NodePath> changed_paths_set,
+         Collection<NodePath> removed_paths_set,
+         Gee.List<HCoord>? etp_hops=null)
         {
             EtpMessage ret = new EtpMessage();
             ret.p_list = new ArrayList<EtpPath>();
-            foreach (NodePath np in node_paths)
+            foreach (NodePath np in added_paths_set)
             {
-                EtpPath p = new EtpPath();
-                p.hops = new ArrayList<HCoord>();
-                p.hops.add_all(np.path.hops);
-                p.fingerprint = np.path.fingerprint;
-                p.nodes_inside = np.path.nodes_inside;
-                p.cost = np.arc.i_qspn_get_cost().i_qspn_add_segment(np.path.cost);
+                EtpPath p = prepare_path(np);
+                ret.p_list.add(p);
+            }
+            foreach (NodePath np in changed_paths_set)
+            {
+                EtpPath p = prepare_path(np);
+                ret.p_list.add(p);
+            }
+            foreach (NodePath np in removed_paths_set)
+            {
+                EtpPath p = prepare_path(np);
+                p.cost = new DeadCost();
                 ret.p_list.add(p);
             }
             ret.node_address = my_naddr;
@@ -923,7 +1213,7 @@ namespace Netsukuku
             ret.nodes_inside = new ArrayList<int>();
             ret.nodes_inside.add_all(my_nodes_inside);
             ret.hops = new ArrayList<HCoord>();
-            if (tp_list != null) ret.hops.add_all(tp_list);
+            if (etp_hops != null) ret.hops.add_all(etp_hops);
             return ret;
         }
 
@@ -934,15 +1224,24 @@ namespace Netsukuku
             for (int l = 0; l < levels; l++)
                 foreach (Destination d in destinations[l].values)
                     node_paths.add_all(d.paths);
-            return prepare_new_etp(node_paths);
+            return prepare_new_etp(node_paths,
+                                   new ArrayList<NodePath>(),
+                                   new ArrayList<NodePath>());
         }
 
         // Helper: prepare forward ETP
-        private EtpMessage prepare_fwd_etp(EtpMessage m, Collection<NodePath> node_paths)
+        private EtpMessage prepare_fwd_etp
+        (Collection<NodePath> added_paths_set,
+         Collection<NodePath> changed_paths_set,
+         Collection<NodePath> removed_paths_set,
+         EtpMessage m)
         {
-            // The message 'm' has been pre-processed, so that m.hops has the 'exit_gnode'
+            // The message 'm' has been revised, so that m.hops has the 'exit_gnode'
             //  at the beginning.
-            return prepare_new_etp(node_paths, m.hops);
+            return prepare_new_etp(added_paths_set,
+                                   changed_paths_set,
+                                   removed_paths_set,
+                                   m.hops);
         }
 
         // Helper: gather ETP from a set of arcs
@@ -1124,11 +1423,17 @@ namespace Netsukuku
         // Helper: check that an ETP is valid:
         // The address MUST have the same topology parameters as mine.
         // The address MUST NOT be the same as mine.
-        // For each TP-List tpl (that is the main and that of each path in P):
-        //  . For each HCoord in tpl.hops:
-        //    . lvl has to be between 0 and levels-1
-        //    . lvl has to grow only
-        //    . pos has to be between 0 and gsize(lvl)-1
+        // For each path p in P:
+        //  . p.arcs.size MUST be the same of p.hops.size.
+        //  . For each HCoord g in p.hops:
+        //    . g.lvl has to be between 0 and levels-1
+        //    . g.lvl has to grow only
+        //    . g.pos has to be between 0 and gsize(g.lvl)-1
+        // With the main hops list of the ETP:
+        //  . For each HCoord g in hops:
+        //    . g.lvl has to be between 0 and levels-1
+        //    . g.lvl has to grow only
+        //    . g.pos has to be between 0 and gsize(g.lvl)-1
         private bool check_network_parameters(EtpMessage m)
         {
             if (m.node_address.i_qspn_get_levels() != levels) return false;
@@ -1141,7 +1446,10 @@ namespace Netsukuku
             if (! not_same) return false;
             if (! check_tplist(m.hops)) return false;
             foreach (EtpPath p in m.p_list)
+            {
+                if (p.hops.size != p.arcs.size) return false;
                 if (! check_tplist(p.hops)) return false;
+            }
             return true;
         }
         private bool check_tplist(Gee.List<HCoord> hops)
@@ -1156,88 +1464,6 @@ namespace Netsukuku
                 if (c.pos >= gsizes[c.lvl]) return false;
             }
             return true;
-        }
-
-        // Helper: pre-process received ETP to make it valid for me.
-        // It returns a collection, possibly empty, of paths which are valid
-        // from this node.
-        private Collection<NodePath> preprocess_etp(EtpMessage m, IQspnArc a)
-        {
-            ArrayList<NodePath> ret = new ArrayList<NodePath>();
-            if (check_network_parameters(m))
-            {
-                HCoord exit_gnode = my_naddr.
-                        i_qspn_get_coord_by_address(
-                        m.node_address);
-                int i = exit_gnode.lvl+1;
-                // grouping rule for m.hops
-                while (m.hops.size > 0)
-                    if (m.hops[0].lvl < i-1)
-                        m.hops.remove_at(0);
-                m.hops.insert(0, exit_gnode);
-                // acyclic rule for m.hops
-                bool cycle = false;
-                foreach (HCoord h in m.hops)
-                    if (h.pos == my_naddr.i_qspn_get_pos(h.lvl))
-                    {
-                        cycle = true;
-                        break;
-                    }
-                if (! cycle)
-                {
-                    int j = 0;
-                    while (j < m.p_list.size)
-                    {
-                        EtpPath p = m.p_list[j];
-                        if (p.hops.last().lvl < i-1)
-                            m.p_list.remove_at(j);
-                        else
-                            j++;
-                    }
-                    j = 0;
-                    while (j < m.p_list.size)
-                    {
-                        EtpPath p = m.p_list[j];
-                        // grouping rule for p.hops
-                        while (p.hops.size > 0)
-                            if (p.hops[0].lvl < i-1)
-                                p.hops.remove_at(0);
-                        p.hops.insert(0, exit_gnode);
-                        // acyclic rule for p.hops
-                        cycle = false;
-                        foreach (HCoord h in m.hops)
-                            if (h.pos == my_naddr.i_qspn_get_pos(h.lvl))
-                            {
-                                cycle = true;
-                                break;
-                            }
-                        if (cycle)
-                            m.p_list.remove_at(j);
-                        else
-                            j++;
-                    }
-                    EtpPath new_p = new EtpPath();
-                    new_p.hops = new ArrayList<HCoord>();
-                    new_p.hops.add(exit_gnode);
-                    new_p.cost = new NullCost();
-                    new_p.fingerprint = m.fingerprints[i-1];
-                    new_p.nodes_inside = m.nodes_inside[i-1];
-                    m.p_list.add(new_p);
-                    foreach (EtpPath p in m.p_list)
-                        ret.add(new NodePath(a, p));
-                }
-                else
-                {
-                    // dropped because of acyclic rule
-                    debug("Cyclic ETP dropped");
-                }
-            }
-            else
-            {
-                // malformed ETP
-                log_warn("ETP malformed");
-            }
-            return ret;
         }
 
         private class SignalToEmit : Object
@@ -1266,7 +1492,7 @@ namespace Netsukuku
             //  ETP because of the rule of first split detection.
             p_set = new ArrayList<NodePath>();
             b_set = new ArrayList<HCoord>();
-            // Group by destination
+            // Group by destination, order keys by ascending level.
             HashMap<HCoord, ArrayList<NodePath>> q_by_dest = new HashMap<HCoord, ArrayList<NodePath>>(
                 (a) => {return a.lvl*100+a.pos;},  /* hash_func */
                 (a, b) => {return a.equals(b);});  /* equal_func */
@@ -1276,7 +1502,10 @@ namespace Netsukuku
                 if (! (d in q_by_dest.keys)) q_by_dest[d] = new ArrayList<NodePath>();
                 q_by_dest[d].add(np);
             }
-            foreach (HCoord d in q_by_dest.keys)
+            ArrayList<HCoord> sorted_keys = new ArrayList<HCoord>();
+            sorted_keys.add_all(q_by_dest.keys);
+            sorted_keys.sort((a, b) => {return a.lvl - b.lvl;});
+            foreach (HCoord d in sorted_keys)
             {
                 ArrayList<NodePath> qd_set = q_by_dest[d];
                 ArrayList<NodePath> md_set = new ArrayList<NodePath>();
@@ -1297,7 +1526,7 @@ namespace Netsukuku
                     NodePath? p2 = null;
                     foreach (NodePath p_test in qd_set)
                     {
-                        if (p_test.hops_are_equal(p1))
+                        if (p_test.hops_arcs_equal(p1))
                         {
                             p2 = p_test;
                             break;
@@ -1305,7 +1534,6 @@ namespace Netsukuku
                     }
                     if (p2 != null)
                     {
-                        bool apply = false;
                         if ((! p1.path.fingerprint.i_qspn_equals(p2.path.fingerprint))
                             ||
                             (p1.path.cost.i_qspn_important_variation(p2.path.cost))
@@ -1334,8 +1562,8 @@ namespace Netsukuku
                 od_set.add_all(qd_set);
                 od_set.sort((np1, np2) => {
                     // np1 > np2 <=> return +1
-                    IQspnCost c1 = np1.arc.i_qspn_get_cost().i_qspn_add_segment(np1.path.cost);
-                    IQspnCost c2 = np2.arc.i_qspn_get_cost().i_qspn_add_segment(np2.path.cost);
+                    IQspnCost c1 = np1.cost;
+                    IQspnCost c2 = np2.cost;
                     return c1.i_qspn_compare_to(c2);
                 });
                 HashMap<HCoord, int> num_nodes_inside = new HashMap<HCoord, int>(
@@ -1476,7 +1704,9 @@ namespace Netsukuku
                 }
             }
             debug("Sending ETP on request");
-            return prepare_new_etp(node_paths);
+            return prepare_new_etp(node_paths,
+                                   new ArrayList<NodePath>(),
+                                   new ArrayList<NodePath>());
         }
 
         public void send_etp(IQspnEtpMessage m, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError

@@ -50,11 +50,11 @@ void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
                     IQspnArc arc = path.i_qspn_get_arc();
                     IQspnNaddr gw = arc.i_qspn_get_naddr();
                     print(@"  gw $(gw as FakeGenericNaddr)=");
-                    Gee.List<IQspnPartialNaddr> hops = path.i_qspn_get_hops();
+                    Gee.List<IQspnHop> hops = path.i_qspn_get_hops();
                     string delimiter = "";
-                    foreach (IQspnPartialNaddr hop in hops)
+                    foreach (IQspnHop hop in hops)
                     {
-                        print(@"$(delimiter)$(hop as FakeGenericNaddr)");
+                        print(@"$(delimiter)$(hop.i_qspn_get_naddr() as FakeGenericNaddr)");
                         delimiter = " - ";
                     }
                     print(@"·\n");
