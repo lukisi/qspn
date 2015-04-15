@@ -48,6 +48,17 @@ namespace Netsukuku
         public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers);
     }
 
+    internal ArrayList<IQspnFingerprint>
+    create_searchable_list_fingerprints()
+    {
+        return new ArrayList<IQspnFingerprint>(
+            /*EqualDataFunc*/
+            (a, b) => {
+                return a.i_qspn_equals(b);
+            }
+        );
+    }
+
     public interface IQspnCost : Object
     {
         public abstract int i_qspn_compare_to(IQspnCost other);
@@ -528,6 +539,7 @@ namespace Netsukuku
         private bool mature;
         private Tasklet? periodical_update_tasklet = null;
         private ArrayList<QueuedEvent> queued_events;
+        private ArrayList<PairFingerprints> pending_gnode_split;
         // This collection can be accessed by index (level) and then by iteration on the
         //  values. This is useful when we want to iterate on a certain level.
         //  In addition we can specify a level and then refer by index to the
@@ -556,8 +568,8 @@ namespace Netsukuku
         public signal void changed_fp(int l);
         // My g-node of level l changed its nodes_inside.
         public signal void changed_nodes_inside(int l);
-        // A gnode has splitted and the part reachable by this path MUST migrate.
-        public signal void gnode_splitted(IQspnNodePath p);
+        // A gnode has splitted and the part which has this fingerprint MUST migrate.
+        public signal void gnode_splitted(HCoord d, IQspnFingerprint fp);
 
         public QspnManager(IQspnMyNaddr my_naddr,
                            int max_paths,
@@ -575,6 +587,7 @@ namespace Netsukuku
             this.arc_timeout = arc_timeout;
             this.threshold_calculator = threshold_calculator;
             this.stub_factory = stub_factory;
+            pending_gnode_split = create_searchable_list_pairfingerprints();
             // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
@@ -815,8 +828,17 @@ namespace Netsukuku
                 return;
             }
             EtpMessage etp = (EtpMessage) resp;
+            if (! check_network_parameters(etp))
+            {
+                // We check the correctness of a message from another node.
+                // If the message is junk, remove the arc.
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
 
-            // Got ETP from new neighbor/arc. Revise the paths in it. TODO.
+            // Got ETP from new neighbor/arc. Revise the paths in it.
             Gee.List<NodePath> q;
             try
             {
@@ -828,7 +850,22 @@ namespace Netsukuku
                 log_warn("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
                 return;
             }
-
+            // Update my map. Collect changed paths.
+            Collection<NodePath> added_paths_set;
+            Collection<NodePath> changed_paths_set;
+            Collection<NodePath> removed_paths_set;
+            Collection<HCoord> b_set;
+            update_map(q, null,
+                       out added_paths_set,
+                       out changed_paths_set,
+                       out removed_paths_set,
+                       out b_set);
+            // If needed, spawn a new flood for the first detection of a gnode split.
+            if (! b_set.is_empty)
+                spawn_flood_first_detection_split(b_set);
+            // Re-evaluate informations on our g-nodes.
+            // TODO
+            
 
             // create a new etp for arc ... TODO.
             EtpMessage full_etp = null;
@@ -1106,7 +1143,8 @@ namespace Netsukuku
             return p;
         }
 
-        // Helper: revise an ETP, correct its id_list and the paths inside it. The ETP has been already checked with check_network_parameters.
+        // Helper: revise an ETP, correct its id_list and the paths inside it.
+        //  The ETP has been already checked with check_network_parameters.
         private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id) throws AcyclicError
         {
             HCoord v = my_naddr.i_qspn_get_coord_by_address(m.node_address);
@@ -1558,6 +1596,31 @@ namespace Netsukuku
                 }
             }
         }
+        private class PairFingerprints : Object
+        {
+            private IQspnFingerprint fp1;
+            private IQspnFingerprint fp2;
+            public PairFingerprints(IQspnFingerprint fp1, IQspnFingerprint fp2)
+            {
+                this.fp1 = fp1;
+                this.fp2 = fp2;
+            }
+            public bool equals(PairFingerprints o)
+            {
+                return fp1.i_qspn_equals(o.fp1) &&
+                       fp2.i_qspn_equals(o.fp2);
+            }
+        }
+        private ArrayList<PairFingerprints>
+        create_searchable_list_pairfingerprints()
+        {
+            return new ArrayList<PairFingerprints>(
+                /*EqualDataFunc*/
+                (a, b) => {
+                    return a.equals(b);
+                }
+            );
+        }
         // Helper: update my map from a set of paths collected from a set
         // of ETP messages.
         internal void
@@ -1600,7 +1663,7 @@ namespace Netsukuku
                     Destination dd = destinations[d.lvl][d.pos];
                     md_set.add_all(dd.paths);
                 }
-                ArrayList<IQspnFingerprint> f1 = new ArrayList<IQspnFingerprint>((a, b) => {return a.i_qspn_equals(b);});
+                ArrayList<IQspnFingerprint> f1 = create_searchable_list_fingerprints();
                 foreach (NodePath np in md_set)
                     if (! (np.path.fingerprint in f1))
                         f1.add(np.path.fingerprint);
@@ -1780,8 +1843,156 @@ namespace Netsukuku
                     destinations[d.lvl][d.pos] = new Destination(d, od_set);
                 }
                 // signals
-                // TODO
+                foreach (SignalToEmit s in sd)
+                {
+                    if (s.is_destination_added)
+                        destination_added(s.d);
+                    else if (s.is_path_added)
+                        path_added(s.p);
+                    else if (s.is_path_changed)
+                        path_changed(s.p);
+                    else if (s.is_path_removed)
+                        path_removed(s.p);
+                    else if (s.is_destination_removed)
+                        destination_removed(s.d);
+                }
+                // check fingerprints
+                if (destinations[d.lvl].has_key(d.pos))
+                {
+                    Destination _d = destinations[d.lvl][d.pos];
+                    ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
+                    _d_paths.add_all(_d.paths);
+                    ArrayList<IQspnFingerprint> f2 = create_searchable_list_fingerprints();
+                    foreach (NodePath np in _d_paths)
+                        if (! (np.path.fingerprint in f2))
+                            f2.add(np.path.fingerprint);
+                    if (f2.size > 1)
+                    {
+                        // first detection of a split?
+                        foreach (IQspnFingerprint fp in f2)
+                        {
+                            if (! (fp in f1))
+                            {
+                                // prepare to propagate the information back.
+                                if (! (d in b_set)) b_set.add(d);
+                                break;
+                            }
+                        }
+                        // wait the threshold, then signal the split
+                        IQspnFingerprint? fp_eldest = null;
+                        foreach (IQspnFingerprint fp in f2)
+                        {
+                            if (fp_eldest == null || fp.i_qspn_elder(fp_eldest))
+                                fp_eldest = fp;
+                        }
+                        NodePath? bp_eldest = null;
+                        foreach (NodePath np in _d_paths)
+                        {
+                            if (np.path.fingerprint.i_qspn_equals(fp_eldest))
+                            {
+                                if (bp_eldest == null || bp_eldest.cost.i_qspn_compare_to(np.cost) > 0)
+                                    bp_eldest = np;
+                            }
+                        }
+                        f2.remove(fp_eldest);
+                        foreach (IQspnFingerprint fp in f2)
+                        {
+                            NodePath? bp = null;
+                            foreach (NodePath np in _d_paths)
+                            {
+                                if (np.path.fingerprint.i_qspn_equals(fp))
+                                {
+                                    if (bp == null || bp.cost.i_qspn_compare_to(np.cost) > 0)
+                                        bp = np;
+                                }
+                            }
+                            SignalSplitTask task = new SignalSplitTask();
+                            task.fp_eldest = fp_eldest;
+                            task.fp = fp;
+                            task.bp_eldest = bp_eldest;
+                            task.bp = bp;
+                            task.d = d;
+                            Tasklet.tasklet_callback(
+                                (_qspnmgr, _task) => {
+                                    ((QspnManager)_qspnmgr)
+                                        .signal_split((SignalSplitTask )_task);
+                                },
+                                this,
+                                task
+                                );
+                        }
+                    }
+                }
             }
+        }
+        private class SignalSplitTask : Object
+        {
+            public IQspnFingerprint fp_eldest;
+            public IQspnFingerprint fp;
+            public NodePath bp_eldest;
+            public NodePath bp;
+            public HCoord d;
+        }
+        private void signal_split(SignalSplitTask task)
+        {
+            PairFingerprints pair = new PairFingerprints(task.fp_eldest, task.fp);
+            if (pair in pending_gnode_split) return;
+            pending_gnode_split.add(pair);
+            int threshold_msec =
+                threshold_calculator
+                .i_qspn_calculate_threshold
+                (get_ret_path(task.bp_eldest),
+                 get_ret_path(task.bp));
+            ms_wait(threshold_msec);
+            pending_gnode_split.remove(pair);
+            if (destinations[task.d.lvl].has_key(task.d.pos))
+            {
+                Destination _d = destinations[task.d.lvl][task.d.pos];
+                ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
+                _d_paths.add_all(_d.paths);
+                bool present = false;
+                foreach (NodePath np in _d_paths)
+                    if (np.path.fingerprint.i_qspn_equals(task.fp_eldest))
+                        present = true;
+                if (!present) return;
+                present = false;
+                foreach (NodePath np in _d_paths)
+                    if (np.path.fingerprint.i_qspn_equals(task.fp))
+                        present = true;
+                if (!present) return;
+                gnode_splitted(task.d, task.fp);
+            }
+        }
+
+        // Helper: Start, in a few seconds, a new flood of ETP because
+        //  a gnode split has been detected for the first time.
+        internal void spawn_flood_first_detection_split(Collection<HCoord> b_set)
+        {
+            Tasklet.tasklet_callback((_qspnmgr, _b_set) => {
+                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
+                    qspnmgr.start_flood_first_detection_split((Collection<HCoord>)_b_set);
+                },
+                this,
+                b_set
+                );
+        }
+        internal void start_flood_first_detection_split(Collection<HCoord> b_set)
+        {
+            ms_wait(500);
+            ArrayList<NodePath> node_paths = create_searchable_list_nodepaths();
+            foreach (HCoord g in b_set)
+            {
+                if (destinations[g.lvl].has_key(g.pos))
+                {
+                    Destination d = destinations[g.lvl][g.pos];
+                    node_paths.add_all(d.paths);
+                }
+            }
+            if (node_paths.is_empty) return;
+            EtpMessage m = prepare_new_etp(node_paths,
+                                   create_searchable_list_nodepaths(),
+                                   create_searchable_list_nodepaths());
+            // TODO send
         }
 
         /** Provides a collection of known paths to a destination
