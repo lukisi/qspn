@@ -72,7 +72,7 @@ public class FakeBroadcastClient : FakeAddressManager
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, zcd.CallerInfo? _rpc_caller = null)
+    (IQspnEtpMessage etp, bool is_full=false, zcd.CallerInfo? _rpc_caller = null)
     throws QspnNotAcceptedError, zcd.RPCError
     {
         foreach (FakeArc target_arc in target_arcs)
@@ -88,7 +88,7 @@ public class FakeBroadcastClient : FakeAddressManager
                     CallerInfo t_caller      = (CallerInfo)_caller;
                     try
                     {
-                        t_target_mgr.send_etp(t_etp, t_caller);
+                        t_target_mgr.send_etp(t_etp, is_full, t_caller);
                     }
                     catch (QspnNotAcceptedError e)
                     {
@@ -124,14 +124,14 @@ public class FakeTCPClient : FakeAddressManager
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, zcd.CallerInfo? _rpc_caller = null)
+    (IQspnEtpMessage etp, bool is_full=false, zcd.CallerInfo? _rpc_caller = null)
     throws QspnNotAcceptedError, zcd.RPCError
     {
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         CallerInfo caller = new CallerInfo(my_ip, null, null);
         Tasklet.schedule();
-        target_mgr.send_etp(etp, caller);
+        target_mgr.send_etp(etp, is_full, caller);
     }
 }
 

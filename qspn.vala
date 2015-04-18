@@ -864,14 +864,39 @@ namespace Netsukuku
             if (! b_set.is_empty)
                 spawn_flood_first_detection_split(b_set);
             // Re-evaluate informations on our g-nodes.
-            // TODO
-            
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // forward?
+            if ((! added_paths_set.is_empty) ||
+                (! changed_paths_set.is_empty) ||
+                (! removed_paths_set.is_empty) ||
+                changes_in_my_gnodes)
+            {
+                EtpMessage new_etp = prepare_fwd_etp(added_paths_set,
+                                                     changed_paths_set,
+                                                     removed_paths_set,
+                                                     etp);
+                IAddressManagerRootDispatcher disp_send_to_others =
+                        stub_factory.i_qspn_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp),
+                        /* All but the sender */
+                        arc);
+                debug("Forward ETP to all but the sender");
+                try {
+                    disp_send_to_others.qspn_manager.send_etp(new_etp);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.arc_add: RPCError in send to broadcast except arc $(arc_id): $(e.message)");
+                }
+            }
 
-            // create a new etp for arc ... TODO.
-            EtpMessage full_etp = null;
-
-
-
+            // create a new etp for arc
+            EtpMessage full_etp = prepare_full_etp();
             IAddressManagerRootDispatcher disp_send_to_arc =
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
@@ -1995,6 +2020,73 @@ namespace Netsukuku
             // TODO send
         }
 
+        // Helper: update my clusters data, based on my current map, and tell
+        //  if there has been a change. Also, in that case emit signals.
+        private void update_clusters(out bool changes_in_my_gnodes)
+        {
+            // ArrayList<IQspnFingerprint> my_fingerprints;
+            // ArrayList<int> my_nodes_inside;
+            changes_in_my_gnodes = false;
+            for (int i = 1; i <= levels; i++)
+            {
+                Gee.List<IQspnFingerprint> fp_set = create_searchable_list_fingerprints();
+                int nn_tot = 0;
+                foreach (Destination d in destinations[i-1].values)
+                {
+                    IQspnFingerprint? fp_d = null;
+                    int nn_d = -1;
+                    NodePath? best_p = null;
+                    foreach (NodePath p in d.paths)
+                    {
+                        IQspnFingerprint fp_d_p = p.path.fingerprint;
+                        int nn_d_p = p.path.nodes_inside;
+                        if (fp_d == null)
+                        {
+                            fp_d = fp_d_p;
+                            nn_d = nn_d_p;
+                            best_p = p;
+                        }
+                        else
+                        {
+                            if (! fp_d.i_qspn_equals(fp_d_p))
+                            {
+                                if (! fp_d.i_qspn_elder(fp_d_p))
+                                {
+                                    fp_d = fp_d_p;
+                                    nn_d = nn_d_p;
+                                    best_p = p;
+                                }
+                            }
+                            else
+                            {
+                                if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
+                                {
+                                    nn_d = nn_d_p;
+                                    best_p = p;
+                                }
+                            }
+                        }
+                    }
+                    fp_set.add(fp_d);
+                    nn_tot += nn_d;
+                }
+                IQspnFingerprint new_fp = my_fingerprints[i-1].i_qspn_construct(fp_set);
+                if (! new_fp.i_qspn_equals(my_fingerprints[i]))
+                {
+                    my_fingerprints[i] = new_fp;
+                    changes_in_my_gnodes = true;
+                    changed_fp(i);
+                }
+                int new_nn = my_nodes_inside[i-1] + nn_tot;
+                if (new_nn != my_nodes_inside[i])
+                {
+                    my_nodes_inside[i] = new_nn;
+                    changes_in_my_gnodes = true;
+                    changed_fp(i);
+                }
+            }
+        }
+
         /** Provides a collection of known paths to a destination
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnNotMatureError
@@ -2105,7 +2197,7 @@ namespace Netsukuku
                                    create_searchable_list_nodepaths());
         }
 
-        public void send_etp(IQspnEtpMessage m, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
+        public void send_etp(IQspnEtpMessage m, bool is_full=false, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
         {
             assert(_rpc_caller != null);
             CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
