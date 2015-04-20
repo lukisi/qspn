@@ -44,7 +44,6 @@ namespace Netsukuku
     {
         public abstract bool i_qspn_equals(IQspnFingerprint other);
         public abstract bool i_qspn_elder(IQspnFingerprint other);
-        public abstract int i_qspn_level_todo_delete {get;}
         public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers);
     }
 
@@ -175,8 +174,6 @@ namespace Netsukuku
         public Gee.List<HCoord> hops;
         public Gee.List<EtpPath> p_list;
 
-        // TODO costruttore
-
         public Variant serialize_to_variant()
         {
             assert(node_address is ISerializable);
@@ -245,9 +242,6 @@ namespace Netsukuku
         public IQspnFingerprint fingerprint;
         public int nodes_inside;
         public Gee.List<bool> ignore_outside;
-
-        // TODO costruttore
-        // TODO hops deve permettere la sintassi "if (! (g in p.hops))"
 
         public Variant serialize_to_variant()
         {
@@ -349,17 +343,20 @@ namespace Netsukuku
         }
         public bool hops_arcs_equal(NodePath q)
         {
-            if (! q.arc.i_qspn_equals(arc)) return false;
+            return hops_arcs_equal_etppath(q.path);
+        }
+        public bool hops_arcs_equal_etppath(EtpPath p)
+        {
             Gee.List<HCoord> my_hops_list = path.hops;
-            Gee.List<HCoord> q_hops_list = q.path.hops;
-            if (my_hops_list.size != q_hops_list.size) return false;
+            Gee.List<HCoord> p_hops_list = p.hops;
+            if (my_hops_list.size != p_hops_list.size) return false;
             for (int i = 0; i < my_hops_list.size; i++)
-                if (! (my_hops_list[i].equals(q_hops_list[i]))) return false;
+                if (! (my_hops_list[i].equals(p_hops_list[i]))) return false;
             Gee.List<int> my_arcs_list = path.arcs;
-            Gee.List<int> q_arcs_list = q.path.arcs;
-            if (my_arcs_list.size != q_arcs_list.size) return false;
+            Gee.List<int> p_arcs_list = p.arcs;
+            if (my_arcs_list.size != p_arcs_list.size) return false;
             for (int i = 0; i < my_arcs_list.size; i++)
-                if (my_arcs_list[i] != q_arcs_list[i]) return false;
+                if (my_arcs_list[i] != p_arcs_list[i]) return false;
             return true;
         }
     }
@@ -691,20 +688,22 @@ namespace Netsukuku
 
         internal class MissingArcSendEtp : Object, IQspnMissingArcHandler
         {
-            public MissingArcSendEtp(QspnManager qspnman, IQspnEtpMessage m)
+            public MissingArcSendEtp(QspnManager qspnman, IQspnEtpMessage m, bool is_full)
             {
                 this.qspnman = qspnman;
                 this.m = m;
+                this.is_full = is_full;
             }
             public QspnManager qspnman;
             public IQspnEtpMessage m;
+            public bool is_full;
             public void i_qspn_missing(IQspnArc arc)
             {
                 IAddressManagerRootDispatcher disp =
                         qspnman.stub_factory.i_qspn_get_tcp(arc);
                 debug("Sending reliable ETP to missing arc");
                 try {
-                    disp.qspn_manager.send_etp(m);
+                    disp.qspn_manager.send_etp(m, is_full);
                 }
                 catch (QspnNotAcceptedError e) {
                     // we're not in its arcs; remove and emit signal
@@ -738,9 +737,10 @@ namespace Netsukuku
                 this.arc = arc;
                 type = 3;
             }
-            public QueuedEvent.etp_received(IQspnEtpMessage etp, IQspnArc arc)
+            public QueuedEvent.etp_received(IQspnEtpMessage etp, IQspnArc arc, bool is_full)
             {
                 this.etp = etp;
+                this.is_full = is_full;
                 this.arc = arc;
                 type = 4;
             }
@@ -751,6 +751,7 @@ namespace Netsukuku
             // 4 etp_received
             public IQspnArc arc;
             public IQspnEtpMessage etp;
+            public bool is_full;
         }
 
         // The module is notified if an arc is added/changed/removed
@@ -842,7 +843,7 @@ namespace Netsukuku
             Gee.List<NodePath> q;
             try
             {
-                q = revise_etp(etp, arc, arc_id);
+                q = revise_etp(etp, arc, arc_id, true);
             }
             catch (AcyclicError e)
             {
@@ -879,12 +880,12 @@ namespace Netsukuku
                 IAddressManagerRootDispatcher disp_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
-                        new MissingArcSendEtp(this, new_etp),
+                        new MissingArcSendEtp(this, new_etp, false),
                         /* All but the sender */
                         arc);
                 debug("Forward ETP to all but the sender");
                 try {
-                    disp_send_to_others.qspn_manager.send_etp(new_etp);
+                    disp_send_to_others.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -901,7 +902,7 @@ namespace Netsukuku
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
             try {
-                disp_send_to_arc.qspn_manager.send_etp(full_etp);
+                disp_send_to_arc.qspn_manager.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
                 arc_remove(arc);
@@ -955,30 +956,64 @@ namespace Netsukuku
                     // emit signal
                     arc_removed(arc);
                 });
-            // Process ETPs and update my map. preprocess... TODO.
-
-
-
-            // create a new etp for all. TODO
-            // if...
-            EtpMessage new_etp = null;
-
-
-
-            IAddressManagerRootDispatcher disp_send_to_all =
-                    stub_factory.i_qspn_get_broadcast(
-                    /* If a neighbor doesnt send its ACK repeat the message via tcp */
-                    new MissingArcSendEtp(this, new_etp));
-            debug("Sending ETP to all");
-            try {
-                disp_send_to_all.qspn_manager.send_etp(new_etp);
+            // Got ETPs. Revise the paths in each of them.
+            Gee.List<NodePath> q = create_searchable_list_nodepaths();
+            foreach (PairArcEtp pair in results)
+            {
+                int arc_id = get_arc_id(pair.a);
+                assert(arc_id >= 0);
+                try
+                {
+                    q.add_all(revise_etp(pair.m, pair.a, arc_id, true));
+                }
+                catch (AcyclicError e)
+                {
+                    // This should not happen.
+                    log_warn(@"QspnManager: arc_changed: the neighbor with arc $(arc_id) produced an ETP with a cycle.");
+                    // ignore this etp
+                }
             }
-            catch (QspnNotAcceptedError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (RPCError e) {
-                log_error(@"QspnManager.arc_is_changed: RPCError in send to broadcast to all: $(e.message)");
+            // Update my map. Collect changed paths.
+            Collection<NodePath> added_paths_set;
+            Collection<NodePath> changed_paths_set;
+            Collection<NodePath> removed_paths_set;
+            Collection<HCoord> b_set;
+            update_map(q, changed_arc,
+                       out added_paths_set,
+                       out changed_paths_set,
+                       out removed_paths_set,
+                       out b_set);
+            // If needed, spawn a new flood for the first detection of a gnode split.
+            if (! b_set.is_empty)
+                spawn_flood_first_detection_split(b_set);
+            // Re-evaluate informations on our g-nodes.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // send update?
+            if ((! added_paths_set.is_empty) ||
+                (! changed_paths_set.is_empty) ||
+                (! removed_paths_set.is_empty) ||
+                changes_in_my_gnodes)
+            {
+                // create a new etp for all.
+                EtpMessage new_etp = prepare_new_etp(added_paths_set,
+                                                     changed_paths_set,
+                                                     removed_paths_set);
+                IAddressManagerRootDispatcher disp_send_to_all =
+                        stub_factory.i_qspn_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp, false));
+                debug("Sending ETP to all");
+                try {
+                    disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.arc_is_changed: RPCError in send to broadcast to all: $(e.message)");
+                }
             }
         }
 
@@ -1015,11 +1050,12 @@ namespace Netsukuku
             }
             // First, remove the arc...
             int arc_id = get_arc_id(removed_arc);
+            assert(arc_id >= 0);
             my_arcs.remove(removed_arc);
             id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
-            var path_to_add_to_changed_paths = create_searchable_list_nodepaths();
+            var paths_to_add_to_removed_paths = create_searchable_list_nodepaths();
             for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 int i = 0;
@@ -1029,8 +1065,7 @@ namespace Netsukuku
                     if (np.arc.i_qspn_equals(removed_arc))
                     {
                         d.paths.remove_at(i);
-                        np.path.cost = new DeadCost();
-                        path_to_add_to_changed_paths.add(np);
+                        paths_to_add_to_removed_paths.add(np);
                     }
                     else
                     {
@@ -1044,28 +1079,74 @@ namespace Netsukuku
                 destination_removed(my_naddr.i_qspn_get_address_by_coord(d.dest));
                 destinations[d.dest.lvl].unset(d.dest.pos);
             }
-            // Then do the same as when arc is changed and remember to add path_to_add_to_changed_paths: ...TODO
-
-
-
-            EtpMessage new_etp = null;
-
-
-
-            IAddressManagerRootDispatcher disp_send_to_all =
-                    stub_factory.i_qspn_get_broadcast(
-                    /* If a neighbor doesnt send its ACK repeat the message via tcp */
-                    new MissingArcSendEtp(this, new_etp));
-            debug("Sending ETP to all");
-            try {
-                disp_send_to_all.qspn_manager.send_etp(new_etp);
+            // Then do the same as when arc is changed and remember to add paths_to_add_to_removed_paths
+            // gather ETP from all of my arcs
+            Collection<PairArcEtp> results =
+                gather_full_etp_set(my_arcs, (arc) => {
+                    // remove failed arcs and emit signal
+                    arc_remove(arc);
+                    // emit signal
+                    arc_removed(arc);
+                });
+            // Got ETPs. Revise the paths in each of them.
+            Gee.List<NodePath> q = create_searchable_list_nodepaths();
+            foreach (PairArcEtp pair in results)
+            {
+                int arc_m_id = get_arc_id(pair.a);
+                assert(arc_m_id >= 0);
+                try
+                {
+                    q.add_all(revise_etp(pair.m, pair.a, arc_m_id, true));
+                }
+                catch (AcyclicError e)
+                {
+                    // This should not happen.
+                    log_warn(@"QspnManager: arc_remove: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
+                    // ignore this etp
+                }
             }
-            catch (QspnNotAcceptedError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (RPCError e) {
-                log_error(@"QspnManager.arc_remove: RPCError in send to broadcast to all: $(e.message)");
+            // Update my map. Collect changed paths.
+            Collection<NodePath> added_paths_set;
+            Collection<NodePath> changed_paths_set;
+            Collection<NodePath> removed_paths_set;
+            Collection<HCoord> b_set;
+            update_map(q, null,
+                       out added_paths_set,
+                       out changed_paths_set,
+                       out removed_paths_set,
+                       out b_set);
+            removed_paths_set.add_all(paths_to_add_to_removed_paths);
+            // If needed, spawn a new flood for the first detection of a gnode split.
+            if (! b_set.is_empty)
+                spawn_flood_first_detection_split(b_set);
+            // Re-evaluate informations on our g-nodes.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // send update?
+            if ((! added_paths_set.is_empty) ||
+                (! changed_paths_set.is_empty) ||
+                (! removed_paths_set.is_empty) ||
+                changes_in_my_gnodes)
+            {
+                // create a new etp for all.
+                EtpMessage new_etp = prepare_new_etp(added_paths_set,
+                                                     changed_paths_set,
+                                                     removed_paths_set);
+                IAddressManagerRootDispatcher disp_send_to_all =
+                        stub_factory.i_qspn_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp, false));
+                debug("Sending ETP to all");
+                try {
+                    disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.arc_remove: RPCError in send to broadcast to all: $(e.message)");
+                }
             }
         }
 
@@ -1170,8 +1251,9 @@ namespace Netsukuku
 
         // Helper: revise an ETP, correct its id_list and the paths inside it.
         //  The ETP has been already checked with check_network_parameters.
-        private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id) throws AcyclicError
+        private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id, bool is_full) throws AcyclicError
         {
+            ArrayList<NodePath> ret = create_searchable_list_nodepaths();
             HCoord v = my_naddr.i_qspn_get_coord_by_address(m.node_address);
             int i = v.lvl + 1;
             // grouping rule on m.hops
@@ -1252,8 +1334,48 @@ namespace Netsukuku
             v_path.ignore_outside = new ArrayList<bool>();
             for (j = 0; j < levels; j++) v_path.ignore_outside.add(false);
             m.p_list.add(v_path);
+            // if it is a full etp
+            if (is_full)
+            {
+                ArrayList<NodePath> m_a_set = create_searchable_list_nodepaths();
+                for (int l = 0; l < levels; l++)
+                {
+                    foreach (Destination d in destinations[l].values)
+                    {
+                        foreach (NodePath d_p in d.paths)
+                        {
+                            if (d_p.path.arcs[0] == arc_id)
+                                m_a_set.add(d_p);
+                        }
+                    }
+                }
+                foreach (NodePath np in m_a_set)
+                {
+                    bool present = false;
+                    foreach (EtpPath p in m.p_list)
+                    {
+                        if (np.hops_arcs_equal_etppath(p))
+                        {
+                            present = true;
+                            break;
+                        }
+                    }
+                    if (!present)
+                    {
+                        EtpPath p0 = new EtpPath();
+                        p0.hops = create_searchable_list_gnodes();
+                        p0.hops.add_all(np.path.hops);
+                        p0.arcs = new ArrayList<int>();
+                        p0.arcs.add_all(np.path.arcs);
+                        p0.fingerprint = np.path.fingerprint;
+                        p0.nodes_inside = np.path.nodes_inside;
+                        p0.cost = new DeadCost();
+                        NodePath np0 = new NodePath(arc, p0);
+                        ret.add(np0);
+                    }
+                }
+            }
             // return a collection of NodePath
-            ArrayList<NodePath> ret = create_searchable_list_nodepaths();
             foreach (EtpPath p in m.p_list)
             {
                 NodePath np = new NodePath(arc, p);
@@ -1372,36 +1494,47 @@ namespace Netsukuku
                     (_work, _i) => {
                         GatherEtpSetData t_work = _work as GatherEtpSetData;
                         int t_i = (_i as SerializableInt).i;
-                        try
-                        {
-                            IAddressManagerRootDispatcher t_disp = t_work.disps[t_i];
-                            IQspnEtpMessage resp = t_disp.qspn_manager.get_full_etp(t_work.my_naddr);
-                            if (resp is EtpMessage)
-                            {
-                                EtpMessage m = (EtpMessage) resp;
-                                PairArcEtp res = new PairArcEtp(m, t_work.arcs[t_i]);
-                                t_work.results.add(res);
-                            }
-                            else
-                            {
-                                // The module only knows this class that implements IQspnEtpMessage, so this
-                                //  should not happen. But the rest of the code, who knows? So to be sure
-                                //  we check. If it is the case remove the arc.
-                                t_work.failed_arc_handler(t_work.arcs[t_i]);
-                            }
+
+                        IAddressManagerRootDispatcher t_disp = t_work.disps[t_i];
+                        IQspnEtpMessage? resp = null;
+                        try {
+                            int arc_id = get_arc_id(t_work.arcs[t_i]);
+                            debug(@"Requesting ETP from arc $(arc_id)");
+                            resp = t_disp.qspn_manager.get_full_etp(t_work.my_naddr);
                         }
-                        catch (QspnNotMatureError e)
-                        {
-                            // ignore
+                        catch (QspnNotMatureError e) {
+                            // Give up this tasklet. The neighbor will start a flood when it is mature.
+                            return;
                         }
-                        catch (QspnNotAcceptedError e)
-                        {
+                        catch (RPCError e) {
+                            // failed arc
                             t_work.failed_arc_handler(t_work.arcs[t_i]);
+                            return;
                         }
-                        catch (RPCError e)
-                        {
+                        catch (QspnNotAcceptedError e) {
+                            // failed arc
                             t_work.failed_arc_handler(t_work.arcs[t_i]);
+                            return;
                         }
+                        if (! (resp is EtpMessage))
+                        {
+                            // The module only knows this class that implements IQspnEtpMessage, so this
+                            //  should not happen. But the rest of the code, who knows? So to be sure
+                            //  we check. If it is the case, remove the arc.
+                            t_work.failed_arc_handler(t_work.arcs[t_i]);
+                            return;
+                        }
+                        EtpMessage m = (EtpMessage) resp;
+                        if (! check_network_parameters(m))
+                        {
+                            // We check the correctness of a message from another node.
+                            // If the message is junk, remove the arc.
+                            t_work.failed_arc_handler(t_work.arcs[t_i]);
+                            return;
+                        }
+
+                        PairArcEtp res = new PairArcEtp(m, t_work.arcs[t_i]);
+                        t_work.results.add(res);
                     },
                     work,
                     new SerializableInt(i++),
@@ -1437,27 +1570,49 @@ namespace Netsukuku
             else
             {
                 debug("Processing ETP set");
-                var q_set = create_searchable_list_nodepaths();
-                foreach (PairArcEtp pair_arc_etp in results)
+                // Got ETPs. Revise the paths in each of them.
+                Gee.List<NodePath> q = create_searchable_list_nodepaths();
+                foreach (PairArcEtp pair in results)
                 {
-                    // ... preprocess_etp();
-                    // TODO
+                    int arc_m_id = get_arc_id(pair.a);
+                    assert(arc_m_id >= 0);
+                    try
+                    {
+                        q.add_all(revise_etp(pair.m, pair.a, arc_m_id, true));
+                    }
+                    catch (AcyclicError e)
+                    {
+                        // This should not happen.
+                        log_warn(@"QspnManager: arc_changed: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
+                        // ignore this etp
+                    }
                 }
-                
-                // if...
-                // TODO
-
-
+                // Update my map. Collect changed paths.
+                Collection<NodePath> added_paths_set;
+                Collection<NodePath> changed_paths_set;
+                Collection<NodePath> removed_paths_set;
+                Collection<HCoord> b_set;
+                update_map(q, null,
+                           out added_paths_set,
+                           out changed_paths_set,
+                           out removed_paths_set,
+                           out b_set);
+                // If needed, spawn a new flood for the first detection of a gnode split.
+                if (! b_set.is_empty)
+                    spawn_flood_first_detection_split(b_set);
+                // Re-evaluate informations on our g-nodes.
+                bool changes_in_my_gnodes;
+                update_clusters(out changes_in_my_gnodes);
 
                 // prepare ETP and send to all my neighbors.
                 EtpMessage full_etp = prepare_full_etp();
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
-                        new MissingArcSendEtp(this, full_etp));
+                        new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
-                    disp_send_to_all.qspn_manager.send_etp(full_etp);
+                    disp_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -1475,7 +1630,7 @@ namespace Netsukuku
                     if (ev.type == 1) arc_add(ev.arc);
                     if (ev.type == 2) arc_is_changed(ev.arc);
                     if (ev.type == 3) arc_remove(ev.arc);
-                    if (ev.type == 4) got_etp_from_arc(ev.etp, ev.arc);
+                    if (ev.type == 4) got_etp_from_arc(ev.etp, ev.arc, ev.is_full);
                 }
             }
         }
@@ -1491,10 +1646,10 @@ namespace Netsukuku
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         /* If a neighbor doesnt send its ACK repeat the message via tcp */
-                        new MissingArcSendEtp(this, full_etp));
+                        new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
-                    disp_send_to_all.qspn_manager.send_etp(full_etp);
+                    disp_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -2014,10 +2169,24 @@ namespace Netsukuku
                 }
             }
             if (node_paths.is_empty) return;
-            EtpMessage m = prepare_new_etp(node_paths,
+            EtpMessage new_etp = prepare_new_etp(node_paths,
                                    create_searchable_list_nodepaths(),
                                    create_searchable_list_nodepaths());
-            // TODO send
+            IAddressManagerRootDispatcher disp_send_to_all =
+                    stub_factory.i_qspn_get_broadcast(
+                    /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                    new MissingArcSendEtp(this, new_etp, false));
+            debug("Sending ETP to all");
+            try {
+                disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+            }
+            catch (QspnNotAcceptedError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (RPCError e) {
+                log_error(@"QspnManager.flood_first_detection_split: RPCError in send to broadcast to all: $(e.message)");
+            }
         }
 
         // Helper: update my clusters data, based on my current map, and tell
@@ -2197,7 +2366,7 @@ namespace Netsukuku
                                    create_searchable_list_nodepaths());
         }
 
-        public void send_etp(IQspnEtpMessage m, bool is_full=false, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
+        public void send_etp(IQspnEtpMessage m, bool is_full, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
         {
             assert(_rpc_caller != null);
             CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
@@ -2220,19 +2389,86 @@ namespace Netsukuku
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
-            got_etp_from_arc(m, arc);
+            got_etp_from_arc(m, arc, is_full);
         }
         
-        private void got_etp_from_arc(IQspnEtpMessage m, IQspnArc arc)
+        private void got_etp_from_arc(IQspnEtpMessage m, IQspnArc arc, bool is_full)
         {
             if (!mature)
             {
-                queued_events.add(new QueuedEvent.etp_received(m, arc));
+                queued_events.add(new QueuedEvent.etp_received(m, arc, is_full));
                 return;
             }
             if (! (arc in my_arcs)) return;
             debug("Processing ETP");
-            // preprocess, update... TODO.
+            if (! (m is EtpMessage))
+            {
+                // The module only knows this class that implements IQspnEtpMessage, so this
+                //  should not happen. But the rest of the code, who knows? So to be sure
+                //  we check. If it is the case, remove the arc.
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            EtpMessage etp = (EtpMessage) m;
+            int arc_id = get_arc_id(arc);
+            assert(arc_id >= 0);
+            // Revise the paths in it.
+            Gee.List<NodePath> q;
+            try
+            {
+                q = revise_etp(etp, arc, arc_id, is_full);
+            }
+            catch (AcyclicError e)
+            {
+                // Ignore this message
+                return;
+            }
+            // Update my map. Collect changed paths.
+            Collection<NodePath> added_paths_set;
+            Collection<NodePath> changed_paths_set;
+            Collection<NodePath> removed_paths_set;
+            Collection<HCoord> b_set;
+            update_map(q, null,
+                       out added_paths_set,
+                       out changed_paths_set,
+                       out removed_paths_set,
+                       out b_set);
+            // If needed, spawn a new flood for the first detection of a gnode split.
+            if (! b_set.is_empty)
+                spawn_flood_first_detection_split(b_set);
+            // Re-evaluate informations on our g-nodes.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // forward?
+            if ((! added_paths_set.is_empty) ||
+                (! changed_paths_set.is_empty) ||
+                (! removed_paths_set.is_empty) ||
+                changes_in_my_gnodes)
+            {
+                EtpMessage new_etp = prepare_fwd_etp(added_paths_set,
+                                                     changed_paths_set,
+                                                     removed_paths_set,
+                                                     etp);
+                IAddressManagerRootDispatcher disp_send_to_others =
+                        stub_factory.i_qspn_get_broadcast(
+                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        new MissingArcSendEtp(this, new_etp, false),
+                        /* All but the sender */
+                        arc);
+                debug("Forward ETP to all but the sender");
+                try {
+                    disp_send_to_others.qspn_manager.send_etp(new_etp, false);
+                }
+                catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (RPCError e) {
+                    log_error(@"QspnManager.got_etp_from_arc: RPCError in send to broadcast except arc $(arc_id): $(e.message)");
+                }
+            }
         }
     }
 
