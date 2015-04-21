@@ -518,7 +518,8 @@ namespace Netsukuku
         public static void init()
         {
             // Register serializable types
-            // typeof(Xxx).class_peek();
+            typeof(EtpPath).class_peek();
+            typeof(EtpMessage).class_peek();
         }
 
         private IQspnMyNaddr my_naddr;
@@ -566,7 +567,7 @@ namespace Netsukuku
         // My g-node of level l changed its nodes_inside.
         public signal void changed_nodes_inside(int l);
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
-        public signal void gnode_splitted(HCoord d, IQspnFingerprint fp);
+        public signal void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp);
 
         public QspnManager(IQspnMyNaddr my_naddr,
                            int max_paths,
@@ -606,7 +607,7 @@ namespace Netsukuku
                     arc_id = Random.int_range(0, int.MAX);
                 }
                 // memorize
-                assert(! (arc in my_arcs));
+                assert(! (arc in this.my_arcs));
                 this.my_arcs.add(arc);
                 id_arc_map[arc_id] = arc;
             }
@@ -2128,19 +2129,34 @@ namespace Netsukuku
             if (destinations[task.d.lvl].has_key(task.d.pos))
             {
                 Destination _d = destinations[task.d.lvl][task.d.pos];
-                ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
-                _d_paths.add_all(_d.paths);
                 bool present = false;
-                foreach (NodePath np in _d_paths)
+                foreach (NodePath np in _d.paths)
+                {
                     if (np.path.fingerprint.i_qspn_equals(task.fp_eldest))
+                    {
                         present = true;
-                if (!present) return;
-                present = false;
-                foreach (NodePath np in _d_paths)
-                    if (np.path.fingerprint.i_qspn_equals(task.fp))
-                        present = true;
-                if (!present) return;
-                gnode_splitted(task.d, task.fp);
+                        break;
+                    }
+                }
+                if (present)
+                {
+                    foreach (IQspnArc a in my_arcs)
+                    {
+                        HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
+                        if (v.equals(task.d))
+                        {
+                            foreach (NodePath np in _d.paths)
+                            {
+                                if (np.arc.i_qspn_equals(a))
+                                {
+                                    if (np.path.fingerprint.i_qspn_equals(task.fp))
+                                        gnode_splitted(a, task.d, task.fp);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

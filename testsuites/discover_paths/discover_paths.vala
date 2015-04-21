@@ -81,7 +81,7 @@ string[] read_file(string path)
 
 string test_node_addr;
 
-int main(string[] args)
+int main2(string[] args)
 {
     test_node_addr = ""; // default
     OptionContext oc = new OptionContext("<graph_file_name>");
@@ -213,5 +213,44 @@ int main(string[] args)
     }
     assert(Tasklet.kill());
     return 0;
+}
+
+void main()
+{
+    Tasklet.init();
+    int max_paths = 5;
+    double max_common_hops_ratio = 0.5;
+    int arc_timeout = 3000;
+    IQspnThresholdCalculator threshold_calculator = new FakeThresholdCalculator();
+    QspnManager.init();
+
+    FakeGenericNaddr n0 = new FakeGenericNaddr({0,1,1,0}, {2,2,2,2});
+    string na0 = "169.254.35.127";
+    Gee.List<IQspnArc> a0 = new ArrayList<IQspnArc>();
+    IQspnFingerprint fp0 = new FakeFingerprint(346523, {0,0,0,0});
+    IQspnStubFactory sf0 = new FakeStubFactory();
+    QspnManager q0 = new QspnManager(n0, max_paths, max_common_hops_ratio,
+            arc_timeout, a0, fp0, threshold_calculator, sf0);
+    ((FakeStubFactory)sf0).my_mgr = q0;
+
+    ms_wait(500);
+
+    FakeGenericNaddr n1 = new FakeGenericNaddr({1,1,1,0}, {2,2,2,2});
+    string na1 = "169.254.203.4";
+    Gee.List<IQspnArc> a1 = new ArrayList<IQspnArc>();
+    a1.add(new FakeArc(q0, n0, new FakeCost(30), na0, na1));
+    IQspnFingerprint fp1 = new FakeFingerprint(658236, {1,0,0,0});
+    IQspnStubFactory sf1 = new FakeStubFactory();
+    QspnManager q1 = new QspnManager(n1, max_paths, max_common_hops_ratio,
+            arc_timeout, a1, fp1, threshold_calculator, sf1);
+    ((FakeStubFactory)sf1).my_mgr = q1;
+    ms_wait(1200);
+    q0.arc_add(new FakeArc(q1, n1, new FakeCost(50), na1, na0));
+
+    ms_wait(4000);
+
+    q0.stop_operations();
+
+    Tasklet.kill();
 }
 

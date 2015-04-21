@@ -72,7 +72,7 @@ public class FakeBroadcastClient : FakeAddressManager
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, bool is_full=false, zcd.CallerInfo? _rpc_caller = null)
+    (IQspnEtpMessage etp, bool is_full, zcd.CallerInfo? _rpc_caller = null)
     throws QspnNotAcceptedError, zcd.RPCError
     {
         foreach (FakeArc target_arc in target_arcs)
@@ -124,7 +124,7 @@ public class FakeTCPClient : FakeAddressManager
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, bool is_full=false, zcd.CallerInfo? _rpc_caller = null)
+    (IQspnEtpMessage etp, bool is_full, zcd.CallerInfo? _rpc_caller = null)
     throws QspnNotAcceptedError, zcd.RPCError
     {
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
