@@ -840,6 +840,7 @@ namespace Netsukuku
                 return;
             }
 
+            debug("Processing ETP");
             // Got ETP from new neighbor/arc. Revise the paths in it.
             Gee.List<NodePath> q;
             try
@@ -1904,19 +1905,22 @@ namespace Netsukuku
                 while (od_i < od_set.size)
                 {
                     NodePath p = od_set[od_i];
+                    bool toremove = false;
                     for (int p_i = 0; p_i < p.path.hops.size-1; p_i++)
                     {
                         HCoord h = p.path.hops[p_i];
                         if (destinations[h.lvl].has_key(h.pos))
                         {
                             num_nodes_inside[h] = destinations[h.lvl][h.pos].nodes_inside;
-                            od_i++;
                         }
                         else
                         {
-                            od_set.remove_at(od_i);
+                            toremove = true;
+                            break;
                         }
                     }
+                    if (toremove) od_set.remove_at(od_i);
+                    else od_i++;
                 }
                 ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => {return a.i_qspn_equals(b);});
                 ArrayList<NodePath> rd = create_searchable_list_nodepaths();
