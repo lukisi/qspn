@@ -802,10 +802,12 @@ namespace Netsukuku
                 resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
             }
             catch (QspnNotMatureError e) {
+                debug("Got NotMatureError. Give up.");
                 // Give up. The neighbor will start a flood when it is mature.
                 return;
             }
             catch (RPCError e) {
+                debug("Got RPCError. Remove new arc.");
                 // remove failed arc and emit signal
                 arc_remove(arc);
                 // emit signal
@@ -813,6 +815,7 @@ namespace Netsukuku
                 return;
             }
             catch (QspnNotAcceptedError e) {
+                debug("Got NotAcceptedError. Remove new arc.");
                 // remove failed arc and emit signal
                 arc_remove(arc);
                 // emit signal
@@ -821,6 +824,7 @@ namespace Netsukuku
             }
             if (! (resp is EtpMessage))
             {
+                debug("Got wrong class. Remove new arc.");
                 // The module only knows this class that implements IQspnEtpMessage, so this
                 //  should not happen. But the rest of the code, who knows? So to be sure
                 //  we check. If it is the case remove the arc.
@@ -832,6 +836,7 @@ namespace Netsukuku
             EtpMessage etp = (EtpMessage) resp;
             if (! check_network_parameters(etp))
             {
+                debug("Got bad parameters. Remove new arc.");
                 // We check the correctness of a message from another node.
                 // If the message is junk, remove the arc.
                 arc_remove(arc);
@@ -1167,6 +1172,7 @@ namespace Netsukuku
                 RetHop hop = new RetHop();
                 hop.arc_id = arc_id;
                 hop.naddr = my_naddr.i_qspn_get_address_by_coord(h);
+                r.hops.add(hop);
             }
             r.cost = p.cost.i_qspn_add_segment(arc.i_qspn_get_cost());
             r.nodes_inside = p.nodes_inside;
@@ -1505,21 +1511,25 @@ namespace Netsukuku
                             resp = t_disp.qspn_manager.get_full_etp(t_work.my_naddr);
                         }
                         catch (QspnNotMatureError e) {
+                            debug("Got NotMatureError. Give up.");
                             // Give up this tasklet. The neighbor will start a flood when it is mature.
                             return;
                         }
                         catch (RPCError e) {
+                            debug("Got RPCError. Remove arc.");
                             // failed arc
                             t_work.failed_arc_handler(t_work.arcs[t_i]);
                             return;
                         }
                         catch (QspnNotAcceptedError e) {
+                            debug("Got NotAcceptedError. Remove arc.");
                             // failed arc
                             t_work.failed_arc_handler(t_work.arcs[t_i]);
                             return;
                         }
                         if (! (resp is EtpMessage))
                         {
+                            debug("Got wrong class. Remove arc.");
                             // The module only knows this class that implements IQspnEtpMessage, so this
                             //  should not happen. But the rest of the code, who knows? So to be sure
                             //  we check. If it is the case, remove the arc.
@@ -1529,12 +1539,14 @@ namespace Netsukuku
                         EtpMessage m = (EtpMessage) resp;
                         if (! check_network_parameters(m))
                         {
+                            debug("Got bad parameters. Remove arc.");
                             // We check the correctness of a message from another node.
                             // If the message is junk, remove the arc.
                             t_work.failed_arc_handler(t_work.arcs[t_i]);
                             return;
                         }
 
+                        debug("Got one.");
                         PairArcEtp res = new PairArcEtp(m, t_work.arcs[t_i]);
                         t_work.results.add(res);
                     },
