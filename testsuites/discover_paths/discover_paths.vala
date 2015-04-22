@@ -35,12 +35,16 @@ namespace Netsukuku
 
 void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
 {
+        if (! c.is_mature()) return;
         print(@"For $(n)\n");
         for (int l = 0; l < n.i_qspn_get_levels(); l++)
         for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
         {
             if (n.i_qspn_get_pos(l) == p) continue;
-            Gee.List<IQspnNodePath> paths = c.get_paths_to(new HCoord(l, p));
+            Gee.List<IQspnNodePath> paths;
+            try {
+                paths = c.get_paths_to(new HCoord(l, p));
+            } catch (QspnNotMatureError e) {assert_not_reached();}
             int s = paths.size;
             if (s > 0)
             {
@@ -54,10 +58,10 @@ void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
                     string delimiter = "";
                     foreach (IQspnHop hop in hops)
                     {
-                        print(@"$(delimiter)$(hop.i_qspn_get_naddr() as FakeGenericNaddr)");
+                        print(@"$(delimiter)$(hop.i_qspn_get_arc_id())($(hop.i_qspn_get_naddr() as FakeGenericNaddr))");
                         delimiter = " - ";
                     }
-                    print(@"·\n");
+                    print(@".\n");
                 }
             }
         }
@@ -232,25 +236,74 @@ void main()
     QspnManager q0 = new QspnManager(n0, max_paths, max_common_hops_ratio,
             arc_timeout, a0, fp0, threshold_calculator, sf0);
     ((FakeStubFactory)sf0).my_mgr = q0;
+    mature_report(q0, "q0 is mature.\n");
 
     ms_wait(500);
 
     FakeGenericNaddr n1 = new FakeGenericNaddr({1,1,1,0}, {2,2,2,2});
     string na1 = "169.254.203.4";
     Gee.List<IQspnArc> a1 = new ArrayList<IQspnArc>();
-    a1.add(new FakeArc(q0, n0, new FakeCost(30), na0, na1));
+    a1.add(new FakeArc(q0, n0, new FakeCost(300), na0, na1));
     IQspnFingerprint fp1 = new FakeFingerprint(658236, {1,0,0,0});
     IQspnStubFactory sf1 = new FakeStubFactory();
     QspnManager q1 = new QspnManager(n1, max_paths, max_common_hops_ratio,
             arc_timeout, a1, fp1, threshold_calculator, sf1);
     ((FakeStubFactory)sf1).my_mgr = q1;
-    ms_wait(1200);
-    q0.arc_add(new FakeArc(q1, n1, new FakeCost(50), na1, na0));
+    mature_report(q1, "q1 is mature.\n");
 
-    ms_wait(4000);
+    ms_wait(1200);
+    q0.arc_add(new FakeArc(q1, n1, new FakeCost(500), na1, na0));
+
+    ms_wait(500);
+    print_all_known_paths(n0,q0);
+    print_all_known_paths(n1,q1);
+
+    FakeGenericNaddr n2 = new FakeGenericNaddr({1,0,1,0}, {2,2,2,2});
+    string na2 = "169.254.24.45";
+    Gee.List<IQspnArc> a2 = new ArrayList<IQspnArc>();
+    a2.add(new FakeArc(q0, n0, new FakeCost(500), na0, na2));
+    IQspnFingerprint fp2 = new FakeFingerprint(384579345, {0,1,0,0});
+    IQspnStubFactory sf2 = new FakeStubFactory();
+    QspnManager q2 = new QspnManager(n2, max_paths, max_common_hops_ratio,
+            arc_timeout, a2, fp2, threshold_calculator, sf2);
+    ((FakeStubFactory)sf2).my_mgr = q2;
+    mature_report(q2, "q2 is mature.\n");
+
+    q0.arc_add(new FakeArc(q2, n2, new FakeCost(1500), na2, na0));
+
+    ms_wait(2000);
+    print_all_known_paths(n0,q0);
+    print_all_known_paths(n1,q1);
+    print_all_known_paths(n2,q2);
+
+    q1.arc_add(new FakeArc(q2, n2, new FakeCost(1500), na2, na1));
+    q2.arc_add(new FakeArc(q1, n1, new FakeCost(1500), na1, na2));
+
+    ms_wait(2000);
+    print_all_known_paths(n0,q0);
+    print_all_known_paths(n1,q1);
+    print_all_known_paths(n2,q2);
 
     q0.stop_operations();
+    q1.stop_operations();
+    q2.stop_operations();
 
     Tasklet.kill();
+}
+
+void mature_report(QspnManager q, string msg)
+{
+    if (q.is_mature())
+    {
+        print(msg);
+    }
+    else
+    {
+        ulong h = 0;
+        h = q.qspn_mature.connect(() => {
+            print(msg);
+            if (h != 0) q.disconnect(h);
+        });
+    }
 }
 
