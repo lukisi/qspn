@@ -113,7 +113,7 @@ public class FakeTCPClient : FakeAddressManager
 
     public override IQspnEtpMessage get_full_etp
     (IQspnAddress my_naddr, zcd.CallerInfo? _rpc_caller = null)
-    throws QspnNotAcceptedError, QspnNotMatureError, RPCError
+    throws QspnNotAcceptedError, QspnBootstrapInProgressError, RPCError
     {
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;

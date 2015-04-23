@@ -44,6 +44,7 @@ namespace Netsukuku
     {
         public abstract bool i_qspn_equals(IQspnFingerprint other);
         public abstract bool i_qspn_elder(IQspnFingerprint other);
+        public abstract int i_qspn_get_level();
         public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers);
     }
 
@@ -534,7 +535,7 @@ namespace Netsukuku
         private IQspnStubFactory stub_factory;
         private int levels;
         private int[] gsizes;
-        private bool mature;
+        private bool bootstrap_complete;
         private Tasklet? periodical_update_tasklet = null;
         private ArrayList<QueuedEvent> queued_events;
         private ArrayList<PairFingerprints> pending_gnode_split;
@@ -546,8 +547,8 @@ namespace Netsukuku
 
         // The hook on a particular network has failed.
         public signal void failed_hook();
-        // The hook on a particular network has completed; the module is mature.
-        public signal void qspn_mature();
+        // The hook on a particular network has completed; the module is bootstrap_complete.
+        public signal void qspn_bootstrap_complete();
         // An arc (is not working) has been removed from my list.
         public signal void arc_removed(IQspnArc arc);
         // A gnode (or node) is now known on the network and the first path towards
@@ -616,7 +617,7 @@ namespace Netsukuku
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
             // Only the level 0 fingerprint is given. The other ones
-            // will be constructed when the node is mature.
+            // will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
             this.my_nodes_inside = new ArrayList<int>();
             my_fingerprints.add(my_fingerprint); // level 0 fingerprint
@@ -634,16 +635,23 @@ namespace Netsukuku
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int i = 0; i < levels; i++) destinations.add(
                 new HashMap<int, Destination>());
-            // mature if alone
-            qspn_mature.connect(on_mature);
+            // bootstrap_complete if alone
+            qspn_bootstrap_complete.connect(on_bootstrap_complete);
             if (this.my_arcs.is_empty)
             {
-                mature = true;
-                qspn_mature();
+                bootstrap_complete = true;
+                // Start a tasklet where we signal we have completed the bootstrap,
+                //  so that the signal actually is emitted after the costructor returns.
+                Tasklet.tasklet_callback(
+                    (t) => {
+                        (t as QspnManager).qspn_bootstrap_complete();
+                    },
+                    this
+                );
             }
             else
             {
-                mature = false;
+                bootstrap_complete = false;
                 queued_events = new ArrayList<QueuedEvent>();
                 // Start a tasklet where we request a full ETP from all our neighbors
                 //  and then we process them.
@@ -675,9 +683,9 @@ namespace Netsukuku
                 periodical_update_tasklet.abort();
         }
 
-        private void on_mature()
+        private void on_bootstrap_complete()
         {
-            debug("Event qspn_mature");
+            debug("Event qspn_bootstrap_complete");
             // start in a tasklet the periodical send of full updates.
             periodical_update_tasklet = Tasklet.tasklet_callback(
                 (t) => {
@@ -774,7 +782,7 @@ namespace Netsukuku
         private void tasklet_arc_add(IQspnArc arc)
         {
             // From outside the module is notified of the creation of this new arc.
-            if (!mature)
+            if (!bootstrap_complete)
             {
                 queued_events.add(new QueuedEvent.arc_add(arc));
                 return;
@@ -801,9 +809,9 @@ namespace Netsukuku
                 debug("Requesting ETP from new arc");
                 resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
             }
-            catch (QspnNotMatureError e) {
-                debug("Got NotMatureError. Give up.");
-                // Give up. The neighbor will start a flood when it is mature.
+            catch (QspnBootstrapInProgressError e) {
+                debug("Got QspnBootstrapInProgressError. Give up.");
+                // Give up. The neighbor will start a flood when its bootstrap is complete.
                 return;
             }
             catch (RPCError e) {
@@ -845,7 +853,7 @@ namespace Netsukuku
                 return;
             }
 
-            debug("Processing ETP");
+            debug("Processing ETP from new arc.");
             // Got ETP from new neighbor/arc. Revise the paths in it.
             Gee.List<NodePath> q;
             try
@@ -945,7 +953,7 @@ namespace Netsukuku
         {
             // From outside the module is notified that the cost of this arc of mine
             // is changed.
-            if (!mature)
+            if (!bootstrap_complete)
             {
                 queued_events.add(new QueuedEvent.arc_is_changed(changed_arc));
                 return;
@@ -1045,7 +1053,7 @@ namespace Netsukuku
             // has been removed.
             // Or, either, the module itself wants to remove this arc (possibly
             // because it failed to send a message).
-            if (!mature)
+            if (!bootstrap_complete)
             {
                 queued_events.add(new QueuedEvent.arc_remove(removed_arc));
                 return;
@@ -1510,9 +1518,9 @@ namespace Netsukuku
                             debug(@"Requesting ETP from arc $(arc_id)");
                             resp = t_disp.qspn_manager.get_full_etp(t_work.my_naddr);
                         }
-                        catch (QspnNotMatureError e) {
-                            debug("Got NotMatureError. Give up.");
-                            // Give up this tasklet. The neighbor will start a flood when it is mature.
+                        catch (QspnBootstrapInProgressError e) {
+                            debug("Got QspnBootstrapInProgressError. Give up.");
+                            // Give up this tasklet. The neighbor will start a flood when its bootstrap is complete.
                             return;
                         }
                         catch (RPCError e) {
@@ -1635,9 +1643,9 @@ namespace Netsukuku
                 catch (RPCError e) {
                     log_error(@"QspnManager.get_first_etps: RPCError in send to broadcast to all: $(e.message)");
                 }
-                // Now we are hooked to the network and mature.
-                mature = true;
-                qspn_mature();
+                // Now we are hooked to the network and bootstrap_complete.
+                bootstrap_complete = true;
+                qspn_bootstrap_complete();
                 // Process queued events if any.
                 foreach (QueuedEvent ev in queued_events)
                 {
@@ -1679,6 +1687,7 @@ namespace Netsukuku
         // The address MUST have the same topology parameters as mine.
         // The address MUST NOT be the same as mine.
         // For each path p in P:
+        //  . p.fingerprint must be valid for p.hops.last().lvl
         //  . p.arcs.size MUST be the same of p.hops.size.
         //  . For each HCoord g in p.hops:
         //    . g.lvl has to be between 0 and levels-1
@@ -1702,6 +1711,7 @@ namespace Netsukuku
             if (! check_tplist(m.hops)) return false;
             foreach (EtpPath p in m.p_list)
             {
+                if (p.fingerprint.i_qspn_get_level() != p.hops.last().lvl) return false;
                 if (p.hops.size != p.arcs.size) return false;
                 if (! check_tplist(p.hops)) return false;
             }
@@ -2290,9 +2300,9 @@ namespace Netsukuku
 
         /** Provides a collection of known paths to a destination
           */
-        public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnNotMatureError
+        public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
         {
-            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
@@ -2304,25 +2314,25 @@ namespace Netsukuku
 
         /** Gives the estimate of the number of nodes that are inside my g-node
           */
-        public int get_nodes_inside(int level) throws QspnNotMatureError
+        public int get_nodes_inside(int level) throws QspnBootstrapInProgressError
         {
-            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
             return my_nodes_inside[level];
         }
 
         /** Gives the fingerprint of my g-node
           */
-        public IQspnFingerprint get_fingerprint(int level) throws QspnNotMatureError
+        public IQspnFingerprint get_fingerprint(int level) throws QspnBootstrapInProgressError
         {
-            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
             return my_fingerprints[level];
         }
 
-        /** Informs whether the node is mature
+        /** Informs whether the node has completed bootstrap
           */
-        public bool is_mature()
+        public bool is_bootstrap_complete()
         {
-            return mature;
+            return bootstrap_complete;
         }
 
         /** Gives the list of current arcs
@@ -2340,9 +2350,9 @@ namespace Netsukuku
         public IQspnEtpMessage
         get_full_etp(IQspnAddress requesting_address,
                      zcd.CallerInfo? _rpc_caller=null)
-        throws QspnNotAcceptedError, QspnNotMatureError
+        throws QspnNotAcceptedError, QspnBootstrapInProgressError
         {
-            if (!mature) throw new QspnNotMatureError.GENERIC("I am not mature.");
+            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
 
             assert(_rpc_caller != null);
             CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
@@ -2423,16 +2433,16 @@ namespace Netsukuku
 
             got_etp_from_arc(m, arc, is_full);
         }
-        
+
         private void got_etp_from_arc(IQspnEtpMessage m, IQspnArc arc, bool is_full)
         {
-            if (!mature)
+            if (!bootstrap_complete)
             {
                 queued_events.add(new QueuedEvent.etp_received(m, arc, is_full));
                 return;
             }
             if (! (arc in my_arcs)) return;
-            debug("Processing ETP");
+            debug("An incoming ETP is received");
             if (! (m is EtpMessage))
             {
                 // The module only knows this class that implements IQspnEtpMessage, so this
@@ -2444,6 +2454,17 @@ namespace Netsukuku
                 return;
             }
             EtpMessage etp = (EtpMessage) m;
+            if (! check_network_parameters(etp))
+            {
+                debug("Got bad parameters. Remove incoming arc.");
+                // We check the correctness of a message from another node.
+                // If the message is junk, remove the arc.
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            debug("Processing incoming ETP");
             int arc_id = get_arc_id(arc);
             assert(arc_id >= 0);
             // Revise the paths in it.

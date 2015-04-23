@@ -35,36 +35,36 @@ namespace Netsukuku
 
 void print_all_known_paths(FakeGenericNaddr n, QspnManager c)
 {
-        if (! c.is_mature()) return;
-        print(@"For $(n)\n");
-        for (int l = 0; l < n.i_qspn_get_levels(); l++)
-        for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
+    if (! c.is_bootstrap_complete()) return;
+    print(@"For $(n)\n");
+    for (int l = 0; l < n.i_qspn_get_levels(); l++)
+    for (int p = 0; p < n.i_qspn_get_gsize(l); p++)
+    {
+        if (n.i_qspn_get_pos(l) == p) continue;
+        Gee.List<IQspnNodePath> paths;
+        try {
+            paths = c.get_paths_to(new HCoord(l, p));
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        int s = paths.size;
+        if (s > 0)
         {
-            if (n.i_qspn_get_pos(l) == p) continue;
-            Gee.List<IQspnNodePath> paths;
-            try {
-                paths = c.get_paths_to(new HCoord(l, p));
-            } catch (QspnNotMatureError e) {assert_not_reached();}
-            int s = paths.size;
-            if (s > 0)
+            print(@" to ($(l), $(p)) $(s) paths:\n");
+            foreach (IQspnNodePath path in paths)
             {
-                print(@" to ($(l), $(p)) $(s) paths:\n");
-                foreach (IQspnNodePath path in paths)
+                IQspnArc arc = path.i_qspn_get_arc();
+                IQspnNaddr gw = arc.i_qspn_get_naddr();
+                print(@"  c($(((FakeCost)path.i_qspn_get_cost()).usec_rtt)) via gw $(gw as FakeGenericNaddr)=");
+                Gee.List<IQspnHop> hops = path.i_qspn_get_hops();
+                string delimiter = "";
+                foreach (IQspnHop hop in hops)
                 {
-                    IQspnArc arc = path.i_qspn_get_arc();
-                    IQspnNaddr gw = arc.i_qspn_get_naddr();
-                    print(@"  gw $(gw as FakeGenericNaddr)=");
-                    Gee.List<IQspnHop> hops = path.i_qspn_get_hops();
-                    string delimiter = "";
-                    foreach (IQspnHop hop in hops)
-                    {
-                        print(@"$(delimiter)$(hop.i_qspn_get_arc_id())($(hop.i_qspn_get_naddr() as FakeGenericNaddr))");
-                        delimiter = " - ";
-                    }
-                    print(@".\n");
+                    print(@"$(delimiter)$(hop.i_qspn_get_arc_id())($(hop.i_qspn_get_naddr() as FakeGenericNaddr))");
+                    delimiter = " - ";
                 }
+                print(@".\n");
             }
         }
+    }
 }
 
 string[] read_file(string path)
@@ -199,7 +199,7 @@ int main2(string[] args)
             while (true)
             {
                 ms_wait(300);
-                if (c.is_mature()) break;
+                if (c.is_bootstrap_complete()) break;
             }
             ms_wait(20*managers.size);
         }
@@ -219,9 +219,119 @@ int main2(string[] args)
     return 0;
 }
 
+void test_fp()
+{
+    var q0fp0 = new FakeFingerprint(346523, {0,0,0}); // naddr=[0,1,1]
+    print(@"q0fp0=$(q0fp0)\n");
+    var q0fp1 = (FakeFingerprint)q0fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp1=$(q0fp1)\n");
+    var q0fp2 = (FakeFingerprint)q0fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp2=$(q0fp2)\n");
+    var q0fp3 = (FakeFingerprint)q0fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp3=$(q0fp3)\n");
+    var q1fp0 = new FakeFingerprint(234637, {1,0,0}); // naddr=[1,1,1]
+    print(@"q1fp0=$(q1fp0)\n");
+    var q1fp1 = (FakeFingerprint)q1fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp1=$(q1fp1)\n");
+    var q1fp2 = (FakeFingerprint)q1fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp2=$(q1fp2)\n");
+    var q1fp3 = (FakeFingerprint)q1fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp3=$(q1fp3)\n");
+    print("q0 scopre un path per q1 con fp=q1fp0\n");
+    var l = new ArrayList<IQspnFingerprint>();
+    l.add(q1fp0);
+    q0fp1 = (FakeFingerprint)q0fp0.i_qspn_construct(l);
+    print(@"q0fp1=$(q0fp1)\n");
+    q0fp2 = (FakeFingerprint)q0fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp2=$(q0fp2)\n");
+    q0fp3 = (FakeFingerprint)q0fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp3=$(q0fp3)\n");
+    print("q1 scopre un path per q0 con fp=q0fp0\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q0fp0);
+    q1fp1 = (FakeFingerprint)q1fp0.i_qspn_construct(l);
+    print(@"q1fp1=$(q1fp1)\n");
+    q1fp2 = (FakeFingerprint)q1fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp2=$(q1fp2)\n");
+    q1fp3 = (FakeFingerprint)q1fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp3=$(q1fp3)\n");
+
+    print(@"\nnasce q2\n");
+    var q2fp0 = new FakeFingerprint(123456, {0,1,0}); // naddr=[1,0,1]
+    print(@"q2fp0=$(q2fp0)\n");
+    var q2fp1 = (FakeFingerprint)q2fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q2fp1=$(q2fp1)\n");
+    var q2fp2 = (FakeFingerprint)q2fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q2fp2=$(q2fp2)\n");
+    var q2fp3 = (FakeFingerprint)q2fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q2fp3=$(q2fp3)\n");
+    print("q2 scopre un path per q0+q1 con fp=q0fp1\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q0fp1);
+    q2fp1 = (FakeFingerprint)q2fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q2fp1=$(q2fp1)\n");
+    q2fp2 = (FakeFingerprint)q2fp1.i_qspn_construct(l);
+    print(@"q2fp2=$(q2fp2)\n");
+    q2fp3 = (FakeFingerprint)q2fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q2fp3=$(q2fp3)\n");
+    print("q0 scopre un path per q2 con fp=q2fp1\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q1fp0);
+    q0fp1 = (FakeFingerprint)q0fp0.i_qspn_construct(l);
+    print(@"q0fp1=$(q0fp1)\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q2fp1);
+    q0fp2 = (FakeFingerprint)q0fp1.i_qspn_construct(l);
+    print(@"q0fp2=$(q0fp2)\n");
+    q0fp3 = (FakeFingerprint)q0fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q0fp3=$(q0fp3)\n");
+    print("q1 scopre un path per q2 con fp=q2fp1\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q2fp1);
+    q1fp1 = (FakeFingerprint)q1fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp1=$(q1fp1)\n");
+    q1fp2 = (FakeFingerprint)q1fp1.i_qspn_construct(l);
+    print(@"q1fp2=$(q1fp2)\n");
+    q1fp3 = (FakeFingerprint)q1fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q1fp3=$(q1fp3)\n");
+
+    print(@"\nnasce q3\n");
+    var q3fp0 = new FakeFingerprint(3355221, {0,0,1}); // naddr=[0,1,1]
+    print(@"q3fp0=$(q3fp0)\n");
+    var q3fp1 = (FakeFingerprint)q3fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q3fp1=$(q3fp1)\n");
+    var q3fp2 = (FakeFingerprint)q3fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q3fp2=$(q3fp2)\n");
+    var q3fp3 = (FakeFingerprint)q3fp2.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q3fp3=$(q3fp3)\n");
+    print("q3 scopre un path per q0+q1+q2 con fp=q0fp2\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q0fp2);
+    q3fp1 = (FakeFingerprint)q3fp0.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q3fp1=$(q3fp1)\n");
+    q3fp2 = (FakeFingerprint)q3fp1.i_qspn_construct(new ArrayList<IQspnFingerprint>());
+    print(@"q3fp2=$(q3fp2)\n");
+    q3fp3 = (FakeFingerprint)q3fp2.i_qspn_construct(l);
+    print(@"q3fp3=$(q3fp3)\n");
+    print("q0 scopre un path per q3 con fp=q3fp2\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q1fp0);
+    q0fp1 = (FakeFingerprint)q0fp0.i_qspn_construct(l);
+    print(@"q0fp1=$(q0fp1)\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q2fp1);
+    q0fp2 = (FakeFingerprint)q0fp1.i_qspn_construct(l);
+    print(@"q0fp2=$(q0fp2)\n");
+    l = new ArrayList<IQspnFingerprint>();
+    l.add(q3fp2);
+    q0fp3 = (FakeFingerprint)q0fp2.i_qspn_construct(l);
+    print(@"q0fp3=$(q0fp3)\n");
+}
+
 void main()
 {
     Tasklet.init();
+    //test_fp();return;
     int max_paths = 5;
     double max_common_hops_ratio = 0.5;
     int arc_timeout = 3000;
@@ -236,7 +346,7 @@ void main()
     QspnManager q0 = new QspnManager(n0, max_paths, max_common_hops_ratio,
             arc_timeout, a0, fp0, threshold_calculator, sf0);
     ((FakeStubFactory)sf0).my_mgr = q0;
-    mature_report(q0, "q0 is mature.\n");
+    bootstrap_complete_report(q0, "q0 is bootstrap_complete.\n");
 
     ms_wait(500);
 
@@ -249,7 +359,7 @@ void main()
     QspnManager q1 = new QspnManager(n1, max_paths, max_common_hops_ratio,
             arc_timeout, a1, fp1, threshold_calculator, sf1);
     ((FakeStubFactory)sf1).my_mgr = q1;
-    mature_report(q1, "q1 is mature.\n");
+    bootstrap_complete_report(q1, "q1 is bootstrap_complete.\n");
 
     ms_wait(1200);
     q0.arc_add(new FakeArc(q1, n1, new FakeCost(500), na1, na0));
@@ -267,7 +377,7 @@ void main()
     QspnManager q2 = new QspnManager(n2, max_paths, max_common_hops_ratio,
             arc_timeout, a2, fp2, threshold_calculator, sf2);
     ((FakeStubFactory)sf2).my_mgr = q2;
-    mature_report(q2, "q2 is mature.\n");
+    bootstrap_complete_report(q2, "q2 is bootstrap_complete.\n");
 
     q0.arc_add(new FakeArc(q2, n2, new FakeCost(1500), na2, na0));
 
@@ -284,6 +394,45 @@ void main()
     print_all_known_paths(n1,q1);
     print_all_known_paths(n2,q2);
 
+    FakeGenericNaddr n3 = new FakeGenericNaddr({1,1,0,0}, {2,2,2,2});
+    string na3 = "169.254.33.44";
+    Gee.List<IQspnArc> a3 = new ArrayList<IQspnArc>();
+    a3.add(new FakeArc(q0, n0, new FakeCost(500), na0, na3));
+    IQspnFingerprint fp3 = new FakeFingerprint(4572368, {0,0,1,0});
+    IQspnStubFactory sf3 = new FakeStubFactory();
+    QspnManager q3 = new QspnManager(n3, max_paths, max_common_hops_ratio,
+            arc_timeout, a3, fp3, threshold_calculator, sf3);
+    ((FakeStubFactory)sf3).my_mgr = q3;
+    bootstrap_complete_report(q3, "q3 is bootstrap_complete.\n");
+
+    q0.arc_add(new FakeArc(q3, n3, new FakeCost(1500), na3, na0));
+
+    ms_wait(2000);
+    print_all_known_paths(n0,q0);
+    print_all_known_paths(n1,q1);
+    print_all_known_paths(n2,q2);
+    print_all_known_paths(n3,q3);
+
+    FakeGenericNaddr n4 = new FakeGenericNaddr({0,0,0,1}, {2,2,2,2});
+    string na4 = "169.254.111.25";
+    Gee.List<IQspnArc> a4 = new ArrayList<IQspnArc>();
+    a4.add(new FakeArc(q1, n1, new FakeCost(500), na1, na4));
+    IQspnFingerprint fp4 = new FakeFingerprint(248351246, {0,0,0,1});
+    IQspnStubFactory sf4 = new FakeStubFactory();
+    QspnManager q4 = new QspnManager(n4, max_paths, max_common_hops_ratio,
+            arc_timeout, a4, fp4, threshold_calculator, sf4);
+    ((FakeStubFactory)sf4).my_mgr = q4;
+    bootstrap_complete_report(q4, "q4 is bootstrap_complete.\n");
+
+    q1.arc_add(new FakeArc(q4, n4, new FakeCost(1500), na4, na1));
+
+    ms_wait(2000);
+    print_all_known_paths(n0,q0);
+    print_all_known_paths(n1,q1);
+    print_all_known_paths(n2,q2);
+    print_all_known_paths(n3,q3);
+    print_all_known_paths(n4,q4);
+
     q0.stop_operations();
     q1.stop_operations();
     q2.stop_operations();
@@ -291,16 +440,16 @@ void main()
     Tasklet.kill();
 }
 
-void mature_report(QspnManager q, string msg)
+void bootstrap_complete_report(QspnManager q, string msg)
 {
-    if (q.is_mature())
+    if (q.is_bootstrap_complete())
     {
         print(msg);
     }
     else
     {
         ulong h = 0;
-        h = q.qspn_mature.connect(() => {
+        h = q.qspn_bootstrap_complete.connect(() => {
             print(msg);
             if (h != 0) q.disconnect(h);
         });
