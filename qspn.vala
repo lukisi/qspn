@@ -537,7 +537,7 @@ namespace Netsukuku
         private int[] gsizes;
         private bool bootstrap_complete;
         private Tasklet? periodical_update_tasklet = null;
-        private ArrayList<QueuedEvent> queued_events;
+        private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
         // This collection can be accessed by index (level) and then by iteration on the
         //  values. This is useful when we want to iterate on a certain level.
@@ -652,7 +652,7 @@ namespace Netsukuku
             else
             {
                 bootstrap_complete = false;
-                queued_events = new ArrayList<QueuedEvent>();
+                queued_arcs = new ArrayList<IQspnArc>();
                 // Start a tasklet where we request a full ETP from all our neighbors
                 //  and then we process them.
                 Tasklet.tasklet_callback(
@@ -729,40 +729,6 @@ namespace Netsukuku
             }
         }
 
-        private class QueuedEvent : Object
-        {
-            public QueuedEvent.arc_add(IQspnArc arc)
-            {
-                this.arc = arc;
-                type = 1;
-            }
-            public QueuedEvent.arc_is_changed(IQspnArc arc)
-            {
-                this.arc = arc;
-                type = 2;
-            }
-            public QueuedEvent.arc_remove(IQspnArc arc)
-            {
-                this.arc = arc;
-                type = 3;
-            }
-            public QueuedEvent.etp_received(IQspnEtpMessage etp, IQspnArc arc, bool is_full)
-            {
-                this.etp = etp;
-                this.is_full = is_full;
-                this.arc = arc;
-                type = 4;
-            }
-            public int type;
-            // 1 arc_add
-            // 2 arc_is_changed
-            // 3 arc_remove
-            // 4 etp_received
-            public IQspnArc arc;
-            public IQspnEtpMessage etp;
-            public bool is_full;
-        }
-
         // The module is notified if an arc is added/changed/removed
         public void arc_add(IQspnArc arc)
         {
@@ -782,11 +748,6 @@ namespace Netsukuku
         private void tasklet_arc_add(IQspnArc arc)
         {
             // From outside the module is notified of the creation of this new arc.
-            if (!bootstrap_complete)
-            {
-                queued_events.add(new QueuedEvent.arc_add(arc));
-                return;
-            }
             if (arc in my_arcs)
             {
                 log_warn("QspnManager.arc_add: already in my arcs.");
@@ -801,6 +762,13 @@ namespace Netsukuku
             // memorize
             my_arcs.add(arc);
             id_arc_map[arc_id] = arc;
+
+            // during bootstrap add the arc to queued_arcs and then return
+            if (!bootstrap_complete)
+            {
+                queued_arcs.add(arc);
+                return;
+            }
 
             IAddressManagerRootDispatcher disp_get_etp =
                     stub_factory.i_qspn_get_tcp(arc);
@@ -894,9 +862,9 @@ namespace Netsukuku
                                                      etp);
                 IAddressManagerRootDispatcher disp_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
-                        /* All but the sender */
+                        // All but the sender
                         arc);
                 debug("Forward ETP to all but the sender");
                 try {
@@ -953,16 +921,18 @@ namespace Netsukuku
         {
             // From outside the module is notified that the cost of this arc of mine
             // is changed.
-            if (!bootstrap_complete)
-            {
-                queued_events.add(new QueuedEvent.arc_is_changed(changed_arc));
-                return;
-            }
             if (!(changed_arc in my_arcs))
             {
                 log_warn("QspnManager.arc_is_changed: not in my arcs.");
                 return;
             }
+
+            // during bootstrap do nothing
+            if (!bootstrap_complete)
+            {
+                return;
+            }
+
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
                 gather_full_etp_set(my_arcs, (arc) => {
@@ -1016,7 +986,7 @@ namespace Netsukuku
                                                      removed_paths_set);
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
@@ -1053,16 +1023,19 @@ namespace Netsukuku
             // has been removed.
             // Or, either, the module itself wants to remove this arc (possibly
             // because it failed to send a message).
-            if (!bootstrap_complete)
-            {
-                queued_events.add(new QueuedEvent.arc_remove(removed_arc));
-                return;
-            }
             if (!(removed_arc in my_arcs))
             {
                 log_warn("QspnManager.arc_remove: not in my arcs.");
                 return;
             }
+
+            // during bootstrap add the arc to queued_arcs and then return
+            if (!bootstrap_complete)
+            {
+                queued_arcs.add(removed_arc);
+                return;
+            }
+
             // First, remove the arc...
             int arc_id = get_arc_id(removed_arc);
             assert(arc_id >= 0);
@@ -1149,7 +1122,7 @@ namespace Netsukuku
                                                      removed_paths_set);
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
@@ -1573,10 +1546,12 @@ namespace Netsukuku
 
         private void get_first_etps()
         {
+            ArrayList<IQspnArc> current_arcs = new ArrayList<IQspnArc>();
+            current_arcs.add_all(my_arcs);
             debug("Gathering ETP from all of my arcs");
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
-                gather_full_etp_set(my_arcs, (arc) => {
+                gather_full_etp_set(current_arcs, (arc) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
                     // emit signal
@@ -1609,7 +1584,7 @@ namespace Netsukuku
                         // ignore this etp
                     }
                 }
-                // Update my map. Collect changed paths.
+                // Update my map. Collect changed paths but this is not needed here.
                 Collection<NodePath> added_paths_set;
                 Collection<NodePath> changed_paths_set;
                 Collection<NodePath> removed_paths_set;
@@ -1619,18 +1594,103 @@ namespace Netsukuku
                            out changed_paths_set,
                            out removed_paths_set,
                            out b_set);
-                // If needed, spawn a new flood for the first detection of a gnode split.
-                if (! b_set.is_empty)
-                    spawn_flood_first_detection_split(b_set);
                 // Re-evaluate informations on our g-nodes.
                 bool changes_in_my_gnodes;
                 update_clusters(out changes_in_my_gnodes);
+
+                // Now we are hooked to the network and bootstrap_complete.
+                bootstrap_complete = true;
+                qspn_bootstrap_complete();
+                // Process queued events if any.
+                foreach (IQspnArc arc in queued_arcs)
+                {
+                    IAddressManagerRootDispatcher disp_get_etp =
+                            stub_factory.i_qspn_get_tcp(arc);
+                    IQspnEtpMessage? resp = null;
+                    try {
+                        debug("Requesting ETP from queued arc");
+                        resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
+                    }
+                    catch (QspnBootstrapInProgressError e) {
+                        debug("Got QspnBootstrapInProgressError. Give up.");
+                        // Give up. The neighbor will start a flood when its bootstrap is complete.
+                        return;
+                    }
+                    catch (RPCError e) {
+                        debug("Got RPCError. Remove queued arc.");
+                        // remove failed arc and emit signal
+                        arc_remove(arc);
+                        // emit signal
+                        arc_removed(arc);
+                        return;
+                    }
+                    catch (QspnNotAcceptedError e) {
+                        debug("Got NotAcceptedError. Remove queued arc.");
+                        // remove failed arc and emit signal
+                        arc_remove(arc);
+                        // emit signal
+                        arc_removed(arc);
+                        return;
+                    }
+                    if (! (resp is EtpMessage))
+                    {
+                        debug("Got wrong class. Remove queued arc.");
+                        // The module only knows this class that implements IQspnEtpMessage, so this
+                        //  should not happen. But the rest of the code, who knows? So to be sure
+                        //  we check. If it is the case remove the arc.
+                        arc_remove(arc);
+                        // emit signal
+                        arc_removed(arc);
+                        return;
+                    }
+                    EtpMessage etp = (EtpMessage) resp;
+                    if (! check_network_parameters(etp))
+                    {
+                        debug("Got bad parameters. Remove queued arc.");
+                        // We check the correctness of a message from another node.
+                        // If the message is junk, remove the arc.
+                        arc_remove(arc);
+                        // emit signal
+                        arc_removed(arc);
+                        return;
+                    }
+
+                    debug("Processing ETP from queued arc.");
+                    int arc_id = get_arc_id(arc);
+                    assert(arc_id >= 0);
+                    // Got ETP from queued neighbor/arc. Revise the paths in it.
+                    Gee.List<NodePath> q2;
+                    try
+                    {
+                        q2 = revise_etp(etp, arc, arc_id, true);
+                    }
+                    catch (AcyclicError e)
+                    {
+                        // This should not happen.
+                        log_warn("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
+                        return;
+                    }
+                    // Update my map. Collect changed paths but this is not needed here.
+                    Collection<NodePath> added_paths_set2;
+                    Collection<NodePath> changed_paths_set2;
+                    Collection<NodePath> removed_paths_set2;
+                    Collection<HCoord> b_set2;
+                    update_map(q2, null,
+                               out added_paths_set2,
+                               out changed_paths_set2,
+                               out removed_paths_set2,
+                               out b_set2);
+                }
+
+                // Finally, again re-evaluate informations on our g-nodes.
+                bool changes_in_my_gnodes2;
+                update_clusters(out changes_in_my_gnodes2);
 
                 // prepare ETP and send to all my neighbors.
                 EtpMessage full_etp = prepare_full_etp();
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
@@ -1642,17 +1702,6 @@ namespace Netsukuku
                 }
                 catch (RPCError e) {
                     log_error(@"QspnManager.get_first_etps: RPCError in send to broadcast to all: $(e.message)");
-                }
-                // Now we are hooked to the network and bootstrap_complete.
-                bootstrap_complete = true;
-                qspn_bootstrap_complete();
-                // Process queued events if any.
-                foreach (QueuedEvent ev in queued_events)
-                {
-                    if (ev.type == 1) arc_add(ev.arc);
-                    if (ev.type == 2) arc_is_changed(ev.arc);
-                    if (ev.type == 3) arc_remove(ev.arc);
-                    if (ev.type == 4) got_etp_from_arc(ev.etp, ev.arc, ev.is_full);
                 }
             }
         }
@@ -1667,7 +1716,7 @@ namespace Netsukuku
                 EtpMessage full_etp = prepare_full_etp();
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
@@ -2216,7 +2265,7 @@ namespace Netsukuku
                                    create_searchable_list_nodepaths());
             IAddressManagerRootDispatcher disp_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
-                    /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                    // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
             try {
@@ -2436,11 +2485,13 @@ namespace Netsukuku
 
         private void got_etp_from_arc(IQspnEtpMessage m, IQspnArc arc, bool is_full)
         {
+            // during bootstrap add the arc to queued_arcs and then return
             if (!bootstrap_complete)
             {
-                queued_events.add(new QueuedEvent.etp_received(m, arc, is_full));
+                queued_arcs.add(arc);
                 return;
             }
+
             if (! (arc in my_arcs)) return;
             debug("An incoming ETP is received");
             if (! (m is EtpMessage))
@@ -2506,9 +2557,9 @@ namespace Netsukuku
                                                      etp);
                 IAddressManagerRootDispatcher disp_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
-                        /* If a neighbor doesnt send its ACK repeat the message via tcp */
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
-                        /* All but the sender */
+                        // All but the sender
                         arc);
                 debug("Forward ETP to all but the sender");
                 try {
