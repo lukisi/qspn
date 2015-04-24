@@ -835,15 +835,12 @@ namespace Netsukuku
                 return;
             }
             // Update my map. Collect changed paths.
-            Collection<NodePath> added_paths_set;
-            Collection<NodePath> changed_paths_set;
-            Collection<NodePath> removed_paths_set;
+            Collection<EtpPath> all_paths_set;
             Collection<HCoord> b_set;
             update_map(q, null,
-                       out added_paths_set,
-                       out changed_paths_set,
-                       out removed_paths_set,
+                       out all_paths_set,
                        out b_set);
+            finalize_paths(all_paths_set);
             // If needed, spawn a new flood for the first detection of a gnode split.
             if (! b_set.is_empty)
                 spawn_flood_first_detection_split(b_set);
@@ -851,14 +848,10 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // forward?
-            if ((! added_paths_set.is_empty) ||
-                (! changed_paths_set.is_empty) ||
-                (! removed_paths_set.is_empty) ||
+            if ((! all_paths_set.is_empty) ||
                 changes_in_my_gnodes)
             {
-                EtpMessage new_etp = prepare_fwd_etp(added_paths_set,
-                                                     changed_paths_set,
-                                                     removed_paths_set,
+                EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
                 IAddressManagerRootDispatcher disp_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
@@ -959,15 +952,12 @@ namespace Netsukuku
                 }
             }
             // Update my map. Collect changed paths.
-            Collection<NodePath> added_paths_set;
-            Collection<NodePath> changed_paths_set;
-            Collection<NodePath> removed_paths_set;
+            Collection<EtpPath> all_paths_set;
             Collection<HCoord> b_set;
             update_map(q, changed_arc,
-                       out added_paths_set,
-                       out changed_paths_set,
-                       out removed_paths_set,
+                       out all_paths_set,
                        out b_set);
+            finalize_paths(all_paths_set);
             // If needed, spawn a new flood for the first detection of a gnode split.
             if (! b_set.is_empty)
                 spawn_flood_first_detection_split(b_set);
@@ -975,15 +965,11 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // send update?
-            if ((! added_paths_set.is_empty) ||
-                (! changed_paths_set.is_empty) ||
-                (! removed_paths_set.is_empty) ||
+            if ((! all_paths_set.is_empty) ||
                 changes_in_my_gnodes)
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(added_paths_set,
-                                                     changed_paths_set,
-                                                     removed_paths_set);
+                EtpMessage new_etp = prepare_new_etp(all_paths_set);
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
@@ -1043,7 +1029,7 @@ namespace Netsukuku
             id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
-            var paths_to_add_to_removed_paths = create_searchable_list_nodepaths();
+            var paths_to_add_to_all_paths = new ArrayList<EtpPath>();
             for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 int i = 0;
@@ -1053,7 +1039,9 @@ namespace Netsukuku
                     if (np.arc.i_qspn_equals(removed_arc))
                     {
                         d.paths.remove_at(i);
-                        paths_to_add_to_removed_paths.add(np);
+                        EtpPath p = prepare_path_step_1(np);
+                        p.cost = new DeadCost();
+                        paths_to_add_to_all_paths.add(p);
                     }
                     else
                     {
@@ -1067,7 +1055,7 @@ namespace Netsukuku
                 destination_removed(my_naddr.i_qspn_get_address_by_coord(d.dest));
                 destinations[d.dest.lvl].unset(d.dest.pos);
             }
-            // Then do the same as when arc is changed and remember to add paths_to_add_to_removed_paths
+            // Then do the same as when arc is changed and remember to add paths_to_add_to_all_paths
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
                 gather_full_etp_set(my_arcs, (arc) => {
@@ -1094,16 +1082,13 @@ namespace Netsukuku
                 }
             }
             // Update my map. Collect changed paths.
-            Collection<NodePath> added_paths_set;
-            Collection<NodePath> changed_paths_set;
-            Collection<NodePath> removed_paths_set;
+            Collection<EtpPath> all_paths_set;
             Collection<HCoord> b_set;
             update_map(q, null,
-                       out added_paths_set,
-                       out changed_paths_set,
-                       out removed_paths_set,
+                       out all_paths_set,
                        out b_set);
-            removed_paths_set.add_all(paths_to_add_to_removed_paths);
+            all_paths_set.add_all(paths_to_add_to_all_paths);
+            finalize_paths(all_paths_set);
             // If needed, spawn a new flood for the first detection of a gnode split.
             if (! b_set.is_empty)
                 spawn_flood_first_detection_split(b_set);
@@ -1111,15 +1096,11 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // send update?
-            if ((! added_paths_set.is_empty) ||
-                (! changed_paths_set.is_empty) ||
-                (! removed_paths_set.is_empty) ||
+            if ((! all_paths_set.is_empty) ||
                 changes_in_my_gnodes)
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(added_paths_set,
-                                                     changed_paths_set,
-                                                     removed_paths_set);
+                EtpMessage new_etp = prepare_new_etp(all_paths_set);
                 IAddressManagerRootDispatcher disp_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
@@ -1161,7 +1142,7 @@ namespace Netsukuku
         }
 
         // Helper: path to send in a ETP
-        private EtpPath prepare_path(NodePath np)
+        private EtpPath prepare_path_step_1(NodePath np)
         {
             EtpPath p = new EtpPath();
             p.hops = create_searchable_list_gnodes();
@@ -1171,6 +1152,10 @@ namespace Netsukuku
             p.fingerprint = np.path.fingerprint;
             p.nodes_inside = np.path.nodes_inside;
             p.cost = np.cost;
+            return p;
+        }
+        private void prepare_path_step_2(EtpPath p)
+        {
             // Set values for ignore_ouside.
             p.ignore_outside = new ArrayList<bool>();
             p.ignore_outside.add(false);
@@ -1235,7 +1220,6 @@ namespace Netsukuku
                     p.ignore_outside.add(true);
                 }
             }
-            return p;
         }
 
         // Helper: revise an ETP, correct its id_list and the paths inside it.
@@ -1374,34 +1358,14 @@ namespace Netsukuku
         }
 
         // Helper: prepare new ETP
-        /*
-        Diversamente da come descritto nel documento di dettagli tecnici,
-         si usa questo helper method passando tutta la collezione di NodePath
-         individuati durante le operazioni di aggiornamento della mappa, suddivisa
-         in changed_paths_set, added_paths_set, removed_paths_set.
-        */
         private EtpMessage prepare_new_etp
-        (Collection<NodePath> added_paths_set,
-         Collection<NodePath> changed_paths_set,
-         Collection<NodePath> removed_paths_set,
+        (Collection<EtpPath> all_paths_set,
          Gee.List<HCoord>? etp_hops=null)
         {
             EtpMessage ret = new EtpMessage();
             ret.p_list = new ArrayList<EtpPath>();
-            foreach (NodePath np in added_paths_set)
+            foreach (EtpPath p in all_paths_set)
             {
-                EtpPath p = prepare_path(np);
-                ret.p_list.add(p);
-            }
-            foreach (NodePath np in changed_paths_set)
-            {
-                EtpPath p = prepare_path(np);
-                ret.p_list.add(p);
-            }
-            foreach (NodePath np in removed_paths_set)
-            {
-                EtpPath p = prepare_path(np);
-                p.cost = new DeadCost();
                 ret.p_list.add(p);
             }
             ret.node_address = my_naddr;
@@ -1417,27 +1381,30 @@ namespace Netsukuku
         // Helper: prepare full ETP
         private EtpMessage prepare_full_etp()
         {
-            var node_paths = create_searchable_list_nodepaths();
+            var etp_paths = new ArrayList<EtpPath>();
             for (int l = 0; l < levels; l++)
+            {
                 foreach (Destination d in destinations[l].values)
-                    node_paths.add_all(d.paths);
-            return prepare_new_etp(node_paths,
-                                   create_searchable_list_nodepaths(),
-                                   create_searchable_list_nodepaths());
+                {
+                    foreach (NodePath np in d.paths)
+                    {
+                        EtpPath p = prepare_path_step_1(np);
+                        prepare_path_step_2(p);
+                        etp_paths.add(p);
+                    }
+                }
+            }
+            return prepare_new_etp(etp_paths);
         }
 
         // Helper: prepare forward ETP
         private EtpMessage prepare_fwd_etp
-        (Collection<NodePath> added_paths_set,
-         Collection<NodePath> changed_paths_set,
-         Collection<NodePath> removed_paths_set,
+        (Collection<EtpPath> all_paths_set,
          EtpMessage m)
         {
             // The message 'm' has been revised, so that m.hops has the 'exit_gnode'
             //  at the beginning.
-            return prepare_new_etp(added_paths_set,
-                                   changed_paths_set,
-                                   removed_paths_set,
+            return prepare_new_etp(all_paths_set,
                                    m.hops);
         }
 
@@ -1535,7 +1502,7 @@ namespace Netsukuku
                     new SerializableInt(i++),
                     null,
                     null,
-                    true /* joinable */
+                    true // joinable
                 );
                 work.tasks.add(t);
             }
@@ -1585,14 +1552,10 @@ namespace Netsukuku
                     }
                 }
                 // Update my map. Collect changed paths but this is not needed here.
-                Collection<NodePath> added_paths_set;
-                Collection<NodePath> changed_paths_set;
-                Collection<NodePath> removed_paths_set;
+                Collection<EtpPath> all_paths_set;
                 Collection<HCoord> b_set;
                 update_map(q, null,
-                           out added_paths_set,
-                           out changed_paths_set,
-                           out removed_paths_set,
+                           out all_paths_set,
                            out b_set);
                 // Re-evaluate informations on our g-nodes.
                 bool changes_in_my_gnodes;
@@ -1671,14 +1634,10 @@ namespace Netsukuku
                         return;
                     }
                     // Update my map. Collect changed paths but this is not needed here.
-                    Collection<NodePath> added_paths_set2;
-                    Collection<NodePath> changed_paths_set2;
-                    Collection<NodePath> removed_paths_set2;
+                    Collection<EtpPath> all_paths_set2;
                     Collection<HCoord> b_set2;
                     update_map(q2, null,
-                               out added_paths_set2,
-                               out changed_paths_set2,
-                               out removed_paths_set2,
+                               out all_paths_set2,
                                out b_set2);
                 }
 
@@ -1879,20 +1838,16 @@ namespace Netsukuku
         internal void
         update_map(Collection<NodePath> q_set,
                    IQspnArc? a_changed,
-                   out Collection<NodePath> added_paths_set,
-                   out Collection<NodePath> changed_paths_set,
-                   out Collection<NodePath> removed_paths_set,
+                   out Collection<EtpPath> all_paths_set,
                    out Collection<HCoord> b_set)
         {
             // q_set is the set of new paths that have been detected.
-            // *_paths_set will be the sets of paths that have been changed in my map
+            // all_paths_set will be the set of paths that have been changed in my map
             //  so that we have to send an EtpPath for each of them to our neighbors
             //  in a forwarded EtpMessage.
             // b_set will be the set of g-nodes for which we have to flood a new
             //  ETP because of the rule of first split detection.
-            added_paths_set = create_searchable_list_nodepaths();
-            changed_paths_set = create_searchable_list_nodepaths();
-            removed_paths_set = create_searchable_list_nodepaths();
+            all_paths_set = new ArrayList<EtpPath>();
             b_set = create_searchable_list_gnodes();
             // Group by destination, order keys by ascending level.
             HashMap<HCoord, ArrayList<NodePath>> q_by_dest = new HashMap<HCoord, ArrayList<NodePath>>(
@@ -2059,7 +2014,7 @@ namespace Netsukuku
                 {
                     if (! (p in md_set))
                     {
-                        added_paths_set.add(p);
+                        all_paths_set.add(prepare_path_step_1(p));
                         sd.add(new SignalToEmit.path_added(get_ret_path(p)));
                     }
                 }
@@ -2067,14 +2022,16 @@ namespace Netsukuku
                 {
                     if (! (p in od_set))
                     {
-                        removed_paths_set.add(p);
+                        EtpPath pp = prepare_path_step_1(p);
+                        pp.cost = new DeadCost();
+                        all_paths_set.add(pp);
                         sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
                     }
                     else
                     {
                         if (p in vd_set)
                         {
-                            changed_paths_set.add(p);
+                            all_paths_set.add(prepare_path_step_1(p));
                             sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
                         }
                     }
@@ -2181,6 +2138,10 @@ namespace Netsukuku
                 }
             }
         }
+        private void finalize_paths(Collection<EtpPath> all_paths_set)
+        {
+            foreach (EtpPath p in all_paths_set) prepare_path_step_2(p);
+        }
         private class SignalSplitTask : Object
         {
             public IQspnFingerprint fp_eldest;
@@ -2250,19 +2211,22 @@ namespace Netsukuku
         internal void start_flood_first_detection_split(Collection<HCoord> b_set)
         {
             ms_wait(500);
-            ArrayList<NodePath> node_paths = create_searchable_list_nodepaths();
+            var etp_paths = new ArrayList<EtpPath>();
             foreach (HCoord g in b_set)
             {
                 if (destinations[g.lvl].has_key(g.pos))
                 {
                     Destination d = destinations[g.lvl][g.pos];
-                    node_paths.add_all(d.paths);
+                    foreach (NodePath np in d.paths)
+                    {
+                        EtpPath p = prepare_path_step_1(np);
+                        prepare_path_step_2(p);
+                        etp_paths.add(p);
+                    }
                 }
             }
-            if (node_paths.is_empty) return;
-            EtpMessage new_etp = prepare_new_etp(node_paths,
-                                   create_searchable_list_nodepaths(),
-                                   create_searchable_list_nodepaths());
+            if (etp_paths.is_empty) return;
+            EtpMessage new_etp = prepare_new_etp(etp_paths);
             IAddressManagerRootDispatcher disp_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
                     // If a neighbor doesnt send its ACK repeat the message via tcp
@@ -2437,7 +2401,7 @@ namespace Netsukuku
             IQspnNaddr requesting_naddr = (IQspnNaddr) requesting_address;
 
             HCoord b = my_naddr.i_qspn_get_coord_by_address(requesting_naddr);
-            var node_paths = create_searchable_list_nodepaths();
+            var etp_paths = new ArrayList<EtpPath>();
             for (int l = b.lvl; l < levels; l++) foreach (Destination d in destinations[l].values)
             {
                 foreach (NodePath np in d.paths)
@@ -2448,13 +2412,16 @@ namespace Netsukuku
                         if (h.equals(b)) found = true;
                         if (found) break;
                     }
-                    if (!found) node_paths.add(np);
+                    if (!found)
+                    {
+                        EtpPath p = prepare_path_step_1(np);
+                        prepare_path_step_2(p);
+                        etp_paths.add(p);
+                    }
                 }
             }
             debug("Sending ETP on request");
-            return prepare_new_etp(node_paths,
-                                   create_searchable_list_nodepaths(),
-                                   create_searchable_list_nodepaths());
+            return prepare_new_etp(etp_paths);
         }
 
         public void send_etp(IQspnEtpMessage m, bool is_full, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
@@ -2530,15 +2497,12 @@ namespace Netsukuku
                 return;
             }
             // Update my map. Collect changed paths.
-            Collection<NodePath> added_paths_set;
-            Collection<NodePath> changed_paths_set;
-            Collection<NodePath> removed_paths_set;
+            Collection<EtpPath> all_paths_set;
             Collection<HCoord> b_set;
             update_map(q, null,
-                       out added_paths_set,
-                       out changed_paths_set,
-                       out removed_paths_set,
+                       out all_paths_set,
                        out b_set);
+            finalize_paths(all_paths_set);
             // If needed, spawn a new flood for the first detection of a gnode split.
             if (! b_set.is_empty)
                 spawn_flood_first_detection_split(b_set);
@@ -2546,14 +2510,10 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // forward?
-            if ((! added_paths_set.is_empty) ||
-                (! changed_paths_set.is_empty) ||
-                (! removed_paths_set.is_empty) ||
+            if ((! all_paths_set.is_empty) ||
                 changes_in_my_gnodes)
             {
-                EtpMessage new_etp = prepare_fwd_etp(added_paths_set,
-                                                     changed_paths_set,
-                                                     removed_paths_set,
+                EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
                 IAddressManagerRootDispatcher disp_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
