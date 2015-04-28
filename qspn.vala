@@ -232,7 +232,6 @@ namespace Netsukuku
             lst4.deserialize_from_variant(v4);
             p_list = (Gee.List<EtpPath>)lst4.backed;
         }
-
     }
 
     internal class EtpPath : Object, ISerializable
@@ -323,7 +322,6 @@ namespace Netsukuku
                 ignore_outside.add(_ignore[i] != 0);
             }
         }
-
     }
 
     internal class NodePath : Object
@@ -697,14 +695,14 @@ namespace Netsukuku
 
         internal class MissingArcSendEtp : Object, IQspnMissingArcHandler
         {
-            public MissingArcSendEtp(QspnManager qspnman, IQspnEtpMessage m, bool is_full)
+            public MissingArcSendEtp(QspnManager qspnman, EtpMessage m, bool is_full)
             {
                 this.qspnman = qspnman;
                 this.m = m;
                 this.is_full = is_full;
             }
             public QspnManager qspnman;
-            public IQspnEtpMessage m;
+            public EtpMessage m;
             public bool is_full;
             public void i_qspn_missing(IQspnArc arc)
             {
@@ -712,6 +710,7 @@ namespace Netsukuku
                         qspnman.stub_factory.i_qspn_get_tcp(arc);
                 debug("Sending reliable ETP to missing arc");
                 try {
+                    assert(qspnman.check_outgoing_message(m));
                     disp.qspn_manager.send_etp(m, is_full);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -810,7 +809,7 @@ namespace Netsukuku
                 return;
             }
             EtpMessage etp = (EtpMessage) resp;
-            if (! check_network_parameters(etp))
+            if (! check_incoming_message(etp))
             {
                 debug("Got bad parameters. Remove new arc.");
                 // We check the correctness of a message from another node.
@@ -857,10 +856,11 @@ namespace Netsukuku
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
-                        // All but the sender
+                        // All but the new arc
                         arc);
-                debug("Forward ETP to all but the sender");
+                debug("Forward ETP to all but the new arc");
                 try {
+                    assert(check_outgoing_message(new_etp));
                     disp_send_to_others.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -878,6 +878,7 @@ namespace Netsukuku
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
             try {
+                assert(check_outgoing_message(full_etp));
                 disp_send_to_arc.qspn_manager.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
@@ -976,6 +977,7 @@ namespace Netsukuku
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
+                    assert(check_outgoing_message(new_etp));
                     disp_send_to_all.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1107,6 +1109,7 @@ namespace Netsukuku
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
+                    assert(check_outgoing_message(new_etp));
                     disp_send_to_all.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1223,7 +1226,7 @@ namespace Netsukuku
         }
 
         // Helper: revise an ETP, correct its id_list and the paths inside it.
-        //  The ETP has been already checked with check_network_parameters.
+        //  The ETP has been already checked with check_incoming_message.
         private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id, bool is_full) throws AcyclicError
         {
             ArrayList<NodePath> ret = create_searchable_list_nodepaths();
@@ -1485,7 +1488,7 @@ namespace Netsukuku
                             return;
                         }
                         EtpMessage m = (EtpMessage) resp;
-                        if (! check_network_parameters(m))
+                        if (! check_incoming_message(m))
                         {
                             debug("Got bad parameters. Remove arc.");
                             // We check the correctness of a message from another node.
@@ -1607,7 +1610,7 @@ namespace Netsukuku
                         return;
                     }
                     EtpMessage etp = (EtpMessage) resp;
-                    if (! check_network_parameters(etp))
+                    if (! check_incoming_message(etp))
                     {
                         debug("Got bad parameters. Remove queued arc.");
                         // We check the correctness of a message from another node.
@@ -1653,6 +1656,7 @@ namespace Netsukuku
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
+                    assert(check_outgoing_message(full_etp));
                     disp_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1679,6 +1683,7 @@ namespace Netsukuku
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
+                    assert(check_outgoing_message(full_etp));
                     disp_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1691,10 +1696,39 @@ namespace Netsukuku
             }
         }
 
-        // Helper: check that an ETP is valid:
+        // Helper: check that an incoming ETP is valid:
         // The address MUST have the same topology parameters as mine.
         // The address MUST NOT be the same as mine.
+        private bool check_incoming_message(EtpMessage m)
+        {
+            if (m.node_address.i_qspn_get_levels() != levels) return false;
+            bool not_same = false;
+            for (int l = 0; l < levels; l++)
+            {
+                if (m.node_address.i_qspn_get_gsize(l) != gsizes[l]) return false;
+                if (m.node_address.i_qspn_get_pos(l) != my_naddr.i_qspn_get_pos(l)) not_same = true;
+            }
+            if (! not_same) return false;
+            return check_any_message(m);
+        }
+        // Helper: check that an outgoing ETP is valid:
+        // The address MUST be mine.
+        private bool check_outgoing_message(EtpMessage m)
+        {
+            if (m.node_address.i_qspn_get_levels() != levels) return false;
+            bool not_same = false;
+            for (int l = 0; l < levels; l++)
+            {
+                if (m.node_address.i_qspn_get_gsize(l) != gsizes[l]) return false;
+                if (m.node_address.i_qspn_get_pos(l) != my_naddr.i_qspn_get_pos(l)) not_same = true;
+            }
+            if (not_same) return false;
+            return check_any_message(m);
+        }
+        // Helper: check that an ETP (both incoming or outgoing) is valid:
         // For each path p in P:
+        //  . For i = p.hops.last().lvl+1 TO levels-1:
+        //    . p.ignore_outside[i] must be true
         //  . p.fingerprint must be valid for p.hops.last().lvl
         //  . p.arcs.size MUST be the same of p.hops.size.
         //  . For each HCoord g in p.hops:
@@ -1706,19 +1740,13 @@ namespace Netsukuku
         //    . g.lvl has to be between 0 and levels-1
         //    . g.lvl has to grow only
         //    . g.pos has to be between 0 and gsize(g.lvl)-1
-        private bool check_network_parameters(EtpMessage m)
+        private bool check_any_message(EtpMessage m)
         {
-            if (m.node_address.i_qspn_get_levels() != levels) return false;
-            bool not_same = false;
-            for (int l = 0; l < levels; l++)
-            {
-                if (m.node_address.i_qspn_get_gsize(l) != gsizes[l]) return false;
-                if (m.node_address.i_qspn_get_pos(l) != my_naddr.i_qspn_get_pos(l)) not_same = true;
-            }
-            if (! not_same) return false;
             if (! check_tplist(m.hops)) return false;
             foreach (EtpPath p in m.p_list)
             {
+                for (int i = p.hops.last().lvl+1; i < levels; i++)
+                    if (! p.ignore_outside[i]) return false;
                 if (p.fingerprint.i_qspn_get_level() != p.hops.last().lvl) return false;
                 if (p.hops.size != p.arcs.size) return false;
                 if (! check_tplist(p.hops)) return false;
@@ -2233,6 +2261,7 @@ namespace Netsukuku
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
             try {
+                assert(check_outgoing_message(new_etp));
                 disp_send_to_all.qspn_manager.send_etp(new_etp, false);
             }
             catch (QspnNotAcceptedError e) {
@@ -2421,7 +2450,9 @@ namespace Netsukuku
                 }
             }
             debug("Sending ETP on request");
-            return prepare_new_etp(etp_paths);
+            var ret = prepare_new_etp(etp_paths);
+            assert(check_outgoing_message(ret));
+            return ret;
         }
 
         public void send_etp(IQspnEtpMessage m, bool is_full, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
@@ -2472,7 +2503,7 @@ namespace Netsukuku
                 return;
             }
             EtpMessage etp = (EtpMessage) m;
-            if (! check_network_parameters(etp))
+            if (! check_incoming_message(etp))
             {
                 debug("Got bad parameters. Remove incoming arc.");
                 // We check the correctness of a message from another node.
@@ -2523,6 +2554,7 @@ namespace Netsukuku
                         arc);
                 debug("Forward ETP to all but the sender");
                 try {
+                    assert(check_outgoing_message(new_etp));
                     disp_send_to_others.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {

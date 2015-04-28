@@ -80,15 +80,16 @@ public class FakeBroadcastClient : FakeAddressManager
             QspnManager target_mgr = target_arc.neighbour_qspnmgr;
             string my_ip = target_arc.my_nic_addr;
             CallerInfo caller = new CallerInfo(my_ip, null, null);
-            // tasklet for:  target_mgr.send_etp(etp, caller);
+            // tasklet for:  target_mgr.send_etp(etp, is_full, caller);
             Tasklet.tasklet_callback(
-                (_target_mgr, _etp, _caller) => {
+                (_target_mgr, _etp, _is_full, _caller) => {
                     QspnManager t_target_mgr = (QspnManager)_target_mgr;
-                    IQspnEtpMessage t_etp           = (IQspnEtpMessage)_etp;
-                    CallerInfo t_caller      = (CallerInfo)_caller;
+                    IQspnEtpMessage t_etp = (IQspnEtpMessage)_etp;
+                    bool t_is_full = ((SerializableBool)_is_full).b;
+                    CallerInfo t_caller = (CallerInfo)_caller;
                     try
                     {
-                        t_target_mgr.send_etp(t_etp, is_full, t_caller);
+                        t_target_mgr.send_etp(t_etp, t_is_full, t_caller);
                     }
                     catch (QspnNotAcceptedError e)
                     {
@@ -97,6 +98,7 @@ public class FakeBroadcastClient : FakeAddressManager
                 },
                 target_mgr,
                 etp,
+                new SerializableBool(is_full),
                 caller
                 );
         }
