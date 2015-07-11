@@ -906,8 +906,9 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // forward?
-            if ((! all_paths_set.is_empty) ||
-                changes_in_my_gnodes)
+            if (((! all_paths_set.is_empty) ||
+                changes_in_my_gnodes) &&
+                my_arcs.size > 1 /*at least another neighbor*/ )
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
@@ -1185,8 +1186,9 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // send update?
-            if ((! all_paths_set.is_empty) ||
-                changes_in_my_gnodes)
+            if (((! all_paths_set.is_empty) ||
+                changes_in_my_gnodes) &&
+                my_arcs.size > 0 /*at least a neighbor remains*/ )
             {
                 // create a new etp for all.
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
@@ -1793,6 +1795,7 @@ namespace Netsukuku
             while (true)
             {
                 tasklet.ms_wait(600000); // 10 minutes
+                if (my_arcs.size == 0) continue;
                 EtpMessage full_etp = prepare_full_etp();
                 IAddressManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
@@ -2708,8 +2711,9 @@ namespace Netsukuku
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // forward?
-            if ((! all_paths_set.is_empty) ||
-                changes_in_my_gnodes)
+            if (((! all_paths_set.is_empty) ||
+                changes_in_my_gnodes) &&
+                my_arcs.size > 1 /*at least another neighbor*/ )
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
