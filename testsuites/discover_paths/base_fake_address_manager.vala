@@ -1,0 +1,1 @@
+../../base_fake_address_manager.vala

@@ -19,7 +19,7 @@
 using Gee;
 using zcd;
 using Netsukuku;
-using DiscoverPathsInternals;
+using SimulatorInternals;
 
 public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, IQspnPartialNaddr, Json.Serializable
 {
@@ -142,18 +142,78 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
     }
 }
 
-public class FakeFingerprint : Object, IQspnFingerprint
+public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
 {
-    public int64 id {get; private set;}
-    private int level;
+    public int64 id {get; set;}
+    public int level {get; set;}
     // elderships has n items, where level + n = levels of the network.
-    private int[] elderships;
+    public ArrayList<int> elderships {get; set;}
     public FakeFingerprint(int[] elderships)
     {
         this.id = Random.int_range(0, 1000000);
         this.level = 0;
-        this.elderships = new int[elderships.length];
-        for (int i = 0; i < elderships.length; i++) this.elderships[i] = elderships[i];
+        this.elderships = new ArrayList<int>();
+        this.elderships.add_all_array(elderships);
+    }
+
+    public bool deserialize_property
+    (string property_name,
+     out GLib.Value @value,
+     GLib.ParamSpec pspec,
+     Json.Node property_node)
+    {
+        @value = 0;
+        switch (property_name) {
+        case "id":
+            try {
+                @value = deserialize_int64(property_node);
+            } catch (HelperDeserializeError e) {
+                return false;
+            }
+            break;
+        case "level":
+            try {
+                @value = deserialize_int(property_node);
+            } catch (HelperDeserializeError e) {
+                return false;
+            }
+            break;
+        case "elderships":
+            try {
+                ArrayList<int> ret = new ArrayList<int>();
+                ret.add_all(deserialize_list_int(property_node));
+                @value = ret;
+            } catch (HelperDeserializeError e) {
+                return false;
+            }
+            break;
+        default:
+            return false;
+        }
+        return true;
+    }
+
+    public unowned GLib.ParamSpec find_property
+    (string name)
+    {
+        return ((ObjectClass)typeof(FakeFingerprint).class_ref()).find_property(name);
+    }
+
+    public Json.Node serialize_property
+    (string property_name,
+     GLib.Value @value,
+     GLib.ParamSpec pspec)
+    {
+        switch (property_name) {
+        case "id":
+            return serialize_int64((int64)@value);
+        case "level":
+            return serialize_int((int)@value);
+        case "elderships":
+            return serialize_list_int((Gee.List<int>)@value);
+        default:
+            error(@"wrong param $(property_name)");
+        }
     }
 
     private FakeFingerprint.empty() {}
@@ -182,15 +242,15 @@ public class FakeFingerprint : Object, IQspnFingerprint
     public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers)
     {
         // given that:
-        //  levels = level + elderships.length
+        //  levels = level + elderships.size
         // do not construct for level = levels+1
-        assert(elderships.length > 0);
+        assert(elderships.size > 0);
         FakeFingerprint ret = new FakeFingerprint.empty();
         ret.level = level + 1;
         ret.id = id;
-        ret.elderships = new int[elderships.length-1];
-        for (int i = 1; i < elderships.length; i++)
-            ret.elderships[i-1] = elderships[i];
+        ret.elderships = new ArrayList<int>();
+        for (int i = 1; i < elderships.size; i++)
+            ret.elderships.add(elderships[i]);
         int cur_eldership = elderships[0];
         // start comparing
         foreach (IQspnFingerprint f in fingers)
@@ -206,24 +266,11 @@ public class FakeFingerprint : Object, IQspnFingerprint
         }
         return ret;
     }
-
-    public string to_string()
-    {
-        string eld = "[";
-        string next = "";
-        foreach (int e in elderships)
-        {
-            eld += @"$(next)$(e)";
-            next = ",";
-        }
-        eld += "]";
-        return @"{id:$(id), level:$(level), eldelships:$(eld)}";
-    }
 }
 
 public class FakeCost : Object, IQspnCost
 {
-    public long usec_rtt {get; private set;}
+    public long usec_rtt {get; set;}
 
     public FakeCost(long usec_rtt)
     {

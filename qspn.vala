@@ -17,8 +17,9 @@
  */
 
 using Gee;
-using zcd;
-using Tasklets;
+using Netsukuku.ModRpc;
+using zcd.ModRpc;
+using LibQspnInternals;
 
 namespace Netsukuku
 {
@@ -69,17 +70,8 @@ namespace Netsukuku
     }
 
     // Cost: Zero.
-    internal class NullCost : Object, IQspnCost, ISerializable
+    internal class NullCost : Object, IQspnCost
     {
-        public Variant serialize_to_variant()
-        {
-            return 0;
-        }
-
-        public void deserialize_from_variant(Variant v) throws SerializerError
-        {
-        }
-
         public int i_qspn_compare_to(IQspnCost other)
         {
             if (other is NullCost) return 0;
@@ -109,17 +101,8 @@ namespace Netsukuku
     }
 
     // Cost: Infinity.
-    internal class DeadCost : Object, IQspnCost, ISerializable
+    internal class DeadCost : Object, IQspnCost
     {
-        public Variant serialize_to_variant()
-        {
-            return 0;
-        }
-
-        public void deserialize_from_variant(Variant v) throws SerializerError
-        {
-        }
-
         public int i_qspn_compare_to(IQspnCost other)
         {
             if (other is DeadCost) return 0;
@@ -153,7 +136,7 @@ namespace Netsukuku
         public abstract IQspnCost i_qspn_get_cost();
         public abstract IQspnNaddr i_qspn_get_naddr();
         public abstract bool i_qspn_equals(IQspnArc other);
-        public abstract bool i_qspn_comes_from(zcd.CallerInfo rpc_caller);
+        public abstract bool i_qspn_comes_from(zcd.ModRpc.CallerInfo rpc_caller);
     }
 
     internal ArrayList<HCoord>
@@ -167,159 +150,192 @@ namespace Netsukuku
         );
     }
 
-    internal class EtpMessage : Object, ISerializable, IQspnEtpMessage
+    internal class EtpMessage : Object, Json.Serializable, IQspnEtpMessage
     {
-        public IQspnNaddr node_address;
-        public Gee.List<IQspnFingerprint> fingerprints;
-        public Gee.List<int> nodes_inside;
-        public Gee.List<HCoord> hops;
-        public Gee.List<EtpPath> p_list;
+        public IQspnNaddr node_address {get; set;}
+        public Gee.List<IQspnFingerprint> fingerprints {get; set;}
+        public Gee.List<int> nodes_inside {get; set;}
+        public Gee.List<HCoord> hops {get; set;}
+        public Gee.List<EtpPath> p_list {get; set;}
 
-        public Variant serialize_to_variant()
+        public bool deserialize_property
+        (string property_name,
+         out GLib.Value @value,
+         GLib.ParamSpec pspec,
+         Json.Node property_node)
         {
-            assert(node_address is ISerializable);
-            Variant v0 = Serializer.uchar_array_to_variant((node_address as ISerializable).serialize());
-
-            ListISerializable lst1 = new ListISerializable.with_backer((Gee.List<ISerializable>)fingerprints);
-            Variant v1 = lst1.serialize_to_variant();
-
-            int[] ai = nodes_inside.to_array();
-            Variant v2 = Serializer.int_array_to_variant(ai);
-
-            ListISerializable lst3 = new ListISerializable.with_backer(hops);
-            Variant v3 = lst3.serialize_to_variant();
-
-            ListISerializable lst4 = new ListISerializable.with_backer(p_list);
-            Variant v4 = lst4.serialize_to_variant();
-
-            Variant vret = Serializer.tuple_to_variant_5(v0, v1, v2, v3, v4);
-            return vret;
+            @value = 0;
+            switch (property_name) {
+            case "node_address":
+            case "node-address":
+                try {
+                    @value = deserialize_i_qspn_naddr(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "fingerprints":
+                try {
+                    @value = deserialize_list_i_qspn_fingerprint(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "nodes_inside":
+            case "nodes-inside":
+                try {
+                    @value = deserialize_list_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "hops":
+                try {
+                    @value = deserialize_list_hcoord(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "p_list":
+            case "p-list":
+                try {
+                    @value = deserialize_list_etp_path(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            default:
+                return false;
+            }
+            return true;
         }
 
-        public void deserialize_from_variant(Variant v) throws SerializerError
+        public unowned GLib.ParamSpec find_property
+        (string name)
         {
-            Variant v0;
-            Variant v1;
-            Variant v2;
-            Variant v3;
-            Variant v4;
-            Serializer.variant_to_tuple_5(v, out v0, out v1, out v2, out v3, out v4);
+            return ((ObjectClass)typeof(EtpMessage).class_ref()).find_property(name);
+        }
 
-            ISerializable ret = ISerializable.deserialize(Serializer.variant_to_uchar_array(v0));
-            if (! (ret is IQspnNaddr))
-            {
-                throw new SerializerError.GENERIC(
-                    "Deserialization returned a '" +
-                    ret.get_type().name() +
-                    "' which is not a 'IQspnNaddr'"
-                );
+        public Json.Node serialize_property
+        (string property_name,
+         GLib.Value @value,
+         GLib.ParamSpec pspec)
+        {
+            switch (property_name) {
+            case "node_address":
+            case "node-address":
+                return serialize_i_qspn_naddr((IQspnNaddr)@value);
+            case "fingerprints":
+                return serialize_list_i_qspn_fingerprint((Gee.List<IQspnFingerprint>)@value);
+            case "nodes_inside":
+            case "nodes-inside":
+                return serialize_list_int((Gee.List<int>)@value);
+            case "hops":
+                return serialize_list_hcoord((Gee.List<HCoord>)@value);
+            case "p_list":
+            case "p-list":
+                return serialize_list_etp_path((Gee.List<EtpPath>)@value);
+            default:
+                error(@"wrong param $(property_name)");
             }
-            node_address = ret as IQspnNaddr;
-
-            ListISerializable lst1 = (ListISerializable)Object.new(typeof(ListISerializable));
-            lst1.deserialize_from_variant(v1);
-            fingerprints = (Gee.List<IQspnFingerprint>)lst1.backed;
-
-            nodes_inside = new ArrayList<int>();
-            int[] ai = Serializer.variant_to_int_array(v0);
-            nodes_inside.add_all_array(ai);
-
-            ListISerializable lst3 = (ListISerializable)Object.new(typeof(ListISerializable));
-            lst3.deserialize_from_variant(v3);
-            hops = (Gee.List<HCoord>)lst3.backed;
-
-            ListISerializable lst4 = (ListISerializable)Object.new(typeof(ListISerializable));
-            lst4.deserialize_from_variant(v4);
-            p_list = (Gee.List<EtpPath>)lst4.backed;
         }
     }
 
-    internal class EtpPath : Object, ISerializable
+    internal class EtpPath : Object, Json.Serializable
     {
-        public Gee.List<HCoord> hops;
-        public Gee.List<int> arcs;
-        public IQspnCost cost;
-        public IQspnFingerprint fingerprint;
-        public int nodes_inside;
-        public Gee.List<bool> ignore_outside;
+        public Gee.List<HCoord> hops {get; set;}
+        public Gee.List<int> arcs {get; set;}
+        public IQspnCost cost {get; set;}
+        public IQspnFingerprint fingerprint {get; set;}
+        public int nodes_inside {get; set;}
+        public Gee.List<bool> ignore_outside {get; set;}
 
-        public Variant serialize_to_variant()
+        public bool deserialize_property
+        (string property_name,
+         out GLib.Value @value,
+         GLib.ParamSpec pspec,
+         Json.Node property_node)
         {
-            ListISerializable lst0 = new ListISerializable.with_backer(hops);
-            Variant v0 = lst0.serialize_to_variant();
-
-            Variant v1 = Serializer.int_array_to_variant(arcs.to_array());
-
-            assert(cost is ISerializable);
-            Variant v2 = Serializer.uchar_array_to_variant((cost as ISerializable).serialize());
-
-            assert(fingerprint is ISerializable);
-            Variant v3 = Serializer.uchar_array_to_variant((fingerprint as ISerializable).serialize());
-
-            Variant v4 = Serializer.int_to_variant(nodes_inside);
-
-            int[] _ignore = new int[ignore_outside.size];
-            for (int i = 0; i < ignore_outside.size; i++)
-            {
-                _ignore[i] = ignore_outside[i] ? 1 : 0;
+            @value = 0;
+            switch (property_name) {
+            case "hops":
+                try {
+                    @value = deserialize_list_hcoord(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "arcs":
+                try {
+                    @value = deserialize_list_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "cost":
+                try {
+                    @value = deserialize_i_qspn_cost(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "fingerprint":
+                try {
+                    @value = deserialize_i_qspn_fingerprint(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "nodes_inside":
+            case "nodes-inside":
+                try {
+                    @value = deserialize_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "ignore_outside":
+            case "ignore-outside":
+                try {
+                    @value = deserialize_list_bool(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            default:
+                return false;
             }
-            Variant v5 = Serializer.int_array_to_variant(_ignore);
-
-            Variant vtemp = Serializer.tuple_to_variant_5(v0, v1, v2, v3, v4);
-            Variant vret = Serializer.tuple_to_variant(vtemp, v5);
-            return vret;
+            return true;
         }
 
-        public void deserialize_from_variant(Variant v) throws SerializerError
+        public unowned GLib.ParamSpec find_property
+        (string name)
         {
-            Variant v0;
-            Variant v1;
-            Variant v2;
-            Variant v3;
-            Variant v4;
-            Variant v5;
-            Variant vtemp;
-            Serializer.variant_to_tuple(v, out vtemp, out v5);
-            Serializer.variant_to_tuple_5(vtemp, out v0, out v1, out v2, out v3, out v4);
+            return ((ObjectClass)typeof(EtpPath).class_ref()).find_property(name);
+        }
 
-            ListISerializable lst0 = (ListISerializable)Object.new(typeof(ListISerializable));
-            lst0.deserialize_from_variant(v0);
-            hops = create_searchable_list_gnodes();
-            hops.add_all((Gee.List<HCoord>)lst0.backed);
-
-            int[] my_arcs = Serializer.variant_to_int_array(v1);
-            arcs = new ArrayList<int>();
-            arcs.add_all_array(my_arcs);
-
-            ISerializable ret = ISerializable.deserialize(Serializer.variant_to_uchar_array(v2));
-            if (! (ret is IQspnCost))
-            {
-                throw new SerializerError.GENERIC(
-                    "Deserialization returned a '" +
-                    ret.get_type().name() +
-                    "' which is not a 'IQspnCost'"
-                );
-            }
-            cost = ret as IQspnCost;
-
-            ISerializable ret2 = ISerializable.deserialize(Serializer.variant_to_uchar_array(v3));
-            if (! (ret2 is IQspnFingerprint))
-            {
-                throw new SerializerError.GENERIC(
-                    "Deserialization returned a '" +
-                    ret2.get_type().name() +
-                    "' which is not a 'IQspnFingerprint'"
-                );
-            }
-            fingerprint = ret2 as IQspnFingerprint;
-
-            nodes_inside = Serializer.variant_to_int(v4);
-
-            int[] _ignore = Serializer.variant_to_int_array(v5);
-            ignore_outside = new ArrayList<bool>();
-            for (int i = 0; i < _ignore.length; i++)
-            {
-                ignore_outside.add(_ignore[i] != 0);
+        public Json.Node serialize_property
+        (string property_name,
+         GLib.Value @value,
+         GLib.ParamSpec pspec)
+        {
+            switch (property_name) {
+            case "hops":
+                return serialize_list_hcoord((Gee.List<HCoord>)@value);
+            case "arcs":
+                return serialize_list_int((Gee.List<int>)@value);
+            case "cost":
+                return serialize_i_qspn_cost((IQspnCost)@value);
+            case "fingerprint":
+                return serialize_i_qspn_fingerprint((IQspnFingerprint)@value);
+            case "nodes_inside":
+            case "nodes-inside":
+                return serialize_int((int)@value);
+            case "ignore_outside":
+            case "ignore-outside":
+                return serialize_list_bool((Gee.List<bool>)@value);
+            default:
+                error(@"wrong param $(property_name)");
             }
         }
     }
@@ -420,12 +436,12 @@ namespace Netsukuku
 
     public interface IQspnStubFactory : Object
     {
-        public abstract IAddressManagerRootDispatcher
+        public abstract IAddressManagerStub
                         i_qspn_get_broadcast(
                             IQspnMissingArcHandler? missing_handler=null,
                             IQspnArc? ignore_neighbor=null
                         );
-        public abstract IAddressManagerRootDispatcher
+        public abstract IAddressManagerStub
                         i_qspn_get_tcp(
                             IQspnArc arc,
                             bool wait_reply=true
@@ -511,14 +527,17 @@ namespace Netsukuku
         GENERIC
     }
 
-    public class QspnManager : Object,
-                               IQspnManager
+    internal INtkdTasklet tasklet;
+    public class QspnManager : Object, IQspnManagerSkeleton
     {
-        public static void init()
+        public static void init(INtkdTasklet _tasklet)
         {
             // Register serializable types
+            typeof(NullCost).class_peek();
+            typeof(DeadCost).class_peek();
             typeof(EtpPath).class_peek();
             typeof(EtpMessage).class_peek();
+            tasklet = _tasklet;
         }
 
         private IQspnMyNaddr my_naddr;
@@ -534,7 +553,7 @@ namespace Netsukuku
         private int levels;
         private int[] gsizes;
         private bool bootstrap_complete;
-        private Tasklet? periodical_update_tasklet = null;
+        private INtkdTaskletHandle? periodical_update_tasklet = null;
         private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
         // This collection can be accessed by index (level) and then by iteration on the
@@ -639,13 +658,10 @@ namespace Netsukuku
             {
                 bootstrap_complete = true;
                 // Start a tasklet where we signal we have completed the bootstrap,
-                //  so that the signal actually is emitted after the costructor returns.
-                Tasklet.tasklet_callback(
-                    (t) => {
-                        (t as QspnManager).qspn_bootstrap_complete();
-                    },
-                    this
-                );
+                // after a small wait, so that the signal actually is emitted after the costructor returns.
+                BootstrapCompleteTasklet ts = new BootstrapCompleteTasklet();
+                ts.mgr = this;
+                tasklet.spawn(ts);
             }
             else
             {
@@ -653,12 +669,28 @@ namespace Netsukuku
                 queued_arcs = new ArrayList<IQspnArc>();
                 // Start a tasklet where we request a full ETP from all our neighbors
                 //  and then we process them.
-                Tasklet.tasklet_callback(
-                    (t) => {
-                        (t as QspnManager).get_first_etps();
-                    },
-                    this
-                );
+                GetFirstEtpsTasklet ts = new GetFirstEtpsTasklet();
+                ts.mgr = this;
+                tasklet.spawn(ts);
+            }
+        }
+        private class BootstrapCompleteTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public void * func()
+            {
+                tasklet.ms_wait(1);
+                mgr.qspn_bootstrap_complete();
+                return null;
+            }
+        }
+        private class GetFirstEtpsTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public void * func()
+            {
+                mgr.get_first_etps();
+                return null;
             }
         }
 
@@ -678,19 +710,24 @@ namespace Netsukuku
         public void stop_operations()
         {
             if (periodical_update_tasklet != null)
-                periodical_update_tasklet.abort();
+                periodical_update_tasklet.kill();
         }
 
         private void on_bootstrap_complete()
         {
             debug("Event qspn_bootstrap_complete");
             // start in a tasklet the periodical send of full updates.
-            periodical_update_tasklet = Tasklet.tasklet_callback(
-                (t) => {
-                    (t as QspnManager).periodical_update();
-                },
-                this
-            );
+            PeriodicalUpdateTasklet ts = new PeriodicalUpdateTasklet();
+            ts.t = this;
+            periodical_update_tasklet = tasklet.spawn(ts);
+        }
+        private class PeriodicalUpdateTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager t;
+            public void * func()
+            {
+                t.periodical_update();
+            }
         }
 
         internal class MissingArcSendEtp : Object, IQspnMissingArcHandler
@@ -706,12 +743,12 @@ namespace Netsukuku
             public bool is_full;
             public void i_qspn_missing(IQspnArc arc)
             {
-                IAddressManagerRootDispatcher disp =
+                IAddressManagerStub stub =
                         qspnman.stub_factory.i_qspn_get_tcp(arc);
                 debug("Sending reliable ETP to missing arc");
                 try {
                     assert(qspnman.check_outgoing_message(m));
-                    disp.qspn_manager.send_etp(m, is_full);
+                    stub.qspn_manager.send_etp(m, is_full);
                 }
                 catch (QspnNotAcceptedError e) {
                     // we're not in its arcs; remove and emit signal
@@ -719,7 +756,14 @@ namespace Netsukuku
                     // emit signal
                     qspnman.arc_removed(arc);
                 }
-                catch (RPCError e) {
+                catch (StubError e) {
+                    // remove failed arc and emit signal
+                    qspnman.arc_remove(arc);
+                    // emit signal
+                    qspnman.arc_removed(arc);
+                }
+                catch (DeserializeError e) {
+                    warning(@"MissingArcSendEtp: Got Deserialize error: $(e.message)");
                     // remove failed arc and emit signal
                     qspnman.arc_remove(arc);
                     // emit signal
@@ -735,21 +779,28 @@ namespace Netsukuku
             IQspnCost c = arc.i_qspn_get_cost();
             assert(c != null);
 
-            Tasklet.tasklet_callback((_qspnmgr, _arc) => {
-                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
-                    qspnmgr.tasklet_arc_add((IQspnArc)_arc);
-                },
-                this,
-                arc
-                );
+            ArcAddTasklet ts = new ArcAddTasklet();
+            ts.mgr = this;
+            ts.arc = arc;
+            tasklet.spawn(ts);
         }
 
+        private class ArcAddTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public IQspnArc arc;
+            public void * func()
+            {
+                mgr.tasklet_arc_add(arc);
+                return null;
+            }
+        }
         private void tasklet_arc_add(IQspnArc arc)
         {
             // From outside the module is notified of the creation of this new arc.
             if (arc in my_arcs)
             {
-                log_warn("QspnManager.arc_add: already in my arcs.");
+                warning("QspnManager.arc_add: already in my arcs.");
                 return;
             }
             // generate ID for the arc
@@ -769,20 +820,28 @@ namespace Netsukuku
                 return;
             }
 
-            IAddressManagerRootDispatcher disp_get_etp =
+            IAddressManagerStub stub_get_etp =
                     stub_factory.i_qspn_get_tcp(arc);
             IQspnEtpMessage? resp = null;
             try {
                 debug("Requesting ETP from new arc");
-                resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
+                resp = stub_get_etp.qspn_manager.get_full_etp(my_naddr);
             }
             catch (QspnBootstrapInProgressError e) {
                 debug("Got QspnBootstrapInProgressError. Give up.");
                 // Give up. The neighbor will start a flood when its bootstrap is complete.
                 return;
             }
-            catch (RPCError e) {
-                debug("Got RPCError. Remove new arc.");
+            catch (StubError e) {
+                debug("Got StubError. Remove new arc.");
+                // remove failed arc and emit signal
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            catch (DeserializeError e) {
+                warning(@"tasklet_arc_add calling get_full_etp: Got Deserialize error: $(e.message)");
                 // remove failed arc and emit signal
                 arc_remove(arc);
                 // emit signal
@@ -830,7 +889,7 @@ namespace Netsukuku
             catch (AcyclicError e)
             {
                 // This should not happen.
-                log_warn("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
+                warning("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
                 return;
             }
             // Update my map. Collect changed paths.
@@ -852,7 +911,7 @@ namespace Netsukuku
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
-                IAddressManagerRootDispatcher disp_send_to_others =
+                IAddressManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
@@ -861,25 +920,29 @@ namespace Netsukuku
                 debug("Forward ETP to all but the new arc");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    disp_send_to_others.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_others.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.arc_add: RPCError in send to broadcast except arc $(arc_id): $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.arc_add: StubError in send to broadcast except arc $(arc_id): $(e.message)");
                 }
             }
 
             // create a new etp for arc
             EtpMessage full_etp = prepare_full_etp();
-            IAddressManagerRootDispatcher disp_send_to_arc =
+            IAddressManagerStub stub_send_to_arc =
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
             try {
                 assert(check_outgoing_message(full_etp));
-                disp_send_to_arc.qspn_manager.send_etp(full_etp, true);
+                stub_send_to_arc.qspn_manager.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
                 arc_remove(arc);
@@ -887,7 +950,15 @@ namespace Netsukuku
                 arc_removed(arc);
                 return;
             }
-            catch (RPCError e) {
+            catch (StubError e) {
+                arc_remove(arc);
+                // emit signal
+                arc_removed(arc);
+                return;
+            }
+            catch (DeserializeError e) {
+                warning(@"tasklet_arc_add calling send_etp: Got Deserialize error: $(e.message)");
+                // remove failed arc and emit signal
                 arc_remove(arc);
                 // emit signal
                 arc_removed(arc);
@@ -902,22 +973,28 @@ namespace Netsukuku
             IQspnCost c = changed_arc.i_qspn_get_cost();
             assert(c != null);
 
-            Tasklet.tasklet_callback((_qspnmgr, _changed_arc) => {
-                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
-                    qspnmgr.tasklet_arc_is_changed((IQspnArc)_changed_arc);
-                },
-                this,
-                changed_arc
-                );
+            ArcIsChangedTasklet ts = new ArcIsChangedTasklet();
+            ts.mgr = this;
+            ts.changed_arc = changed_arc;
+            tasklet.spawn(ts);
         }
-
+        private class ArcIsChangedTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public IQspnArc changed_arc;
+            public void * func()
+            {
+                mgr.tasklet_arc_is_changed(changed_arc);
+                return null;
+            }
+        }
         private void tasklet_arc_is_changed(IQspnArc changed_arc)
         {
             // From outside the module is notified that the cost of this arc of mine
             // is changed.
             if (!(changed_arc in my_arcs))
             {
-                log_warn("QspnManager.arc_is_changed: not in my arcs.");
+                warning("QspnManager.arc_is_changed: not in my arcs.");
                 return;
             }
 
@@ -948,7 +1025,7 @@ namespace Netsukuku
                 catch (AcyclicError e)
                 {
                     // This should not happen.
-                    log_warn(@"QspnManager: arc_changed: the neighbor with arc $(arc_id) produced an ETP with a cycle.");
+                    warning(@"QspnManager: arc_changed: the neighbor with arc $(arc_id) produced an ETP with a cycle.");
                     // ignore this etp
                 }
             }
@@ -971,21 +1048,25 @@ namespace Netsukuku
             {
                 // create a new etp for all.
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
-                IAddressManagerRootDispatcher disp_send_to_all =
+                IAddressManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_all.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.arc_is_changed: RPCError in send to broadcast to all: $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.arc_is_changed: StubError in send to broadcast to all: $(e.message)");
                 }
             }
         }
@@ -996,15 +1077,21 @@ namespace Netsukuku
             IQspnCost c = removed_arc.i_qspn_get_cost();
             assert(c != null);
 
-            Tasklet.tasklet_callback((_qspnmgr, _removed_arc) => {
-                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
-                    qspnmgr.tasklet_arc_remove((IQspnArc)_removed_arc);
-                },
-                this,
-                removed_arc
-                );
+            ArcRemoveTasklet ts = new ArcRemoveTasklet();
+            ts.mgr = this;
+            ts.removed_arc = removed_arc;
+            tasklet.spawn(ts);
         }
-
+        private class ArcRemoveTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public IQspnArc removed_arc;
+            public void * func()
+            {
+                mgr.tasklet_arc_remove(removed_arc);
+                return null;
+            }
+        }
         private void tasklet_arc_remove(IQspnArc removed_arc)
         {
             // From outside the module is notified that this arc of mine
@@ -1013,7 +1100,7 @@ namespace Netsukuku
             // because it failed to send a message).
             if (!(removed_arc in my_arcs))
             {
-                log_warn("QspnManager.arc_remove: not in my arcs.");
+                warning("QspnManager.arc_remove: not in my arcs.");
                 return;
             }
 
@@ -1079,7 +1166,7 @@ namespace Netsukuku
                 catch (AcyclicError e)
                 {
                     // This should not happen.
-                    log_warn(@"QspnManager: arc_remove: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
+                    warning(@"QspnManager: arc_remove: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
                     // ignore this etp
                 }
             }
@@ -1103,21 +1190,25 @@ namespace Netsukuku
             {
                 // create a new etp for all.
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
-                IAddressManagerRootDispatcher disp_send_to_all =
+                IAddressManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_all.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.arc_remove: RPCError in send to broadcast to all: $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.arc_remove: StubError in send to broadcast to all: $(e.message)");
                 }
             }
         }
@@ -1423,9 +1514,9 @@ namespace Netsukuku
         }
         private class GatherEtpSetData : Object
         {
-            public ArrayList<Tasklet> tasks;
+            public ArrayList<INtkdTaskletHandle> tasks;
             public ArrayList<IQspnArc> arcs;
-            public ArrayList<IAddressManagerRootDispatcher> disps;
+            public ArrayList<IAddressManagerStub> stubs;
             public ArrayList<PairArcEtp> results;
             public IQspnNaddr my_naddr;
             public unowned FailedArcHandler failed_arc_handler;
@@ -1437,81 +1528,94 @@ namespace Netsukuku
             // Work in parallel then join
             // Prepare (one instance for this run) an object work for the tasklets
             GatherEtpSetData work = new GatherEtpSetData();
-            work.tasks = new ArrayList<Tasklet>();
+            work.tasks = new ArrayList<INtkdTaskletHandle>();
             work.arcs = new ArrayList<IQspnArc>();
-            work.disps = new ArrayList<IAddressManagerRootDispatcher>();
+            work.stubs = new ArrayList<IAddressManagerStub>();
             work.results = new ArrayList<PairArcEtp>();
             work.my_naddr = my_naddr;
             work.failed_arc_handler = failed_arc_handler;
             int i = 0;
             foreach (IQspnArc arc in arcs)
             {
-                var disp = stub_factory.i_qspn_get_tcp(arc);
+                var stub = stub_factory.i_qspn_get_tcp(arc);
                 work.arcs.add(arc);
-                work.disps.add(disp);
-                Tasklet t = Tasklet.tasklet_callback(
-                    (_work, _i) => {
-                        GatherEtpSetData t_work = _work as GatherEtpSetData;
-                        int t_i = (_i as SerializableInt).i;
-
-                        IAddressManagerRootDispatcher t_disp = t_work.disps[t_i];
-                        IQspnEtpMessage? resp = null;
-                        try {
-                            int arc_id = get_arc_id(t_work.arcs[t_i]);
-                            debug(@"Requesting ETP from arc $(arc_id)");
-                            resp = t_disp.qspn_manager.get_full_etp(t_work.my_naddr);
-                        }
-                        catch (QspnBootstrapInProgressError e) {
-                            debug("Got QspnBootstrapInProgressError. Give up.");
-                            // Give up this tasklet. The neighbor will start a flood when its bootstrap is complete.
-                            return;
-                        }
-                        catch (RPCError e) {
-                            debug("Got RPCError. Remove arc.");
-                            // failed arc
-                            t_work.failed_arc_handler(t_work.arcs[t_i]);
-                            return;
-                        }
-                        catch (QspnNotAcceptedError e) {
-                            debug("Got NotAcceptedError. Remove arc.");
-                            // failed arc
-                            t_work.failed_arc_handler(t_work.arcs[t_i]);
-                            return;
-                        }
-                        if (! (resp is EtpMessage))
-                        {
-                            debug("Got wrong class. Remove arc.");
-                            // The module only knows this class that implements IQspnEtpMessage, so this
-                            //  should not happen. But the rest of the code, who knows? So to be sure
-                            //  we check. If it is the case, remove the arc.
-                            t_work.failed_arc_handler(t_work.arcs[t_i]);
-                            return;
-                        }
-                        EtpMessage m = (EtpMessage) resp;
-                        if (! check_incoming_message(m))
-                        {
-                            debug("Got bad parameters. Remove arc.");
-                            // We check the correctness of a message from another node.
-                            // If the message is junk, remove the arc.
-                            t_work.failed_arc_handler(t_work.arcs[t_i]);
-                            return;
-                        }
-
-                        debug("Got one.");
-                        PairArcEtp res = new PairArcEtp(m, t_work.arcs[t_i]);
-                        t_work.results.add(res);
-                    },
-                    work,
-                    new SerializableInt(i++),
-                    null,
-                    null,
-                    true // joinable
-                );
+                work.stubs.add(stub);
+                GetFullEtpTasklet ts = new GetFullEtpTasklet();
+                ts.mgr = this;
+                ts.work = work;
+                ts.i = i++;
+                INtkdTaskletHandle t = tasklet.spawn(ts, /*joinable*/ true);
                 work.tasks.add(t);
             }
             // join
-            foreach (Tasklet t in work.tasks) t.join();
+            foreach (INtkdTaskletHandle t in work.tasks) t.join();
             return work.results;
+        }
+        private class GetFullEtpTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public GatherEtpSetData work;
+            public int i;
+            public void * func()
+            {
+                mgr.tasklet_get_full_etp(work, i);
+                return null;
+            }
+        }
+        private void tasklet_get_full_etp(GatherEtpSetData work, int i)
+        {
+            IAddressManagerStub stub = work.stubs[i];
+            IQspnEtpMessage? resp = null;
+            try {
+                int arc_id = get_arc_id(work.arcs[i]);
+                debug(@"Requesting ETP from arc $(arc_id)");
+                resp = stub.qspn_manager.get_full_etp(work.my_naddr);
+            }
+            catch (QspnBootstrapInProgressError e) {
+                debug("Got QspnBootstrapInProgressError. Give up.");
+                // Give up this tasklet. The neighbor will start a flood when its bootstrap is complete.
+                return;
+            }
+            catch (StubError e) {
+                debug("Got StubError. Remove arc.");
+                // failed arc
+                work.failed_arc_handler(work.arcs[i]);
+                return;
+            }
+            catch (QspnNotAcceptedError e) {
+                debug("Got NotAcceptedError. Remove arc.");
+                // failed arc
+                work.failed_arc_handler(work.arcs[i]);
+                return;
+            }
+            catch (DeserializeError e) {
+                debug("Got DeserializeError. Remove arc.");
+                // failed arc
+                work.failed_arc_handler(work.arcs[i]);
+                return;
+            }
+            if (! (resp is EtpMessage))
+            {
+                debug("Got wrong class. Remove arc.");
+                // The module only knows this class that implements IQspnEtpMessage, so this
+                //  should not happen. But the rest of the code, who knows? So to be sure
+                //  we check. If it is the case, remove the arc.
+                work.failed_arc_handler(work.arcs[i]);
+                return;
+            }
+            EtpMessage m = (EtpMessage) resp;
+            if (!check_incoming_message(m))
+            {
+                debug("Got bad parameters. Remove arc.");
+                // We check the correctness of a message from another node.
+                // If the message is junk, remove the arc.
+                work.failed_arc_handler(work.arcs[i]);
+                return;
+            }
+
+            debug("Got one.");
+            PairArcEtp res = new PairArcEtp(m, work.arcs[i]);
+            work.results.add(res);
         }
 
         private void get_first_etps()
@@ -1550,7 +1654,7 @@ namespace Netsukuku
                     catch (AcyclicError e)
                     {
                         // This should not happen.
-                        log_warn(@"QspnManager: arc_changed: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
+                        warning(@"QspnManager: arc_changed: the neighbor with arc $(arc_m_id) produced an ETP with a cycle.");
                         // ignore this etp
                     }
                 }
@@ -1570,20 +1674,28 @@ namespace Netsukuku
                 // Process queued events if any.
                 foreach (IQspnArc arc in queued_arcs)
                 {
-                    IAddressManagerRootDispatcher disp_get_etp =
+                    IAddressManagerStub stub_get_etp =
                             stub_factory.i_qspn_get_tcp(arc);
                     IQspnEtpMessage? resp = null;
                     try {
                         debug("Requesting ETP from queued arc");
-                        resp = disp_get_etp.qspn_manager.get_full_etp(my_naddr);
+                        resp = stub_get_etp.qspn_manager.get_full_etp(my_naddr);
                     }
                     catch (QspnBootstrapInProgressError e) {
                         debug("Got QspnBootstrapInProgressError. Give up.");
                         // Give up. The neighbor will start a flood when its bootstrap is complete.
                         return;
                     }
-                    catch (RPCError e) {
-                        debug("Got RPCError. Remove queued arc.");
+                    catch (StubError e) {
+                        debug("Got StubError. Remove queued arc.");
+                        // remove failed arc and emit signal
+                        arc_remove(arc);
+                        // emit signal
+                        arc_removed(arc);
+                        return;
+                    }
+                    catch (DeserializeError e) {
+                        warning(@"calling get_full_etp: Got Deserialize error: $(e.message)");
                         // remove failed arc and emit signal
                         arc_remove(arc);
                         // emit signal
@@ -1633,7 +1745,7 @@ namespace Netsukuku
                     catch (AcyclicError e)
                     {
                         // This should not happen.
-                        log_warn("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
+                        warning("QspnManager: arc_add: the neighbor produced an ETP with a cycle.");
                         return;
                     }
                     // Update my map. Collect changed paths but this is not needed here.
@@ -1650,48 +1762,57 @@ namespace Netsukuku
 
                 // prepare ETP and send to all my neighbors.
                 EtpMessage full_etp = prepare_full_etp();
-                IAddressManagerRootDispatcher disp_send_to_all =
+                IAddressManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(full_etp));
-                    disp_send_to_all.qspn_manager.send_etp(full_etp, true);
+                    stub_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.get_first_etps: RPCError in send to broadcast to all: $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.get_first_etps: StubError in send to broadcast to all: $(e.message)");
                 }
             }
         }
 
         /** Periodically update full
           */
+        [NoReturn]
         private void periodical_update()
         {
             while (true)
             {
-                ms_wait(600000); // 10 minutes
+                tasklet.ms_wait(600000); // 10 minutes
                 EtpMessage full_etp = prepare_full_etp();
-                IAddressManagerRootDispatcher disp_send_to_all =
+                IAddressManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(full_etp));
-                    disp_send_to_all.qspn_manager.send_etp(full_etp, true);
+                    stub_send_to_all.qspn_manager.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.periodical_update: RPCError in send to broadcast to all: $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.periodical_update: StubError in send to broadcast to all: $(e.message)");
                 }
             }
         }
@@ -2147,20 +2268,14 @@ namespace Netsukuku
                                         bp = np;
                                 }
                             }
-                            SignalSplitTask task = new SignalSplitTask();
-                            task.fp_eldest = fp_eldest;
-                            task.fp = fp;
-                            task.bp_eldest = bp_eldest;
-                            task.bp = bp;
-                            task.d = d;
-                            Tasklet.tasklet_callback(
-                                (_qspnmgr, _task) => {
-                                    ((QspnManager)_qspnmgr)
-                                        .signal_split((SignalSplitTask )_task);
-                                },
-                                this,
-                                task
-                                );
+                            SignalSplitTasklet ts = new SignalSplitTasklet();
+                            ts.mgr = this;
+                            ts.fp_eldest = fp_eldest;
+                            ts.fp = fp;
+                            ts.bp_eldest = bp_eldest;
+                            ts.bp = bp;
+                            ts.d = d;
+                            tasklet.spawn(ts);
                         }
                     }
                 }
@@ -2170,33 +2285,44 @@ namespace Netsukuku
         {
             foreach (EtpPath p in all_paths_set) prepare_path_step_2(p);
         }
-        private class SignalSplitTask : Object
+        private class SignalSplitTasklet : Object, INtkdTaskletSpawnable
         {
+            public QspnManager mgr;
             public IQspnFingerprint fp_eldest;
             public IQspnFingerprint fp;
             public NodePath bp_eldest;
             public NodePath bp;
             public HCoord d;
+            public void * func()
+            {
+                mgr.signal_split(fp_eldest, fp, bp_eldest, bp, d);
+                return null;
+            }
         }
-        private void signal_split(SignalSplitTask task)
+        private void signal_split(
+                IQspnFingerprint fp_eldest,
+                IQspnFingerprint fp,
+                NodePath bp_eldest,
+                NodePath bp,
+                HCoord d)
         {
-            PairFingerprints pair = new PairFingerprints(task.fp_eldest, task.fp);
+            PairFingerprints pair = new PairFingerprints(fp_eldest, fp);
             if (pair in pending_gnode_split) return;
             pending_gnode_split.add(pair);
             int threshold_msec =
                 threshold_calculator
                 .i_qspn_calculate_threshold
-                (get_ret_path(task.bp_eldest),
-                 get_ret_path(task.bp));
-            ms_wait(threshold_msec);
+                (get_ret_path(bp_eldest),
+                 get_ret_path(bp));
+            tasklet.ms_wait(threshold_msec);
             pending_gnode_split.remove(pair);
-            if (destinations[task.d.lvl].has_key(task.d.pos))
+            if (destinations[d.lvl].has_key(d.pos))
             {
-                Destination _d = destinations[task.d.lvl][task.d.pos];
+                Destination _d = destinations[d.lvl][d.pos];
                 bool present = false;
                 foreach (NodePath np in _d.paths)
                 {
-                    if (np.path.fingerprint.i_qspn_equals(task.fp_eldest))
+                    if (np.path.fingerprint.i_qspn_equals(fp_eldest))
                     {
                         present = true;
                         break;
@@ -2207,14 +2333,14 @@ namespace Netsukuku
                     foreach (IQspnArc a in my_arcs)
                     {
                         HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
-                        if (v.equals(task.d))
+                        if (v.equals(d))
                         {
                             foreach (NodePath np in _d.paths)
                             {
                                 if (np.arc.i_qspn_equals(a))
                                 {
-                                    if (np.path.fingerprint.i_qspn_equals(task.fp))
-                                        gnode_splitted(a, task.d, task.fp);
+                                    if (np.path.fingerprint.i_qspn_equals(fp))
+                                        gnode_splitted(a, d, fp);
                                     break;
                                 }
                             }
@@ -2228,17 +2354,24 @@ namespace Netsukuku
         //  a gnode split has been detected for the first time.
         internal void spawn_flood_first_detection_split(Collection<HCoord> b_set)
         {
-            Tasklet.tasklet_callback((_qspnmgr, _b_set) => {
-                    QspnManager qspnmgr = (QspnManager)_qspnmgr;
-                    qspnmgr.start_flood_first_detection_split((Collection<HCoord>)_b_set);
-                },
-                this,
-                b_set
-                );
+            FirstDetectionSplitTasklet ts = new FirstDetectionSplitTasklet();
+            ts.mgr = this;
+            ts.b_set = b_set;
+            tasklet.spawn(ts);
+        }
+        private class FirstDetectionSplitTasklet : Object, INtkdTaskletSpawnable
+        {
+            public QspnManager mgr;
+            public Collection<HCoord> b_set;
+            public void * func()
+            {
+                mgr.start_flood_first_detection_split(b_set);
+                return null;
+            }
         }
         internal void start_flood_first_detection_split(Collection<HCoord> b_set)
         {
-            ms_wait(500);
+            tasklet.ms_wait(500);
             var etp_paths = new ArrayList<EtpPath>();
             foreach (HCoord g in b_set)
             {
@@ -2255,21 +2388,25 @@ namespace Netsukuku
             }
             if (etp_paths.is_empty) return;
             EtpMessage new_etp = prepare_new_etp(etp_paths);
-            IAddressManagerRootDispatcher disp_send_to_all =
+            IAddressManagerStub stub_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
             try {
                 assert(check_outgoing_message(new_etp));
-                disp_send_to_all.qspn_manager.send_etp(new_etp, false);
+                stub_send_to_all.qspn_manager.send_etp(new_etp, false);
             }
             catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
             }
-            catch (RPCError e) {
-                log_error(@"QspnManager.flood_first_detection_split: RPCError in send to broadcast to all: $(e.message)");
+            catch (DeserializeError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (StubError e) {
+                critical(@"QspnManager.flood_first_detection_split: StubError in send to broadcast to all: $(e.message)");
             }
         }
 
@@ -2388,19 +2525,49 @@ namespace Netsukuku
 
         /* Remotable methods
          */
+        internal class Timer : Object
+        {
+            private TimeVal start;
+            private long msec_ttl;
+            public Timer(long msec_ttl)
+            {
+                start = TimeVal();
+                start.get_current_time();
+                this.msec_ttl = msec_ttl;
+            }
+
+            private long get_lap()
+            {
+                TimeVal lap = TimeVal();
+                lap.get_current_time();
+                long sec = lap.tv_sec - start.tv_sec;
+                long usec = lap.tv_usec - start.tv_usec;
+                if (usec < 0)
+                {
+                    usec += 1000000;
+                    sec--;
+                }
+                return sec*1000000 + usec;
+            }
+
+            public bool is_expired()
+            {
+                return get_lap() > msec_ttl*1000;
+            }
+        }
 
         public IQspnEtpMessage
         get_full_etp(IQspnAddress requesting_address,
-                     zcd.CallerInfo? _rpc_caller=null)
+                     zcd.ModRpc.CallerInfo? _rpc_caller=null)
         throws QspnNotAcceptedError, QspnBootstrapInProgressError
         {
             if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
 
             assert(_rpc_caller != null);
-            CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
+            zcd.ModRpc.CallerInfo rpc_caller = (zcd.ModRpc.CallerInfo)_rpc_caller;
             // The message comes from this arc.
             IQspnArc? arc = null;
-            Tasklets.Timer t = new Tasklets.Timer(arc_timeout);
+            Timer t = new Timer(arc_timeout);
             while (true)
             {
                 foreach (IQspnArc _arc in my_arcs)
@@ -2413,7 +2580,7 @@ namespace Netsukuku
                 }
                 if (arc != null) break;
                 if (t.is_expired()) break;
-                ms_wait(arc_timeout / 10);
+                tasklet.ms_wait(arc_timeout / 10);
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
@@ -2455,13 +2622,13 @@ namespace Netsukuku
             return ret;
         }
 
-        public void send_etp(IQspnEtpMessage m, bool is_full, zcd.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
+        public void send_etp(IQspnEtpMessage m, bool is_full, zcd.ModRpc.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
         {
             assert(_rpc_caller != null);
             CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
             // The message comes from this arc.
             IQspnArc? arc = null;
-            Tasklets.Timer t = new Tasklets.Timer(arc_timeout);
+            Timer t = new Timer(arc_timeout);
             while (true)
             {
                 foreach (IQspnArc _arc in my_arcs)
@@ -2474,7 +2641,7 @@ namespace Netsukuku
                 }
                 if (arc != null) break;
                 if (t.is_expired()) break;
-                ms_wait(arc_timeout / 10);
+                tasklet.ms_wait(arc_timeout / 10);
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
@@ -2546,7 +2713,7 @@ namespace Netsukuku
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
-                IAddressManagerRootDispatcher disp_send_to_others =
+                IAddressManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
@@ -2555,23 +2722,20 @@ namespace Netsukuku
                 debug("Forward ETP to all but the sender");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    disp_send_to_others.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_others.qspn_manager.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
                     assert_not_reached();
                 }
-                catch (RPCError e) {
-                    log_error(@"QspnManager.got_etp_from_arc: RPCError in send to broadcast except arc $(arc_id): $(e.message)");
+                catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                }
+                catch (StubError e) {
+                    critical(@"QspnManager.got_etp_from_arc: StubError in send to broadcast except arc $(arc_id): $(e.message)");
                 }
             }
         }
     }
-
-    // Defining extern functions.
-    // Do not make them 'public', because they are not exposed by this
-    // module (convenience library), but instead the module use them
-    // as they are provided by the core app.
-    extern void log_warn(string msg);
-    extern void log_error(string msg);
 }

@@ -16,23 +16,8 @@
  *  along with Netsukuku.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Tasklets;
 using Gee;
-using zcd;
-using Netsukuku;
 using Test;
-
-namespace Netsukuku
-{
-    public void    log_debug(string msg)   {print(msg+"\n");}
-    public void    log_trace(string msg)   {print(msg+"\n");}
-    public void  log_verbose(string msg)   {print(msg+"\n");}
-    public void     log_info(string msg)   {print(msg+"\n");}
-    public void   log_notice(string msg)   {print(msg+"\n");}
-    public void     log_warn(string msg)   {print(msg+"\n");}
-    public void    log_error(string msg)   {print(msg+"\n");}
-    public void log_critical(string msg)   {print(msg+"\n");}
-}
 
 errordomain PickAnotherAddressError
 {
@@ -444,13 +429,6 @@ int max_arcs;
 string[] topology;
 bool serialize;
 bool savegml;
-
-Address make_address(int[] ar)
-{
-    ArrayList<int> p = new ArrayList<int>();
-    p.add_all_array(ar);
-    return new Address(p);
-}
 
 int main(string[] args)
 {
