@@ -1252,7 +1252,7 @@ namespace Netsukuku
         }
         private void prepare_path_step_2(EtpPath p)
         {
-            // Set values for ignore_ouside.
+            // Set values for ignore_outside.
             p.ignore_outside = new ArrayList<bool>();
             p.ignore_outside.add(false);
             for (int i = 1; i < levels; i++)
@@ -1295,7 +1295,7 @@ namespace Netsukuku
                     else
                     {
                         bool same = false;
-                        if (best_to_arc.path.hops.size == j-1)
+                        if (best_to_arc.path.hops.size == j+1)
                         {
                             same = true;
                             for (int k = 0; k < j; k++)
