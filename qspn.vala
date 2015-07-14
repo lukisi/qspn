@@ -2648,11 +2648,6 @@ namespace Netsukuku
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
-            got_etp_from_arc(m, arc, is_full);
-        }
-
-        private void got_etp_from_arc(IQspnEtpMessage m, IQspnArc arc, bool is_full)
-        {
             // during bootstrap add the arc to queued_arcs and then return
             if (!bootstrap_complete)
             {
@@ -2737,7 +2732,7 @@ namespace Netsukuku
                     assert_not_reached();
                 }
                 catch (StubError e) {
-                    critical(@"QspnManager.got_etp_from_arc: StubError in send to broadcast except arc $(arc_id): $(e.message)");
+                    critical(@"QspnManager.send_etp: StubError in send to broadcast except arc $(arc_id): $(e.message)");
                 }
             }
         }
