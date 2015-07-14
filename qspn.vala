@@ -715,7 +715,6 @@ namespace Netsukuku
 
         private void on_bootstrap_complete()
         {
-            debug("Event qspn_bootstrap_complete");
             // start in a tasklet the periodical send of full updates.
             PeriodicalUpdateTasklet ts = new PeriodicalUpdateTasklet();
             ts.t = this;
@@ -2161,6 +2160,7 @@ namespace Netsukuku
                         }
                     }
                 }
+                od_set = rd;
                 // populate collections
                 foreach (NodePath p in od_set)
                 {
