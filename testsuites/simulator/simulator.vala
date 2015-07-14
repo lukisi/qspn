@@ -20,15 +20,35 @@ using Gee;
 using Netsukuku;
 using Netsukuku.ModRpc;
 
-void print_object(Object obj)
+string json_string_object(Object obj)
 {
-    print(@"$(obj.get_type().name())\n");
     Json.Node n = Json.gobject_serialize(obj);
     Json.Generator g = new Json.Generator();
     g.root = n;
     g.pretty = true;
-    string t = g.to_data(null);
+    string ret = g.to_data(null);
+    return ret;
+}
+
+void print_object(Object obj)
+{
+    print(@"$(obj.get_type().name())\n");
+    string t = json_string_object(obj);
     print(@"$(t)\n");
+}
+
+Object dup_object(Object obj)
+{
+    print(@"dup_object...\n");
+    Type type = obj.get_type();
+    string t = json_string_object(obj);
+    Json.Parser p = new Json.Parser();
+    try {
+        assert(p.load_from_data(t));
+    } catch (Error e) {assert_not_reached();}
+    Object ret = Json.gobject_deserialize(type, p.get_root());
+    print(@"dup_object done.\n");
+    return ret;
 }
 
 class FakeArc : Object, IQspnArc
@@ -91,13 +111,19 @@ class FakeBroadcastClient : FakeAddressManagerStub
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, bool is_full)
+    (IQspnEtpMessage _etp, bool is_full)
     throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
         print("broadcast send_etp\n");
+        check_etp_hops(_etp);
+        IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
+        check_etp_hops(etp);
+        print("now etp =\n");
         print_object(etp);
         foreach (FakeArc target_arc in target_arcs)
         {
+            // we must dup for each target arc (obviously)
+            etp = (IQspnEtpMessage)dup_object(_etp);
             QspnManager target_mgr = target_arc.neighbour_qspnmgr;
             string my_ip = target_arc.my_nic_addr;
             var caller = new Netsukuku.ModRpc.BroadcastCallerInfo
@@ -137,26 +163,36 @@ class FakeTCPClient : FakeAddressManagerStub
     }
 
     public override IQspnEtpMessage get_full_etp
-    (IQspnAddress my_naddr)
+    (IQspnAddress _my_naddr)
     throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
-        print("tcp get_full_etp\n");
-        print_object(my_naddr);
+        print("calling tcp get_full_etp\n");
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         string neigh_ip = target_arc.neighbour_nic_addr;
         var caller = new zcd.ModRpc.TcpCallerInfo
                      (neigh_ip, my_ip);
         tasklet.schedule();
+        print("executing get_full_etp\n");
+        IQspnAddress my_naddr = (IQspnAddress)dup_object(_my_naddr);
         IQspnEtpMessage ret = target_mgr.get_full_etp(my_naddr, caller);
+        ret = (IQspnEtpMessage)dup_object(ret);
+        print("now ret =\n");
+        print_object(ret);
+        check_etp_hops(ret);
         return ret;
     }
 
     public override void send_etp
-    (IQspnEtpMessage etp, bool is_full)
+    (IQspnEtpMessage _etp, bool is_full)
     throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
         print("tcp send_etp\n");
+        check_etp_hops(_etp);
+        IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
+        check_etp_hops(etp);
+        print("now etp =\n");
+        print_object(etp);
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         string neigh_ip = target_arc.neighbour_nic_addr;
@@ -177,6 +213,7 @@ class FakeStubFactory : Object, IQspnStubFactory
                         IQspnArc? ignore_neighbor=null
                     )
     {
+        print(@"node ...$(sn.naddr.pos[0]) is sending broadcast to ...\n");
         var target_arcs = new ArrayList<FakeArc>();
         foreach (IQspnArc _arc in sn.arcs)
         {
@@ -185,6 +222,7 @@ class FakeStubFactory : Object, IQspnStubFactory
                 && arc.i_qspn_equals(ignore_neighbor))
                 continue;
             target_arcs.add(arc);
+            print(@" ...$(arc.naddr.pos[0])\n");
         }
         BroadcastID bcid = new BroadcastID();
         bcid.ignore_nodeid = null; // trick, anyway the arc of 'ignore_neighbor' is already left out.
@@ -234,13 +272,369 @@ class SimulatorNode : Object
     }
 }
 
-INtkdTasklet tasklet;
-void main()
+class NodeData : Object
 {
-    const int max_paths = 4;
-    const double max_common_hops_ratio = 0.7;
-    const int arc_timeout = 3000;
+    public string name;
+    public ArrayList<int> positions;
+    public ArrayList<int> elderships;
+    public ArrayList<ArcData> arcs;
+    public SimulatorNode sn;
+}
 
+class ArcData : Object
+{
+    public string to_name;
+    public int cost;
+    public int revcost;
+}
+
+string[] read_file(string path)
+{
+    string[] ret = new string[0];
+    if (FileUtils.test(path, FileTest.EXISTS))
+    {
+        try {
+            string contents;
+            assert(FileUtils.get_contents(path, out contents));
+            ret = contents.split("\n");
+        } catch (FileError e) {
+            error("%s: %d: %s".printf(e.domain.to_string(), e.code, e.message));
+        }
+    }
+    return ret;
+}
+
+const int max_paths = 4;
+const double max_common_hops_ratio = 0.7;
+const int arc_timeout = 3000;
+
+void activate_node(HashMap<string, NodeData> nodes, string k, ArrayList<int> gsizes)
+{
+    NodeData nd = nodes[k];
+    nd.sn = new SimulatorNode("eth0", new FakeGenericNaddr(nd.positions.to_array(), gsizes.to_array()));
+    var fp = new FakeFingerprint(nd.elderships.to_array());
+    nd.sn.stub_f = new FakeStubFactory(); nd.sn.stub_f.sn = nd.sn;
+    var threshold_c = new FakeThresholdCalculator();
+    foreach (ArcData ad in nd.arcs)
+    {
+        nd.sn.add_arc(nodes[ad.to_name].sn, ad.cost);
+    }
+    nd.sn.mgr = new QspnManager(nd.sn.naddr, max_paths, max_common_hops_ratio, arc_timeout, nd.sn.arcs, fp, threshold_c, nd.sn.stub_f);
+    foreach (ArcData ad in nd.arcs)
+    {
+        tasklet.ms_wait(100);
+        nodes[ad.to_name].sn.mgr.arc_add(nodes[ad.to_name].sn.add_arc(nd.sn, ad.revcost));
+    }
+    while (true)
+    {
+        if (nd.sn.mgr.is_bootstrap_complete()) break;
+        tasklet.ms_wait(10);
+    }
+}
+
+void test0()
+{
+    int levels = 1;
+    ArrayList<int> gsizes = new ArrayList<int>.wrap({10});
+    HashMap<string, NodeData> nodes = new HashMap<string, NodeData>();
+
+    {
+        NodeData nd = new NodeData();
+        nd.name = "1";
+        nd.positions = new ArrayList<int>.wrap({1});
+        nd.elderships = new ArrayList<int>.wrap({0});
+        nd.arcs = new ArrayList<ArcData>.wrap({});
+        nodes[nd.name] = nd;
+    }
+    {
+        NodeData nd = new NodeData();
+        nd.name = "2";
+        nd.positions = new ArrayList<int>.wrap({2});
+        nd.elderships = new ArrayList<int>.wrap({1});
+        ArcData ad0 = new ArcData();
+        ad0.to_name = "1";
+        ad0.cost = 854;
+        ad0.revcost = 533;
+        nd.arcs = new ArrayList<ArcData>.wrap({ad0});
+        nodes[nd.name] = nd;
+    }
+
+    foreach (string k in new ArrayList<string>.wrap({"1", "2"}))
+    {
+        activate_node(nodes, k, gsizes);
+        print(@"node $(k): bootstrap complete\n");
+        print(@"node $(k): waiting for more messages...\n");
+        tasklet.ms_wait(400);
+        print(@"node $(k): that's enough.\n");
+    }
+
+    TestMapTasklet ts1 = new TestMapTasklet();
+    ts1.mgr = nodes["1"].sn.mgr;
+    ts1.my_naddr = new FakeGenericNaddr(nodes["1"].positions.to_array(), gsizes.to_array());
+    ts1.dest = new HCoord(0, 2);
+    tasklet.spawn(ts1);
+
+    TestMapTasklet ts2 = new TestMapTasklet();
+    ts2.mgr = nodes["2"].sn.mgr;
+    ts2.my_naddr = new FakeGenericNaddr(nodes["2"].positions.to_array(), gsizes.to_array());
+    ts2.dest = new HCoord(0, 1);
+    tasklet.spawn(ts2);
+
+    {
+        try {
+            QspnManager mgr = nodes["1"].sn.mgr;
+            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
+            print(@"node 1 to reach 2 knows $(lst.size) paths.\n");
+            assert(lst.size == 1);
+            IQspnNodePath p = lst[0];
+            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
+            print(@"the path has $(lsth.size) hops.\n");
+            assert(lsth.size == 1);
+            IQspnHop h = lsth[0];
+            int h_pos = h.i_qspn_get_naddr().i_qspn_get_pos(0);
+            assert(h_pos == 2);
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // every node has completed bootstrap
+        }
+    }
+
+    {
+        NodeData nd = new NodeData();
+        nd.name = "3";
+        nd.positions = new ArrayList<int>.wrap({3});
+        nd.elderships = new ArrayList<int>.wrap({2});
+        ArcData ad0 = new ArcData();
+        ad0.to_name = "1";
+        ad0.cost = 1125;
+        ad0.revcost = 1047;
+        ArcData ad1 = new ArcData();
+        ad1.to_name = "2";
+        ad1.cost = 987;
+        ad1.revcost = 1011;
+        nd.arcs = new ArrayList<ArcData>.wrap({ad0, ad1});
+        nodes[nd.name] = nd;
+    }
+    {
+        activate_node(nodes, "3", gsizes);
+        print(@"node 3: bootstrap complete\n");
+        print(@"node 3: waiting for more messages...\n");
+        tasklet.ms_wait(400);
+        print(@"node 3: waiting for more messages...\n");
+        tasklet.ms_wait(400);
+        print(@"node 3: that's enough.\n");
+
+        try {
+            QspnManager mgr = nodes["1"].sn.mgr;
+            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
+            print(@"node 1 to reach 2 knows $(lst.size) paths.\n");
+            // It could be 2 or less, because of the order with which the paths are examined
+            // a path might be discarded if a hop is not yet in 'destinations'.
+            assert(lst.size <= 2);
+            assert(lst.size > 0);
+            IQspnNodePath p = lst[0];
+            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
+            print(@"first path has $(lsth.size) hops.\n");
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // every node has completed bootstrap
+        }
+    }
+
+}
+
+void test_file(string fname)
+{
+    // read data
+    int levels;
+    ArrayList<int> gsizes = new ArrayList<int>();
+    HashMap<string, NodeData> nodes = new HashMap<string, NodeData>();
+    ArrayList<string> keys_list = new ArrayList<string>();
+    string[] data = read_file(fname);
+    int data_cur = 0;
+    while (data[data_cur] != "topology") data_cur++;
+    data_cur++;
+    string s_topology = data[data_cur];
+    string[] s_topology_pieces = s_topology.split(" ");
+    levels = s_topology_pieces.length;
+    foreach (string s_piece in s_topology_pieces) gsizes.insert(0, int.parse(s_piece));
+    while (true)
+    {
+        bool eof = false;
+        while (data[data_cur] != "node")
+        {
+            data_cur++;
+            if (data_cur >= data.length)
+            {
+                eof = true;
+                break;
+            }
+        }
+        if (eof) break;
+        data_cur++;
+        string s_addr = data[data_cur++];
+        string s_elderships = data[data_cur++];
+        string[] arcs_addr = {};
+        int[] arcs_cost = {};
+        int[] arcs_revcost = {};
+        while (data[data_cur] != "")
+        {
+            string line = data[data_cur];
+            string[] line_pieces = line.split(" ");
+            if (line_pieces[0] == "arc")
+            {
+                assert(line_pieces[1] == "to");
+                arcs_addr += line_pieces[2];
+                assert(line_pieces[3] == "cost");
+                arcs_cost += int.parse(line_pieces[4]);
+                assert(line_pieces[5] == "revcost");
+                arcs_revcost += int.parse(line_pieces[6]);
+            }
+            data_cur++;
+        }
+        // data input done
+        NodeData nd = new NodeData();
+        nd.name = s_addr;
+        nd.positions = new ArrayList<int>();
+        nd.elderships = new ArrayList<int>();
+        nd.arcs = new ArrayList<ArcData>();
+        foreach (string s_piece in s_addr.split(".")) nd.positions.insert(0, int.parse(s_piece));
+        foreach (string s_piece in s_elderships.split(" ")) nd.elderships.insert(0, int.parse(s_piece));
+        for (int i = 0; i < arcs_addr.length; i++)
+        {
+            ArcData ad = new ArcData();
+            ad.to_name = arcs_addr[i];
+            ad.cost = arcs_cost[i];
+            ad.revcost = arcs_revcost[i];
+            nd.arcs.add(ad);
+        }
+        nodes[nd.name] = nd;
+        keys_list.add(nd.name);
+    }
+
+    // activate and wait the bootstrap for each node
+    foreach (string k in keys_list)
+    {
+        NodeData nd = nodes[k];
+        nd.sn = new SimulatorNode("eth0", new FakeGenericNaddr(nd.positions.to_array(), gsizes.to_array()));
+        var fp = new FakeFingerprint(nd.elderships.to_array());
+        nd.sn.stub_f = new FakeStubFactory(); nd.sn.stub_f.sn = nd.sn;
+        var threshold_c = new FakeThresholdCalculator();
+        foreach (ArcData ad in nd.arcs)
+        {
+            nd.sn.add_arc(nodes[ad.to_name].sn, ad.cost);
+        }
+        nd.sn.mgr = new QspnManager(nd.sn.naddr, max_paths, max_common_hops_ratio, arc_timeout, nd.sn.arcs, fp, threshold_c, nd.sn.stub_f);
+        foreach (ArcData ad in nd.arcs)
+        {
+            tasklet.ms_wait(100);
+            nodes[ad.to_name].sn.mgr.arc_add(nodes[ad.to_name].sn.add_arc(nd.sn, ad.revcost));
+        }
+        while (true)
+        {
+            if (nd.sn.mgr.is_bootstrap_complete()) break;
+            tasklet.ms_wait(10);
+        }
+        print(@"node $(k): bootstrap complete\n");
+        print(@"node $(k): waiting for more messages...\n");
+        tasklet.ms_wait(200);
+        print(@"node $(k): presume that's enough.\n");
+        print(@"node $(k): any more ...?\n");
+        tasklet.ms_wait(200);
+        print(@"node $(k): that's enough.\n");
+    }
+
+    tasklet.ms_wait(200);
+    NodeData nd0 = nodes[keys_list[0]];
+    try {
+        for (int l = 1; l <= levels; l++) print(@"node $(nd0.name): at level $(l) we are $(nd0.sn.mgr.get_nodes_inside(l)) nodes.\n");
+    } catch (QspnBootstrapInProgressError e) {
+        assert_not_reached();  // node has completed bootstrap
+    }
+}
+
+void check_etp_hops(IQspnEtpMessage m)
+{
+    string s = json_string_object(m);
+    int from;
+    {
+        int begin = s.index_of("\"node-address\" : {");
+        string needle = "\"pos\" : [";
+        begin = s.index_of(needle, begin);
+        begin += needle.length;
+        int end = s.index_of("]", begin);
+        string v = s.substring(begin, end-begin);
+        from = int.parse(v);
+    }
+    {
+        int begin = s.index_of("\"hops\" : [");
+        int end = s.index_of("]", begin);
+        s = s.substring(begin, end-begin+1);
+    }
+    ArrayList<int> hops = new ArrayList<int>();
+    hops.add(from);
+    while (true)
+    {
+        string needle = "\"pos\" : ";
+        int begin = s.index_of(needle);
+        if (begin < 0) break;
+        begin += needle.length;
+        int end = s.index_of("\n", begin);
+        string v = s.substring(begin, end-begin);
+        hops.add(int.parse(v));
+        s = s.substring(begin);
+    }
+    ArrayList<int> no_dup = new ArrayList<int>();
+    foreach (int h in hops)
+    {
+        if (h in no_dup)
+        {
+            print("dup in hops\n");
+            print_object(m);
+            assert_not_reached();
+        }
+        no_dup.add(h);
+    }
+}
+
+class TestMapTasklet : Object, INtkdTaskletSpawnable
+{
+    public IQspnNaddr my_naddr;
+    public QspnManager mgr;
+    public HCoord dest;
+    private string repr_naddr(IQspnNaddr naddr)
+    {
+        string ret = "";
+        for (int lvl = 0; lvl < naddr.i_qspn_get_levels(); lvl++)
+        {
+            int pos = naddr.i_qspn_get_pos(lvl);
+            ret = @".$(pos)$(ret)";
+        }
+        return ret;
+    }
+    public void * func()
+    {
+        while (true)
+        {
+            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(dest);
+            foreach (IQspnNodePath p in lst)
+            {
+                ArrayList<string> no_dup = new ArrayList<string>();
+                no_dup.add(repr_naddr(my_naddr));
+                Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
+                foreach (IQspnHop h in lsth)
+                {
+                    string hop = repr_naddr(h.i_qspn_get_naddr());
+                    assert(!(hop in no_dup));
+                    no_dup.add(hop);
+                }
+            }
+            tasklet.ms_wait(2);
+        }
+    }
+}
+
+INtkdTasklet tasklet;
+void main(string[] args)
+{
     // init tasklet
     MyTaskletSystem.init();
     tasklet = MyTaskletSystem.get_ntkd();
@@ -248,54 +642,8 @@ void main()
     // pass tasklet system to module qspn
     QspnManager.init(tasklet);
 
-    SimulatorNode sn0 = new SimulatorNode("eth0", new FakeGenericNaddr({1,0,1}, {2,2,2}));
-    var fp = new FakeFingerprint({0,0,0});
-    sn0.stub_f = new FakeStubFactory(); sn0.stub_f.sn = sn0;
-    var threshold_c = new FakeThresholdCalculator();
-    sn0.mgr = new QspnManager(sn0.naddr, max_paths, max_common_hops_ratio, arc_timeout, sn0.arcs, fp, threshold_c, sn0.stub_f);
-    while (true)
-    {
-        if (sn0.mgr.is_bootstrap_complete()) break;
-        tasklet.ms_wait(10);
-    }
-    print("node 0: bootstrap complete\n");
-
-    SimulatorNode sn1 = new SimulatorNode("eth0", new FakeGenericNaddr({0,0,1}, {2,2,2}));
-    fp = new FakeFingerprint({1,0,0});
-    sn1.stub_f = new FakeStubFactory(); sn1.stub_f.sn = sn1;
-    threshold_c = new FakeThresholdCalculator();
-    sn1.add_arc(sn0, 1200);
-    sn1.mgr = new QspnManager(sn1.naddr, max_paths, max_common_hops_ratio, arc_timeout, sn1.arcs, fp, threshold_c, sn1.stub_f);
-    tasklet.ms_wait(200);
-    sn0.mgr.arc_add(sn0.add_arc(sn1, 1050));
-    while (true)
-    {
-        if (sn1.mgr.is_bootstrap_complete()) break;
-        tasklet.ms_wait(10);
-    }
-    print("node 1: bootstrap complete\n");
-
-    SimulatorNode sn2 = new SimulatorNode("eth0", new FakeGenericNaddr({0,1,1}, {2,2,2}));
-    fp = new FakeFingerprint({0,1,0});
-    sn2.stub_f = new FakeStubFactory(); sn2.stub_f.sn = sn2;
-    threshold_c = new FakeThresholdCalculator();
-    sn2.add_arc(sn0, 1200);
-    sn2.mgr = new QspnManager(sn2.naddr, max_paths, max_common_hops_ratio, arc_timeout, sn2.arcs, fp, threshold_c, sn2.stub_f);
-    tasklet.ms_wait(200);
-    sn0.mgr.arc_add(sn0.add_arc(sn2, 1050));
-    while (true)
-    {
-        if (sn2.mgr.is_bootstrap_complete()) break;
-        tasklet.ms_wait(10);
-    }
-    print("node 2: bootstrap complete\n");
-
-    tasklet.ms_wait(200);
-    try {
-        for (int l = 0; l < 3; l++) print(@"node 1: at level $(l) we are $(sn1.mgr.get_nodes_inside(l)) nodes.\n");
-    } catch (QspnBootstrapInProgressError e) {
-        assert_not_reached();  // node 1 has completed bootstrap
-    }
+    test0();
+    //test_file(args[1]);
 
     // end
     MyTaskletSystem.kill();

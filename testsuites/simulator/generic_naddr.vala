@@ -270,9 +270,9 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
 
 public class FakeCost : Object, IQspnCost
 {
-    public long usec_rtt {get; set;}
+    public int64 usec_rtt {get; set;}
 
-    public FakeCost(long usec_rtt)
+    public FakeCost(int64 usec_rtt)
     {
         this.usec_rtt = usec_rtt;
     }
@@ -303,9 +303,9 @@ public class FakeCost : Object, IQspnCost
         if (new_cost.i_qspn_is_null()) return true;
         assert(new_cost is FakeCost);
         FakeCost o = (FakeCost)new_cost;
-        long upper_threshold = (long)(o.usec_rtt * 0.3);
+        int64 upper_threshold = (int64)(o.usec_rtt * 0.3);
         if (o.usec_rtt > usec_rtt + upper_threshold) return true;
-        long lower_threshold = (long)(usec_rtt * 0.3);
+        int64 lower_threshold = (int64)(usec_rtt * 0.3);
         if (o.usec_rtt < usec_rtt - lower_threshold) return true;
         return false;
     }
