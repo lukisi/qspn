@@ -2012,7 +2012,43 @@ namespace Netsukuku
             }
             ArrayList<HCoord> sorted_keys = create_searchable_list_gnodes();
             sorted_keys.add_all(q_by_dest.keys);
-            sorted_keys.sort((a, b) => {return a.lvl - b.lvl;});
+            sorted_keys.sort((d0, d1) => {
+                /*
+                 * Return -1 if d0 should be examined before d1:
+                 *  that is, if d0 has a level lower than d1;
+                 *  or it has the same level 'l' AND
+                 *  the shortest path to d0 has fewer hops of level 'l'
+                 *  than the shortest path to d1.
+                 * Return +1 if d1 should be examined before d0.
+                 * Else, return 0.
+                 */
+                if (d0.lvl < d1.lvl) return -1;
+                if (d0.lvl > d1.lvl) return 1;
+                int l = d0.lvl;
+                ArrayList<NodePath> qd0_set = q_by_dest[d0];
+                qd0_set.sort((np1, np2) => {
+                    // np1 > np2 <=> return +1
+                    IQspnCost c1 = np1.cost;
+                    IQspnCost c2 = np2.cost;
+                    return c1.i_qspn_compare_to(c2);
+                });
+                NodePath best_d0 = qd0_set[0];
+                int hops_in_l_d0 = 0;
+                foreach (HCoord h in best_d0.path.hops) if (h.lvl == l) hops_in_l_d0++;
+                ArrayList<NodePath> qd1_set = q_by_dest[d1];
+                qd1_set.sort((np1, np2) => {
+                    // np1 > np2 <=> return +1
+                    IQspnCost c1 = np1.cost;
+                    IQspnCost c2 = np2.cost;
+                    return c1.i_qspn_compare_to(c2);
+                });
+                NodePath best_d1 = qd1_set[0];
+                int hops_in_l_d1 = 0;
+                foreach (HCoord h in best_d1.path.hops) if (h.lvl == l) hops_in_l_d1++;
+                if (hops_in_l_d0 < hops_in_l_d1) return -1;
+                if (hops_in_l_d0 > hops_in_l_d1) return 1;
+                return 0;
+            });
             foreach (HCoord d in sorted_keys)
             {
                 ArrayList<NodePath> qd_set = q_by_dest[d];
@@ -2093,6 +2129,7 @@ namespace Netsukuku
                         else
                         {
                             toremove = true;
+                            debug(@"Ignoring a path to ($(d.lvl), $(d.pos)) because I do not know yet hop ($(h.lvl), $(h.pos)).");
                             break;
                         }
                     }
