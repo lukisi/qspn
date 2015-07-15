@@ -1,6 +1,7 @@
 using Netsukuku;
 using Netsukuku.ModRpc;
 using Gee;
+using TestSerializeInternals;
 
 namespace Netsukuku
 {
@@ -31,6 +32,10 @@ namespace Netsukuku
 
     public class HCoord : Object
     {
+        public bool equals(HCoord o)
+        {
+            return o.lvl == lvl && o.pos == pos;
+        }
         public int lvl {get; set;}
         public int pos {get; set;}
     }
@@ -116,13 +121,16 @@ void main() {
         assert(i == i2);
 
         // list hcoord
-        Gee.List<HCoord> lh = new ArrayList<HCoord>();
+        Gee.List<HCoord> lh = new ArrayList<HCoord>(/*equal_func*/(a, b) => {
+            return a.equals(b);
+        });
         HCoord el1 = new HCoord(); el1.lvl = 12; el1.pos = 23; lh.add(el1);
         HCoord el2 = new HCoord(); el2.lvl = 1; el2.pos = 2; lh.add(el2);
         Json.Node n_lh = serialize_list_hcoord(lh);
         Gee.List<HCoord> lh2 = deserialize_list_hcoord(n_lh);
         assert(lh.size == lh2.size);
         for (int j = 0; j < lh.size; j++) assert(lh[j].pos == lh2[j].pos);
+        assert(el1 in lh2);
 
         // list etppath
         Gee.List<EtpPath> le = new ArrayList<EtpPath>();

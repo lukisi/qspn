@@ -304,7 +304,7 @@ string[] read_file(string path)
     return ret;
 }
 
-const int max_paths = 4;
+const int max_paths = 8;
 const double max_common_hops_ratio = 0.7;
 const int arc_timeout = 3000;
 
@@ -439,10 +439,48 @@ void test0()
         }
     }
 
+    {
+        NodeData nd = new NodeData();
+        nd.name = "4";
+        nd.positions = new ArrayList<int>.wrap({4});
+        nd.elderships = new ArrayList<int>.wrap({3});
+        ArcData ad0 = new ArcData();
+        ad0.to_name = "3";
+        ad0.cost = 1125;
+        ad0.revcost = 1047;
+        nd.arcs = new ArrayList<ArcData>.wrap({ad0});
+        nodes[nd.name] = nd;
+    }
+    {
+        activate_node(nodes, "4", gsizes);
+        print(@"node 4: bootstrap complete\n");
+        print(@"node 4: waiting for more messages...\n");
+        tasklet.ms_wait(400);
+        print(@"node 4: waiting for more messages...\n");
+        tasklet.ms_wait(400);
+        print(@"node 4: that's enough.\n");
+
+        try {
+            QspnManager mgr = nodes["4"].sn.mgr;
+            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
+            print(@"node 4 to reach 2 knows $(lst.size) paths.\n");
+            // It could be 2 or less, because of the order with which the paths are examined
+            // a path might be discarded if a hop is not yet in 'destinations'.
+            assert(lst.size <= 2);
+            assert(lst.size > 0);
+            IQspnNodePath p = lst[0];
+            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
+            print(@"first path has $(lsth.size) hops.\n");
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // every node has completed bootstrap
+        }
+    }
+
 }
 
-void test_file(string fname)
+void test_file(string[] args)
 {
+    string fname = args[1];
     // read data
     int levels;
     ArrayList<int> gsizes = new ArrayList<int>();
@@ -549,6 +587,29 @@ void test_file(string fname)
     } catch (QspnBootstrapInProgressError e) {
         assert_not_reached();  // node has completed bootstrap
     }
+    if (args.length > 3)
+    {
+        NodeData nd_from = nodes[args[2]];
+        NodeData nd_to = nodes[args[3]];
+        HCoord to_h = new HCoord(0, int.parse(args[3]));
+        Gee.List<IQspnNodePath> to_paths;
+        try {
+            to_paths = nd_from.sn.mgr.get_paths_to(to_h);
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // node has completed bootstrap
+        }
+        print(@"node $(nd_from.name) has $(to_paths.size) paths to reach $(nd_to.name).\n");
+        foreach (IQspnNodePath p in to_paths)
+        {
+            print(args[2]);
+            foreach (IQspnHop hop in p.i_qspn_get_hops())
+            {
+                int h_pos = hop.i_qspn_get_naddr().i_qspn_get_pos(0);
+                print(@" $(h_pos)");
+            }
+            print("\n");
+        }
+    }
 }
 
 void check_etp_hops(IQspnEtpMessage m)
@@ -642,8 +703,8 @@ void main(string[] args)
     // pass tasklet system to module qspn
     QspnManager.init(tasklet);
 
-    test0();
-    //test_file(args[1]);
+    if (args.length > 1) test_file(args);
+    else test0();
 
     // end
     MyTaskletSystem.kill();

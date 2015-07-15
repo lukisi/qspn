@@ -211,7 +211,13 @@ namespace SimulatorInternals
     throws HelperDeserializeError
     {
         ListDeserializer<HCoord> c = new ListDeserializer<HCoord>();
-        return c.deserialize_list_object(property_node);
+        var first_ret = c.deserialize_list_object(property_node);
+        // N.B. list of HCoord must be searchable for the qspn module to work.
+        var ret = new ArrayList<HCoord>(/*equal_func*/(a, b) => {
+            return a.equals(b);
+        });
+        ret.add_all(first_ret);
+        return ret;
     }
 
     internal Json.Node serialize_list_hcoord(Gee.List<HCoord> lst)
