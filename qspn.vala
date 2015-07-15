@@ -2181,9 +2181,14 @@ namespace Netsukuku
                             for (int g2_i = 0; g2_i < p2.path.hops.size-1; g2_i++)
                             {
                                 HCoord g2 = p2.path.hops[g2_i];
+                                int arc_in_g2 = p2.path.arcs[g2_i];
+                                int arc_out_g2 = p2.path.arcs[g2_i+1];
                                 double n_nodes = Math.floor(1.5 * Math.sqrt(num_nodes_inside[g2]));
                                 total_hops += n_nodes;
-                                if (g2 in p1.path.hops) common_hops += n_nodes;
+                                if ( (g2 in p1.path.hops) &&
+                                     (arc_in_g2 in p1.path.arcs) &&
+                                     (arc_out_g2 in p1.path.arcs) )
+                                    common_hops += n_nodes;
                             }
                             if (total_hops > 0.0 && common_hops / total_hops > max_common_hops_ratio)
                             {
