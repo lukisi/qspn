@@ -398,6 +398,7 @@ namespace Netsukuku
         public abstract Gee.List<IQspnHop> i_qspn_get_hops();
         public abstract IQspnCost i_qspn_get_cost();
         public abstract int i_qspn_get_nodes_inside();
+        public abstract bool equals(IQspnNodePath other);
     }
 
     internal class RetHop : Object, IQspnHop
@@ -422,6 +423,22 @@ namespace Netsukuku
         public Gee.List<IQspnHop> i_qspn_get_hops() {return hops;}
         public IQspnCost i_qspn_get_cost() {return cost;}
         public int i_qspn_get_nodes_inside() {return nodes_inside;}
+        public bool equals(IQspnNodePath other)
+        {
+            if (arc.i_qspn_equals(other.i_qspn_get_arc()))
+            {
+                Gee.List<IQspnHop> other_hops = other.i_qspn_get_hops();
+                if (other_hops.size != hops.size) return false;
+                for (int i = 0; i < hops.size; i++)
+                {
+                    IQspnHop hop = hops[i];
+                    IQspnHop other_hop = other_hops[i];
+                    if (hop.i_qspn_get_arc_id() != other_hop.i_qspn_get_arc_id()) return false;
+                }
+                return true;
+            }
+            return false;
+        }
     }
 
     public interface IQspnThresholdCalculator : Object
@@ -998,6 +1015,24 @@ namespace Netsukuku
                 return;
             }
 
+            // manage my_arcs and id_arc_map
+            int changed_arc_id = get_arc_id(changed_arc);
+            assert(changed_arc_id >= 0);
+            // remove old instance, we do not know if it's the same instance
+            my_arcs.remove(changed_arc);
+            my_arcs.add(changed_arc);
+            id_arc_map[changed_arc_id] = changed_arc;
+            // the same change has to be done in all the involved NodePath
+            for (int l = 0; l < levels; l++)
+                foreach (Destination d in destinations[l].values)
+                    foreach (NodePath np in d.paths)
+            {
+                if (np.arc.i_qspn_equals(changed_arc))
+                {
+                    np.arc = changed_arc;
+                }
+            }
+
             // during bootstrap do nothing
             if (!bootstrap_complete)
             {
@@ -1128,6 +1163,7 @@ namespace Netsukuku
                     if (np.arc.i_qspn_equals(removed_arc))
                     {
                         d.paths.remove_at(i);
+                        path_removed(get_ret_path(np));
                         EtpPath p = prepare_path_step_1(np);
                         p.cost = new DeadCost();
                         paths_to_add_to_all_paths.add(p);
