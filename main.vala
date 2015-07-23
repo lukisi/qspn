@@ -347,6 +347,7 @@ int main(string[] args)
     my_arcs = new ArrayList<FakeArc>((a, b) => a.i_qspn_equals(b));
     my_routes = new HashMap<string, Route>();
     my_destinations = new ArrayList<string>();
+    my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
     if (interfaces.length == 0) error("You have to handle some NICs (option -i)");
     nic_addr_map = new HashMap<string, string>();
     foreach (string dev_def in interfaces)
@@ -808,7 +809,6 @@ void update_routes_to_dest(HCoord h)
     }
     DispatchableTasklet dt = my_destinations_dispatchers[dest];
     UpdateRoutesTasklet ts = new UpdateRoutesTasklet();
-    ts.dest = dest;
     ts.d = d;
     dt.dispatch(ts);
 }
@@ -847,7 +847,6 @@ class NeighborData : Object
 
 class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
 {
-    public string dest;
     public IQspnPartialNaddr d;
     public void * func()
     {
@@ -906,16 +905,49 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             }
             if (completed) break;
         }
-        // TODO
-        /*
-   * richiedere al qspn_manager l'elenco delle path verso la destinazione,
-     cercare la migliore in assoluto e per ogni prevmac la migliore
-     che non passa mai per il suo g-nodo. Esprimerle in una mappa new_routes
-     fatta come la my_routes.
-   * sulla base degli oggetti Route presenti in my_routes e in new_routes,
-     effettuare sul s.o. le operazioni per aggiornare le rotte nel kernel.
-   * modificare gli elementi di my_routes per renderli come new_routes.
-        */
+        ArrayList<string> suffixes = new ArrayList<string>();
+        suffixes.add("main");
+        foreach (NeighborData neighbor in neighbors) suffixes.add(neighbor.mac);
+        foreach (string suffix in suffixes)
+        {
+            string k = @"$(dest)_$(suffix)";
+            if (k in new_routes.keys)
+            {
+                if (k in my_routes.keys)
+                {
+                    // change?
+                    Route old_r = my_routes[k];
+                    Route new_r = new_routes[k];
+                    if (new_r.dev != old_r.dev || new_r.gw != old_r.gw)
+                    {
+                        // change
+                        print(@"Change in table $(suffix) route to $(dest) via $(new_r.gw) dev $(new_r.dev)\n");
+                        my_routes[k] = new_routes[k];
+                    }
+                }
+                else
+                {
+                    // add
+                    Route new_r = new_routes[k];
+                    print(@"Add in table $(suffix) route to $(dest) via $(new_r.gw) dev $(new_r.dev)\n");
+                    my_routes[k] = new_routes[k];
+                }
+            }
+            else
+            {
+                if (k in my_routes.keys)
+                {
+                    // remove
+                    Route old_r = my_routes[k];
+                    print(@"Delete in table $(suffix) route to $(dest) via $(old_r.gw) dev $(old_r.dev)\n");
+                    my_routes.unset(k);
+                }
+                else
+                {
+                    // nothing
+                }
+            }
+        }
         return null;
     }
 }
