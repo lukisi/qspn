@@ -2553,7 +2553,7 @@ namespace Netsukuku
                 {
                     my_nodes_inside[i] = new_nn;
                     changes_in_my_gnodes = true;
-                    changed_fp(i);
+                    changed_nodes_inside(i);
                 }
             }
         }
