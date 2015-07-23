@@ -2558,6 +2558,18 @@ namespace Netsukuku
             }
         }
 
+        /** Provides a collection of known destinations
+          */
+        public Gee.List<HCoord> get_known_destinations() throws QspnBootstrapInProgressError
+        {
+            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
+            var ret = new ArrayList<HCoord>();
+            for (int l = 0; l < levels; l++)
+                foreach (Destination d in destinations[l].values)
+                    ret.add(d.dest);
+            return ret;
+        }
+
         /** Provides a collection of known paths to a destination
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
