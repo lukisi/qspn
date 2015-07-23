@@ -397,6 +397,30 @@ int main(string[] args)
         t_tcp_map[dev] = Netsukuku.ModRpc.tcp_listen(dlg, err, ntkd_port, nic_addr);
     }
 
+    // Add addresses:
+    my_addresses = new ArrayList<string>();
+    //  * base
+    my_addresses.add(dotted_form(my_naddr, -1, false, true));
+    //  * base (anonymous form)
+    my_addresses.add(dotted_form(my_naddr, -1, true, true));
+    for (int inside_level = my_naddr.i_qspn_get_levels() - 1; inside_level > 0; inside_level--)
+    {
+        //  * internal in inside_level
+        my_addresses.add(dotted_form(my_naddr, inside_level, false, true));
+        //  * internal in inside_level (anonymous form)
+        my_addresses.add(dotted_form(my_naddr, inside_level, true, true));
+    }
+    foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
+    {
+        try {
+            string cmd = @"ip address add $(s) dev $(dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+
     {
         if (go) run_manager();
 
@@ -782,30 +806,6 @@ void run_manager()
         print(@"\nA g-node split.\n");
         // TODO
     });
-
-    // Addresses:
-    my_addresses = new ArrayList<string>();
-    //  * base
-    my_addresses.add(dotted_form(my_naddr, -1, false, true));
-    //  * base (anonymous form)
-    my_addresses.add(dotted_form(my_naddr, -1, true, true));
-    for (int inside_level = my_naddr.i_qspn_get_levels() - 1; inside_level > 0; inside_level--)
-    {
-        //  * internal in inside_level
-        my_addresses.add(dotted_form(my_naddr, inside_level, false, true));
-        //  * internal in inside_level (anonymous form)
-        my_addresses.add(dotted_form(my_naddr, inside_level, true, true));
-    }
-    foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
-    {
-        try {
-            string cmd = @"ip address add $(s) dev $(dev)";
-            print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-        } catch (SpawnError e) {error("Unable to spawn a command");}
-    }
 }
 
 void update_routes(IQspnNodePath p)
@@ -1058,7 +1058,6 @@ void remove_handlers()
 
 void remove_addresses()
 {
-    string my_addr = dotted_form(my_naddr, -1, false, true);
     foreach (string dev in nic_addr_map.keys)
     {
         try {
@@ -1068,13 +1067,16 @@ void remove_addresses()
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
-        try {
-            string cmd = @"ip address del $(my_addr)/32 dev $(dev)";
-            print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-        } catch (SpawnError e) {error("Unable to spawn a command");}
+        foreach (string s in my_addresses)
+        {
+            try {
+                string cmd = @"ip address del $(s)/32 dev $(dev)";
+                print(@"$(cmd)\n");
+                CommandResult com_ret = Tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.cmderr)\n");
+            } catch (SpawnError e) {error("Unable to spawn a command");}
+        }
     }
 }
 
