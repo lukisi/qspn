@@ -388,7 +388,9 @@ int main(string[] args)
         assert(! t_udp_map.has_key(dev));
         t_udp_map[dev] = Netsukuku.ModRpc.udp_listen(dlg, err, ntkd_port, dev);
         try {
-            CommandResult com_ret = Tasklet.exec_command(@"ip address add $(nic_addr) dev $(dev)");
+            string cmd = @"ip address add $(nic_addr) dev $(dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
@@ -413,7 +415,9 @@ int main(string[] args)
         }
     }
     if (address_manager != null) stop_manager();
+    remove_neighbors_routes();
     remove_handlers();
+    remove_addresses();
     MyTaskletSystem.kill();
     print("\nExiting.\n");
     return 0;
@@ -462,7 +466,7 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                     string arcs = " ";
                     foreach (FakeArc a in my_arcs)
                     {
-                        string n_ip = arc_dotted_form(a);
+                        string n_ip = dotted_form(a.naddr, -1, false, true);
                         arcs += @"$(a.dev),$(a.neighbour_mac),$(n_ip) ";
                     }
                     print(@"Arcs: [$(arcs)]\n");
@@ -581,10 +585,21 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     }
     FakeCost c = new FakeCost(usec_rtt);
     FakeGenericNaddr n_naddr = new FakeGenericNaddr(_naddr.to_array(), net_gsizes.to_array());
+    string neighbor_addr = dotted_form(n_naddr, -1, false, true);
+    string my_addr = dotted_form(my_naddr, -1, false, true);
     FakeArc arc = new FakeArc(n_naddr, nodeid, neighbour_mac, c, n_nic_addr, nic_addr, dev);
     my_arcs.add(arc);
     try {
-        CommandResult com_ret = Tasklet.exec_command(@"ip route add $(n_nic_addr) dev $(dev) src $(nic_addr)");
+        string cmd = @"ip route add $(n_nic_addr) dev $(dev) src $(nic_addr)";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
+        if (com_ret.exit_status != 0)
+            error(@"$(com_ret.cmderr)\n");
+    } catch (SpawnError e) {error("Unable to spawn a command");}
+    try {
+        string cmd = @"ip route add $(neighbor_addr) dev $(dev) src $(my_addr)";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
             error(@"$(com_ret.cmderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
@@ -689,7 +704,7 @@ void run_manager()
         // An arc (is not working) has been removed from my list.
         IQspnArc arc = _arc;
         FakeArc a = (FakeArc)arc;
-        string n_ip = arc_dotted_form(a);
+        string n_ip = dotted_form(a.naddr, -1, false, true);
         print(@"\nAn arc removed: $(a.dev),$(a.neighbour_mac),$(n_ip).\n");
         if (a in my_arcs) my_arcs.remove(a);
     });
@@ -784,7 +799,9 @@ void run_manager()
     foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
     {
         try {
-            CommandResult com_ret = Tasklet.exec_command(@"ip address add $(s) dev $(dev)");
+            string cmd = @"ip address add $(s) dev $(dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
@@ -878,7 +895,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             {
                 // absolute best
                 string k = @"$(dest)_main";
-                string gw = arc_dotted_form(path_arc);
+                string gw = dotted_form(path_arc.naddr, -1, false, true);
                 Route r = new Route(dest, gw, path_dev);
                 new_routes[k] = r;
             }
@@ -899,7 +916,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     continue;
                 }
                 // best without neighbor.
-                string gw = arc_dotted_form(path_arc);
+                string gw = dotted_form(path_arc.naddr, -1, false, true);
                 Route r = new Route(dest, gw, path_dev);
                 new_routes[k] = r;
             }
@@ -991,29 +1008,38 @@ string dotted_form(IQspnPartialNaddr naddr, int inside_level=-1, bool anonymous_
     return ret;
 }
 
-string arc_dotted_form(FakeArc a, bool include_suffix=false)
-{
-    return dotted_form(a.naddr, -1, false, !include_suffix);
-}
-
 void stop_manager()
 {
     assert(address_manager != null);
 
     // TODO remove routes
 
-    // remove my addresses
-    foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
+    address_manager.qspn_manager = null;
+    address_manager = null;
+}
+
+void remove_neighbors_routes()
+{
+    string my_addr = dotted_form(my_naddr, -1, false, true);
+    foreach (FakeArc arc in my_arcs)
     {
+        string neighbor_addr = dotted_form(arc.naddr, -1, false, true);
+        string dev = arc.dev;
         try {
-            CommandResult com_ret = Tasklet.exec_command(@"ip address del $(s)/32 dev $(dev)");
+            string cmd = @"ip route del $(neighbor_addr) dev $(dev) src $(my_addr)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        try {
+            string cmd = @"ip route del $(arc.neighbour_nic_addr) dev $(dev) src $(nic_addr_map[dev])";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
-
-    address_manager.qspn_manager = null;
-    address_manager = null;
 }
 
 void remove_handlers()
@@ -1021,18 +1047,34 @@ void remove_handlers()
     ArrayList<string> devs = new ArrayList<string>(); devs.add_all(t_udp_map.keys);
     foreach (string dev in devs)
     {
-        string nic_addr = nic_addr_map[dev];
         assert(t_udp_map.has_key(dev));
         t_udp_map[dev].kill();
         t_udp_map.unset(dev);
-        try {
-            CommandResult com_ret = Tasklet.exec_command(@"ip address del $(nic_addr)/32 dev $(dev)");
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-        } catch (SpawnError e) {error("Unable to spawn a command");}
         assert(t_tcp_map.has_key(dev));
         t_tcp_map[dev].kill();
         t_tcp_map.unset(dev);
+    }
+}
+
+void remove_addresses()
+{
+    string my_addr = dotted_form(my_naddr, -1, false, true);
+    foreach (string dev in nic_addr_map.keys)
+    {
+        try {
+            string cmd = @"ip address del $(nic_addr_map[dev])/32 dev $(dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        try {
+            string cmd = @"ip address del $(my_addr)/32 dev $(dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 }
 
