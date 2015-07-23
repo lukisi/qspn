@@ -6,6 +6,8 @@ qspn.vapi
 main.c
 base_fake_address_manager.c
 tasklet_system_tasklet.c
+client_serialize_helpers.c
+generic_naddr.c
 Makefile.in
 Makefile
 testsuites/test_serialize_helpers/test_serialize_helpers.c

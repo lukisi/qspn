@@ -125,6 +125,17 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
         return new HCoord(-1, -1);
     }
 
+    public bool equals(FakeGenericNaddr o)
+    {
+        if (pos.size != o.pos.size) return false;
+        for (int i = 0; i < pos.size; i++)
+        {
+            if (pos[i] != o.pos[i]) return false;
+            if (sizes[i] != o.sizes[i]) return false;
+        }
+        return true;
+    }
+
     public string to_string()
     {
         int l_o_g = i_qspn_get_level_of_gnode();

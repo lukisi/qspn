@@ -2,6 +2,7 @@ NULL =
 ACLOCAL_AMFLAGS = -I m4
 
 noinst_LTLIBRARIES = \
+	libmacgetter.la \
 	libqspn.la \
 	$(NULL)
 
@@ -20,7 +21,21 @@ check_PROGRAMS = \
 EXTRA_PROGRAMS = \
 	auto_graph \
 	simulator \
-	discover_paths \
+	$(NULL)
+
+libmacgetter_la_SOURCES = \
+	mac-getter/hw.c \
+	mac-getter/hw.h \
+	$(NULL)
+
+libmacgetter_la_CPPFLAGS = \
+	$(NULL)
+
+libmacgetter_la_LIBADD = \
+	$(NULL)
+
+libneighborhood_la_SOURCES = \
+	neighborhood.vala \
 	$(NULL)
 
 libqspn_la_SOURCES = \
@@ -49,7 +64,8 @@ libqspn_la_CPPFLAGS = \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
-libqspn_la_LIBADD = -lm \
+libqspn_la_LIBADD = \
+	-lm \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(JSONGLIB_LIBS) \
@@ -62,6 +78,9 @@ qspnclient_SOURCES =  \
 	main.vala \
 	tasklet_system_tasklet.vala \
 	base_fake_address_manager.vala \
+	generic_naddr.vala \
+	client_serialize_helpers.vala \
+	mac-getter/hw.vapi \
 	qspn.vapi \
 	$(NULL)
 
@@ -85,12 +104,14 @@ qspnclient_CPPFLAGS = \
 	$(NULL)
 
 qspnclient_LDADD = \
+	-lm \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
 	$(TASKLETSYSTEM_LIBS) \
 	$(TASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
+	$(builddir)/libmacgetter.la \
 	$(builddir)/libqspn.la \
 	$(NULL)
 
@@ -134,40 +155,6 @@ auto_graph_CPPFLAGS = \
 auto_graph_LDADD = -lm \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
-	$(NULL)
-
-discover_paths_SOURCES = \
-	testsuites/discover_paths/discover_paths.vala \
-	testsuites/discover_paths/tasklet_system_tasklet.vala \
-	testsuites/discover_paths/fake_classes.vala \
-	testsuites/discover_paths/generic_naddr.vala \
-	testsuites/discover_paths/base_fake_address_manager.vala \
-	qspn.vapi \
-	$(NULL)
-
-discover_paths_VALAFLAGS = \
-	--pkg gee-0.8 \
-	--pkg ntkd-common \
-	--pkg ntkd-tasklet-system \
-	--pkg tasklet \
-	--pkg ntkdrpc \
-	--pkg zcd-tasklet-system \
-	$(NULL)
-
-discover_paths_CPPFLAGS = \
-	-w \
-	$(GOBJECT_CFLAGS) \
-	$(GEE_CFLAGS) \
-	$(TASKLET_CFLAGS) \
-	$(NTKDRPC_CFLAGS) \
-	$(NULL)
-
-discover_paths_LDADD = \
-	$(GOBJECT_LIBS) \
-	$(GEE_LIBS) \
-	$(TASKLET_LIBS) \
-	$(NTKDRPC_LIBS) \
-	$(builddir)/libqspn.la \
 	$(NULL)
 
 simulator_SOURCES = \

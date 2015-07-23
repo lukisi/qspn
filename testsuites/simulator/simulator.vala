@@ -116,9 +116,7 @@ class FakeBroadcastClient : FakeAddressManagerStub
     {
         //print("broadcast send_etp\n");
         tasklet.ms_wait(20);
-        // usable only with 1 level....    check_etp_hops(_etp);
         IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
-        // usable only with 1 level....    check_etp_hops(etp);
         //print("now etp =\n");
         //print_object(etp);
         foreach (FakeArc target_arc in target_arcs)
@@ -181,7 +179,6 @@ class FakeTCPClient : FakeAddressManagerStub
         ret = (IQspnEtpMessage)dup_object(ret);
         //print("now ret =\n");
         //print_object(ret);
-        // usable only with 1 level....    check_etp_hops(ret);
         return ret;
     }
 
@@ -191,9 +188,7 @@ class FakeTCPClient : FakeAddressManagerStub
     {
         //print("tcp send_etp\n");
         tasklet.ms_wait(20);
-        // usable only with 1 level....    check_etp_hops(_etp);
         IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
-        // usable only with 1 level....    check_etp_hops(etp);
         //print("now etp =\n");
         //print_object(etp);
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
@@ -337,7 +332,6 @@ void activate_node(HashMap<string, NodeData> nodes, string k, ArrayList<int> gsi
 
 void test0()
 {
-    int levels = 1;
     ArrayList<int> gsizes = new ArrayList<int>.wrap({10});
     HashMap<string, NodeData> nodes = new HashMap<string, NodeData>();
 
@@ -620,50 +614,6 @@ string partial_naddr_to_string(IQspnPartialNaddr pn)
     return ret;
 }
 
-void check_etp_hops(IQspnEtpMessage m)
-{
-    string s = json_string_object(m);
-    int from;
-    {
-        int begin = s.index_of("\"node-address\" : {");
-        string needle = "\"pos\" : [";
-        begin = s.index_of(needle, begin);
-        begin += needle.length;
-        int end = s.index_of("]", begin);
-        string v = s.substring(begin, end-begin);
-        from = int.parse(v);
-    }
-    {
-        int begin = s.index_of("\"hops\" : [");
-        int end = s.index_of("]", begin);
-        s = s.substring(begin, end-begin+1);
-    }
-    ArrayList<int> hops = new ArrayList<int>();
-    hops.add(from);
-    while (true)
-    {
-        string needle = "\"pos\" : ";
-        int begin = s.index_of(needle);
-        if (begin < 0) break;
-        begin += needle.length;
-        int end = s.index_of("\n", begin);
-        string v = s.substring(begin, end-begin);
-        hops.add(int.parse(v));
-        s = s.substring(begin);
-    }
-    ArrayList<int> no_dup = new ArrayList<int>();
-    foreach (int h in hops)
-    {
-        if (h in no_dup)
-        {
-            print("dup in hops\n");
-            print_object(m);
-            assert_not_reached();
-        }
-        no_dup.add(h);
-    }
-}
-
 class TestMapTasklet : Object, INtkdTaskletSpawnable
 {
     public IQspnNaddr my_naddr;
@@ -681,22 +631,26 @@ class TestMapTasklet : Object, INtkdTaskletSpawnable
     }
     public void * func()
     {
-        while (true)
-        {
-            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(dest);
-            foreach (IQspnNodePath p in lst)
+        try {
+            while (true)
             {
-                ArrayList<string> no_dup = new ArrayList<string>();
-                no_dup.add(repr_naddr(my_naddr));
-                Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
-                foreach (IQspnHop h in lsth)
+                Gee.List<IQspnNodePath> lst = mgr.get_paths_to(dest);
+                foreach (IQspnNodePath p in lst)
                 {
-                    string hop = repr_naddr(h.i_qspn_get_naddr());
-                    assert(!(hop in no_dup));
-                    no_dup.add(hop);
+                    ArrayList<string> no_dup = new ArrayList<string>();
+                    no_dup.add(repr_naddr(my_naddr));
+                    Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
+                    foreach (IQspnHop h in lsth)
+                    {
+                        string hop = repr_naddr(h.i_qspn_get_naddr());
+                        assert(!(hop in no_dup));
+                        no_dup.add(hop);
+                    }
                 }
+                tasklet.ms_wait(2);
             }
-            tasklet.ms_wait(2);
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // every node has completed bootstrap
         }
     }
 }

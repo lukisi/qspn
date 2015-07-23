@@ -20,7 +20,7 @@ using Netsukuku;
 using Netsukuku.ModRpc;
 using Gee;
 
-namespace DiscoverPathsInternals
+namespace ClientInternals
 {
     internal errordomain HelperDeserializeError {
         GENERIC
@@ -142,61 +142,24 @@ namespace DiscoverPathsInternals
         return ret;
     }
 
-    internal IQspnNaddr deserialize_i_qspn_naddr(Json.Node property_node)
+    internal int64 deserialize_int64(Json.Node property_node)
     throws HelperDeserializeError
     {
-        return (IQspnNaddr)deserialize_object(typeof(IQspnNaddr), false, property_node);
+        Json.Reader r = new Json.Reader(property_node.copy());
+        if (r.get_null_value())
+            throw new HelperDeserializeError.GENERIC("element is not nullable");
+        if (!r.is_value())
+            throw new HelperDeserializeError.GENERIC("element must be a int");
+        if (r.get_value().get_value_type() != typeof(int64))
+            throw new HelperDeserializeError.GENERIC("element must be a int");
+        return r.get_int_value();
     }
 
-    internal Json.Node serialize_i_qspn_naddr(IQspnNaddr n)
+    internal Json.Node serialize_int64(int64 i)
     {
-        return serialize_object(n);
-    }
-
-    internal IQspnCost deserialize_i_qspn_cost(Json.Node property_node)
-    throws HelperDeserializeError
-    {
-        return (IQspnCost)deserialize_object(typeof(IQspnCost), false, property_node);
-    }
-
-    internal Json.Node serialize_i_qspn_cost(IQspnCost n)
-    {
-        return serialize_object(n);
-    }
-
-    internal IQspnFingerprint deserialize_i_qspn_fingerprint(Json.Node property_node)
-    throws HelperDeserializeError
-    {
-        return (IQspnFingerprint)deserialize_object(typeof(IQspnFingerprint), false, property_node);
-    }
-
-    internal Json.Node serialize_i_qspn_fingerprint(IQspnFingerprint n)
-    {
-        return serialize_object(n);
-    }
-
-    internal Gee.List<IQspnFingerprint> deserialize_list_i_qspn_fingerprint(Json.Node property_node)
-    throws HelperDeserializeError
-    {
-        ListDeserializer<IQspnFingerprint> c = new ListDeserializer<IQspnFingerprint>();
-        return c.deserialize_list_object(property_node);
-    }
-
-    internal Json.Node serialize_list_i_qspn_fingerprint(Gee.List<IQspnFingerprint> lst)
-    {
-        return serialize_list_object(lst);
-    }
-
-    internal Gee.List<HCoord> deserialize_list_hcoord(Json.Node property_node)
-    throws HelperDeserializeError
-    {
-        ListDeserializer<HCoord> c = new ListDeserializer<HCoord>();
-        return c.deserialize_list_object(property_node);
-    }
-
-    internal Json.Node serialize_list_hcoord(Gee.List<HCoord> lst)
-    {
-        return serialize_list_object(lst);
+        Json.Node ret = new Json.Node(Json.NodeType.VALUE);
+        ret.set_int(i);
+        return ret;
     }
 
     internal Gee.List<int> deserialize_list_int(Json.Node property_node)
@@ -234,43 +197,6 @@ namespace DiscoverPathsInternals
         foreach (int i in lst)
         {
             b.add_int_value(i);
-        }
-        b.end_array();
-        return b.get_root();
-    }
-
-    internal Gee.List<bool> deserialize_list_bool(Json.Node property_node)
-    throws HelperDeserializeError
-    {
-        ArrayList<bool> ret = new ArrayList<bool>();
-        Json.Reader r = new Json.Reader(property_node.copy());
-        if (r.get_null_value())
-            throw new HelperDeserializeError.GENERIC("element is not nullable");
-        if (!r.is_array())
-            throw new HelperDeserializeError.GENERIC("element must be an array");
-        int l = r.count_elements();
-        for (int j = 0; j < l; j++)
-        {
-            r.read_element(j);
-            if (r.get_null_value())
-                throw new HelperDeserializeError.GENERIC("element is not nullable");
-            if (!r.is_value())
-                throw new HelperDeserializeError.GENERIC("element must be a bool");
-            if (r.get_value().get_value_type() != typeof(bool))
-                throw new HelperDeserializeError.GENERIC("element must be a bool");
-            ret.add(r.get_boolean_value());
-            r.end_element();
-        }
-        return ret;
-    }
-
-    internal Json.Node serialize_list_bool(Gee.List<bool> lst)
-    {
-        Json.Builder b = new Json.Builder();
-        b.begin_array();
-        foreach (bool i in lst)
-        {
-            b.add_boolean_value(i);
         }
         b.end_array();
         return b.get_root();
