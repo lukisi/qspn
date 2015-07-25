@@ -400,15 +400,15 @@ int main(string[] args)
     // Add addresses:
     my_addresses = new ArrayList<string>();
     //  * base
-    my_addresses.add(dotted_form_me(-1, false, true));
+    my_addresses.add(dotted_form_me());
     //  * base (anonymous form)
-    my_addresses.add(dotted_form_me(-1, true, true));
+    my_addresses.add(dotted_form_me(-1, true));
     for (int inside_level = my_naddr.i_qspn_get_levels() - 1; inside_level > 0; inside_level--)
     {
         //  * internal in inside_level
-        my_addresses.add(dotted_form_me(inside_level, false, true));
+        my_addresses.add(dotted_form_me(inside_level));
         //  * internal in inside_level (anonymous form)
-        my_addresses.add(dotted_form_me(inside_level, true, true));
+        my_addresses.add(dotted_form_me(inside_level, true));
     }
     foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
     {
@@ -502,7 +502,8 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                         foreach (string dst in my_routes.keys)
                         {
                             Route r = my_routes[dst];
-                            print(@" $(dst) gw $(r.gw) dev $(r.dev)\n");
+                            string prevmac = r.prevmac == null ? "null" : r.prevmac;
+                            print(@" from $(prevmac) to $(r.dest) src $(r.src) gw $(r.gw) dev $(r.dev)\n");
                         }
                     }
                 }
@@ -575,18 +576,21 @@ HashMap<string, Route> my_routes;
 
 class Route : Object
 {
-    public Route(string dest, string gw, string dev, string? prevmac=null)
+    public Route(string dest, string gw, string dev, string src, string? prevmac=null)
     {
         this.prevmac = prevmac;
         this.dest = dest;
         this.gw = gw;
         this.dev = dev;
+        this.src = src;
     }
     public string? prevmac;
     public string dest;
     public string gw;
     public string dev;
+    public string src;
 }
+const string maintable = "ntk";
 
 const int max_paths = 5;
 const double max_common_hops_ratio = 0.6;
@@ -609,8 +613,6 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     }
     FakeCost c = new FakeCost(usec_rtt);
     FakeGenericNaddr n_naddr = new FakeGenericNaddr(_naddr.to_array(), net_gsizes.to_array());
-    string neighbor_addr = dotted_form_naddr(n_naddr, -1, false, true);
-    string my_addr = dotted_form_me(-1, false, true);
     FakeArc arc = new FakeArc(n_naddr, nodeid, neighbour_mac, c, n_nic_addr, nic_addr, dev);
     my_arcs.add(arc);
     try {
@@ -620,13 +622,8 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
         if (com_ret.exit_status != 0)
             error(@"$(com_ret.cmderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
-    try {
-        string cmd = @"ip route add $(neighbor_addr) dev $(dev) src $(my_addr)";
-        print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
-        if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
-    } catch (SpawnError e) {error("Unable to spawn a command");}
+    LinuxRoute.create_table(@"$(maintable)_from_$(neighbour_mac)");
+    LinuxRoute.rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
     if (address_manager != null)
     {
         address_manager.qspn_manager.arc_add(arc);
@@ -688,6 +685,8 @@ void remove_arc(string n_nic_addr)
         }
     }
     assert(found != null);
+    LinuxRoute.remove_rule_coming_from_macaddr(found.neighbour_mac, @"$(maintable)_from_$(found.neighbour_mac)");
+    LinuxRoute.remove_table(@"$(maintable)_from_$(found.neighbour_mac)");
     address_manager.qspn_manager.arc_remove(found);
     my_arcs.remove_at(i);
 }
@@ -815,6 +814,10 @@ void run_manager()
         FakeFingerprint f_fp = (FakeFingerprint)fp;
         print(@"\nA g-node ($(hdest.lvl),$(hdest.pos)) split. My neighbor $(f_a.neighbour_nic_addr) has fingerprint $(f_fp.id) and must migrate.\n");
     });
+
+    // main table and its rule
+    LinuxRoute.create_table(maintable);
+    LinuxRoute.rule_default(maintable);
 }
 
 void update_routes(IQspnNodePath p)
@@ -900,8 +903,9 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             {
                 // absolute best
                 string k = @"$(dest)_main";
-                string gw = dotted_form_naddr(path_arc.naddr, -1, false, true);
-                Route r = new Route(dest, gw, path_dev);
+                string gw = path_arc.neighbour_nic_addr;
+                string src = dotted_form_me();
+                Route r = new Route(dest, gw, path_dev, src);
                 new_routes[k] = r;
             }
             bool completed = true;
@@ -921,8 +925,9 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     continue;
                 }
                 // best without neighbor.
-                string gw = dotted_form_naddr(path_arc.naddr, -1, false, true);
-                Route r = new Route(dest, gw, path_dev);
+                string gw = path_arc.neighbour_nic_addr;
+                string src = dotted_form_me();
+                Route r = new Route(dest, gw, path_dev, src);
                 new_routes[k] = r;
             }
             if (completed) break;
@@ -933,6 +938,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
         foreach (string suffix in suffixes)
         {
             string k = @"$(dest)_$(suffix)";
+            string table = suffix == "main" ? maintable : @"$(maintable)_from_$(suffix)";
             if (k in new_routes.keys)
             {
                 if (k in my_routes.keys)
@@ -943,7 +949,14 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     if (new_r.dev != old_r.dev || new_r.gw != old_r.gw)
                     {
                         // change
-                        print(@"Change in table $(suffix) route to $(dest) via $(new_r.gw) dev $(new_r.dev)\n");
+                        print(@"Change in table $(table) route to $(dest) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)\n");
+                        try {
+                            string cmd = @"ip route change $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
                         my_routes[k] = new_routes[k];
                     }
                 }
@@ -951,7 +964,14 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 {
                     // add
                     Route new_r = new_routes[k];
-                    print(@"Add in table $(suffix) route to $(dest) via $(new_r.gw) dev $(new_r.dev)\n");
+                    print(@"Add in table $(table) route to $(dest) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)\n");
+                    try {
+                        string cmd = @"ip route add $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
+                        print(@"$(cmd)\n");
+                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        if (com_ret.exit_status != 0)
+                            error(@"$(com_ret.cmderr)\n");
+                    } catch (SpawnError e) {error("Unable to spawn a command");}
                     my_routes[k] = new_routes[k];
                 }
             }
@@ -961,7 +981,14 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 {
                     // remove
                     Route old_r = my_routes[k];
-                    print(@"Delete in table $(suffix) route to $(dest) via $(old_r.gw) dev $(old_r.dev)\n");
+                    print(@"Delete in table $(table) route to $(dest) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)\n");
+                    try {
+                        string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
+                        print(@"$(cmd)\n");
+                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        if (com_ret.exit_status != 0)
+                            error(@"$(com_ret.cmderr)\n");
+                    } catch (SpawnError e) {error("Unable to spawn a command");}
                     my_routes.unset(k);
                 }
                 else
@@ -974,7 +1001,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
     }
 }
 
-string dotted_form_me(int inside_level=-1, bool anonymous_form=false, bool omit_suffix=false)
+string dotted_form_me(int inside_level=-1, bool anonymous_form=false, bool omit_suffix=true)
 {
     return dotted_form_naddr(my_naddr, inside_level, anonymous_form, omit_suffix);
 }
@@ -1059,7 +1086,30 @@ void stop_manager()
 {
     assert(address_manager != null);
 
-    // TODO remove routes
+    // remove routes
+    ArrayList<string> tables = new ArrayList<string>();
+    foreach (string k in my_routes.keys)
+    {
+        string dest = k.split("_")[0];
+        string suffix = k.split("_")[1];
+        string table = suffix == "main" ? maintable : @"$(maintable)_from_$(suffix)";
+        if (! (suffix in tables)) tables.add(suffix);
+        // remove
+        Route old_r = my_routes[k];
+        print(@"Delete in table $(table) route to $(dest) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)\n");
+        try {
+            string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        my_routes.unset(k);
+    }
+
+    // main table and its rule
+    LinuxRoute.remove_rule_default(maintable);
+    LinuxRoute.remove_table(maintable);
 
     address_manager.qspn_manager = null;
     address_manager = null;
@@ -1067,18 +1117,9 @@ void stop_manager()
 
 void remove_neighbors_routes()
 {
-    string my_addr = dotted_form_me(-1, false, true);
     foreach (FakeArc arc in my_arcs)
     {
-        string neighbor_addr = dotted_form_naddr(arc.naddr, -1, false, true);
         string dev = arc.dev;
-        try {
-            string cmd = @"ip route del $(neighbor_addr) dev $(dev) src $(my_addr)";
-            print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
-            if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-        } catch (SpawnError e) {error("Unable to spawn a command");}
         try {
             string cmd = @"ip route del $(arc.neighbour_nic_addr) dev $(dev) src $(nic_addr_map[dev])";
             print(@"$(cmd)\n");
@@ -1086,6 +1127,8 @@ void remove_neighbors_routes()
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
+        LinuxRoute.remove_rule_coming_from_macaddr(arc.neighbour_mac, @"$(maintable)_from_$(arc.neighbour_mac)");
+        LinuxRoute.remove_table(@"$(maintable)_from_$(arc.neighbour_mac)");
     }
 }
 
@@ -1179,3 +1222,318 @@ public class DispatchableTasklet
         return t == null || !t.is_running();
     }
 }
+
+
+namespace LinuxRoute
+{
+    const string RT_TABLES = "/etc/iproute2/rt_tables";
+
+    /** Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number and line.
+      * Otherwise report all busy numbers.
+      */
+    void scan_tables_list(string tablename, out int num, out string line, out ArrayList<int> busy_nums)
+    {
+        num = -1;
+        line = "";
+        busy_nums = new ArrayList<int>();
+        // a path
+        File ftable = File.new_for_path(RT_TABLES);
+        // load content
+        uint8[] rt_tables_content_arr;
+        try {
+            ftable.load_contents(null, out rt_tables_content_arr, null);
+        } catch (Error e) {assert_not_reached();}
+        string rt_tables_content = (string)rt_tables_content_arr;
+        string[] lines = rt_tables_content.split("\n");
+        foreach (string cur_line in lines)
+        {
+            if (cur_line.has_suffix(@" $(tablename)") || cur_line.has_suffix(@"\t$(tablename)"))
+            {
+                string prefix = cur_line.substring(0, cur_line.length - tablename.length - 1);
+                // remove trailing blanks
+                while (prefix.has_suffix(" ") || prefix.has_suffix("\t"))
+                    prefix = prefix.substring(0, prefix.length - 1);
+                // remove leading blanks
+                while (prefix.has_prefix(" ") || prefix.has_prefix("\t"))
+                    prefix = prefix.substring(1);
+                num = int.parse(prefix);
+                line = cur_line;
+                break;
+            }
+            else
+            {
+                string prefix = cur_line;
+                // remove leading blanks
+                while (prefix.has_prefix(" ") || prefix.has_prefix("\t"))
+                    prefix = prefix.substring(1);
+                if (prefix.has_prefix("#")) continue;
+                // find next blank
+                int pos1 = prefix.index_of(" ");
+                int pos2 = prefix.index_of("\t");
+                if (pos1 == pos2) continue;
+                if (pos1 == -1 || pos1 > pos2) pos1 = pos2;
+                prefix = prefix.substring(pos1);
+                int busynum = int.parse(prefix);
+                busy_nums.add(busynum);
+            }
+        }
+    }
+
+    /** Create (or empty if it exists) a table <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number.
+      * Otherwise find a free number and write a new record on /etc/iproute2/rt_tables.
+      * Then empty the table (ip r flush table <tablename>).
+      */
+    void create_table(string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            int new_num = 255;
+            while (new_num >= 0)
+            {
+                if (! (new_num in busy_nums)) break;
+                new_num--;
+            }
+            if (new_num < 0)
+            {
+                error("no more free numbers in rt_tables: not implemented yet");
+            }
+            string to_add = @"$(new_num)\t$(tablename)\n";
+            // a path
+            File fout = File.new_for_path(RT_TABLES);
+            // add "to_add" to file
+            try {
+                FileOutputStream fos = fout.append_to(FileCreateFlags.NONE);
+                fos.write(to_add.data);
+            } catch (Error e) {assert_not_reached();}
+        }
+        // emtpy the table
+        try {
+            string cmd = @"ip route flush table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+
+    /** Remove (once emptied) a table <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number.
+      * Otherwise abort.
+      * Then empty the table (ip r flush table <tablename>).
+      * Then remove the record from /etc/iproute2/rt_tables.
+      */
+    void remove_table(string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            error(@"remove_table: table $(tablename) not present");
+        }
+        // emtpy the table
+        try {
+            string cmd = @"ip route flush table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        // remove record $(line) from file
+        string rt_tables_content;
+        {
+            // a path
+            File ftable = File.new_for_path(RT_TABLES);
+            // load content
+            uint8[] rt_tables_content_arr;
+            try {
+                ftable.load_contents(null, out rt_tables_content_arr, null);
+            } catch (Error e) {assert_not_reached();}
+            rt_tables_content = (string)rt_tables_content_arr;
+        }
+        string[] lines = rt_tables_content.split("\n");
+        {
+            string new_cont = "";
+            string next = "";
+            foreach (string old_line in lines)
+            {
+                new_cont += next;
+                next = "\n";
+                if (old_line != line) new_cont += old_line;
+            }
+            // replace into path
+            File fout = File.new_for_path(RT_TABLES);
+            try {
+                fout.replace_contents(new_cont.data, null, false, FileCreateFlags.NONE, null);
+            } catch (Error e) {assert_not_reached();}
+        }
+    }
+
+    /** Rule that a packet which is coming from <macaddr> and has to be forwarded
+      * will search for its route in <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number <number>.
+      * Otherwise abort.
+      * Once we have the number, use "iptables" to set a MARK <number> to the packets
+      * coming from this <macaddr>; and use "ip" to rule that those packets
+      * search into table <tablename>
+            iptables -t mangle -A PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
+            ip rule add fwmark $number table $tablename
+      */
+    void rule_coming_from_macaddr(string macaddr, string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            error(@"rule_coming_from_macaddr: table $(tablename) not present");
+        }
+        string pres;
+        try {
+            string cmd = @"ip rule list";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+            pres = com_ret.cmdout;
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
+        try {
+            string cmd = @"iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        try {
+            string cmd = @"ip rule add fwmark $(num) table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+
+    /** Remove rule that a packet which is coming from <macaddr> and has to be forwarded
+      * will search for its route in <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number <number>.
+      * Otherwise abort.
+      * Once we have the number, use "iptables" to remove set-mark and use "ip" to remove the rule fwmark.
+            iptables -t mangle -D PREROUTING -m mac --mac-source $macaddr -j MARK --set-mark $number
+            ip rule del fwmark $number table $tablename
+      */
+    void remove_rule_coming_from_macaddr(string macaddr, string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            error(@"rule_coming_from_macaddr: table $(tablename) not present");
+        }
+        try {
+            string cmd = @"iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        try {
+            string cmd = @"ip rule del fwmark $(num) table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+
+    /** Rule that a packet by default (in egress)
+      * will search for its route in <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number <number>.
+      * Otherwise abort.
+      * Use "ip" to rule that all packets search into table <tablename>
+            ip rule add table $tablename
+      */
+    void rule_default(string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            error(@"rule_default: table $(tablename) not present");
+        }
+        string pres;
+        try {
+            string cmd = @"ip rule list";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+            pres = com_ret.cmdout;
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        if (@" lookup $(tablename) " in pres) error(@"rule_default: rule for $(tablename) was already there");
+        try {
+            string cmd = @"ip rule add table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+
+    /** Remove rule that a packet by default (in egress)
+      * will search for its route in <tablename>.
+      *
+      * Check the list of tables in /etc/iproute2/rt_tables.
+      * If <tablename> is already there, get its number <number>.
+      * Otherwise abort.
+      * Use "ip" to remove rule that all packets search into table <tablename>
+            ip rule del table $tablename
+      */
+    void remove_rule_default(string tablename)
+    {
+        int num;
+        string line;
+        ArrayList<int> busy_nums;
+        scan_tables_list(tablename, out num, out line, out busy_nums);
+        if (num == -1)
+        {
+            // not present
+            error(@"remove_rule_default: table $(tablename) not present");
+        }
+        try {
+            string cmd = @"ip rule del table $(tablename)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+    }
+}
+
