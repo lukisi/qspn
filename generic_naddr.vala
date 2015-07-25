@@ -21,7 +21,7 @@ using zcd;
 using Netsukuku;
 using ClientInternals;
 
-public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, IQspnPartialNaddr, Json.Serializable
+public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, Json.Serializable
 {
     public ArrayList<int> pos {get; set;}
     public ArrayList<int> sizes {get; set;}
@@ -93,26 +93,6 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
         return pos[level];
     }
 
-    public int i_qspn_get_level_of_gnode()
-    {
-        int l = 0;
-        while (l < pos.size)
-        {
-            if (pos[l] >= 0) return l;
-            l++;
-        }
-        return pos.size; // the whole network
-    }
-
-    public IQspnPartialNaddr i_qspn_get_address_by_coord(HCoord dest)
-    {
-        int[] newpos = new int[pos.size];
-        for (int i = 0; i < dest.lvl; i++) newpos[i] = -1;
-        for (int i = dest.lvl; i < pos.size; i++) newpos[i] = pos[i];
-        newpos[dest.lvl] = dest.pos;
-        return new FakeGenericNaddr(newpos, sizes.to_array());
-    }
-
     public HCoord i_qspn_get_coord_by_address(IQspnNaddr dest)
     {
         int l = pos.size-1;
@@ -138,18 +118,15 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
 
     public string to_string()
     {
-        int l_o_g = i_qspn_get_level_of_gnode();
-        string type = "N";
-        if (l_o_g > 0) type = "G";
         string sep = "";
         string positions = "";
-        for (int l = l_o_g; l < i_qspn_get_levels(); l++)
+        for (int l = 0; l < i_qspn_get_levels(); l++)
         {
             int pos = i_qspn_get_pos(l);
             positions += @"$(sep)$(pos)";
             sep = ", ";
         }
-        return @"$(type)[$(positions)]";
+        return @"[$(positions)]";
     }
 }
 

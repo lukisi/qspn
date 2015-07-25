@@ -32,13 +32,7 @@ namespace Netsukuku
 
     public interface IQspnMyNaddr : Object, IQspnNaddr
     {
-        public abstract IQspnPartialNaddr i_qspn_get_address_by_coord(HCoord dest);
         public abstract HCoord i_qspn_get_coord_by_address(IQspnNaddr dest);
-    }
-
-    public interface IQspnPartialNaddr : Object, IQspnNaddr
-    {
-        public abstract int i_qspn_get_level_of_gnode();
     }
 
     public interface IQspnFingerprint : Object
@@ -389,7 +383,7 @@ namespace Netsukuku
     public interface IQspnHop : Object
     {
         public abstract int i_qspn_get_arc_id();
-        public abstract IQspnPartialNaddr i_qspn_get_naddr();
+        public abstract HCoord i_qspn_get_hcoord();
     }
 
     public interface IQspnNodePath : Object
@@ -404,11 +398,11 @@ namespace Netsukuku
     internal class RetHop : Object, IQspnHop
     {
         public int arc_id;
-        public IQspnPartialNaddr naddr;
+        public HCoord hcoord;
 
         /* Interface */
         public int i_qspn_get_arc_id() {return arc_id;}
-        public IQspnPartialNaddr i_qspn_get_naddr() {return naddr;}
+        public HCoord i_qspn_get_hcoord() {return hcoord;}
     }
 
     internal class RetPath : Object, IQspnNodePath
@@ -587,10 +581,10 @@ namespace Netsukuku
         public signal void arc_removed(IQspnArc arc);
         // A gnode (or node) is now known on the network and the first path towards
         //  it is now available to this node.
-        public signal void destination_added(IQspnPartialNaddr d);
+        public signal void destination_added(HCoord h);
         // A gnode (or node) has been removed from the network and the last path
         //  towards it has been deleted from this node.
-        public signal void destination_removed(IQspnPartialNaddr d);
+        public signal void destination_removed(HCoord h);
         // A new path (might be the first) to a destination has been found.
         public signal void path_added(IQspnNodePath p);
         // A path to a destination has changed.
@@ -1177,7 +1171,7 @@ namespace Netsukuku
             }
             foreach (Destination d in dest_to_remove)
             {
-                destination_removed(my_naddr.i_qspn_get_address_by_coord(d.dest));
+                destination_removed(d.dest);
                 destinations[d.dest.lvl].unset(d.dest.pos);
             }
             // Then do the same as when arc is changed and remember to add paths_to_add_to_all_paths
@@ -1264,7 +1258,7 @@ namespace Netsukuku
                 int arc_id = p.arcs[j];
                 RetHop hop = new RetHop();
                 hop.arc_id = arc_id;
-                hop.naddr = my_naddr.i_qspn_get_address_by_coord(h);
+                hop.hcoord = h;
                 r.hops.add(hop);
             }
             r.cost = p.cost.i_qspn_add_segment(arc.i_qspn_get_cost());
@@ -1939,7 +1933,7 @@ namespace Netsukuku
                 private set;
                 default = null;
             }
-            public IQspnPartialNaddr? d {
+            public HCoord? h {
                 get;
                 private set;
                 default = null;
@@ -1959,15 +1953,15 @@ namespace Netsukuku
                 t = 3;
                 this.p = p;
             }
-            public SignalToEmit.destination_added(IQspnPartialNaddr d)
+            public SignalToEmit.destination_added(HCoord h)
             {
                 t = 4;
-                this.d = d;
+                this.h = h;
             }
-            public SignalToEmit.destination_removed(IQspnPartialNaddr d)
+            public SignalToEmit.destination_removed(HCoord h)
             {
                 t = 5;
-                this.d = d;
+                this.h = h;
             }
             public bool is_path_added {
                 get {
@@ -2267,13 +2261,13 @@ namespace Netsukuku
                     }
                 }
                 if (md_set.is_empty && !od_set.is_empty)
-                    sd.insert(0, new SignalToEmit.destination_added(
-                    my_naddr.i_qspn_get_address_by_coord(d)
-                    ));
+                {
+                    sd.insert(0, new SignalToEmit.destination_added(d));
+                }
                 if (!md_set.is_empty && od_set.is_empty)
-                    sd.add(new SignalToEmit.destination_removed(
-                    my_naddr.i_qspn_get_address_by_coord(d)
-                    ));
+                {
+                    sd.add(new SignalToEmit.destination_removed(d));
+                }
 
                 // update memory
                 if (od_set.is_empty)
@@ -2289,7 +2283,7 @@ namespace Netsukuku
                 foreach (SignalToEmit s in sd)
                 {
                     if (s.is_destination_added)
-                        destination_added(s.d);
+                        destination_added(s.h);
                     else if (s.is_path_added)
                         path_added(s.p);
                     else if (s.is_path_changed)
@@ -2297,7 +2291,7 @@ namespace Netsukuku
                     else if (s.is_path_removed)
                         path_removed(s.p);
                     else if (s.is_destination_removed)
-                        destination_removed(s.d);
+                        destination_removed(s.h);
                 }
                 // check fingerprints
                 if (destinations[d.lvl].has_key(d.pos))

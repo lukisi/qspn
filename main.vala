@@ -400,15 +400,15 @@ int main(string[] args)
     // Add addresses:
     my_addresses = new ArrayList<string>();
     //  * base
-    my_addresses.add(dotted_form(my_naddr, -1, false, true));
+    my_addresses.add(dotted_form_me(-1, false, true));
     //  * base (anonymous form)
-    my_addresses.add(dotted_form(my_naddr, -1, true, true));
+    my_addresses.add(dotted_form_me(-1, true, true));
     for (int inside_level = my_naddr.i_qspn_get_levels() - 1; inside_level > 0; inside_level--)
     {
         //  * internal in inside_level
-        my_addresses.add(dotted_form(my_naddr, inside_level, false, true));
+        my_addresses.add(dotted_form_me(inside_level, false, true));
         //  * internal in inside_level (anonymous form)
-        my_addresses.add(dotted_form(my_naddr, inside_level, true, true));
+        my_addresses.add(dotted_form_me(inside_level, true, true));
     }
     foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
     {
@@ -490,7 +490,7 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                     string arcs = " ";
                     foreach (FakeArc a in my_arcs)
                     {
-                        string n_ip = dotted_form(a.naddr, -1, false, true);
+                        string n_ip = dotted_form_naddr(a.naddr, -1, false, true);
                         arcs += @"$(a.dev),$(a.neighbour_mac),$(n_ip) ";
                     }
                     print(@"Arcs: [$(arcs)]\n");
@@ -609,8 +609,8 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     }
     FakeCost c = new FakeCost(usec_rtt);
     FakeGenericNaddr n_naddr = new FakeGenericNaddr(_naddr.to_array(), net_gsizes.to_array());
-    string neighbor_addr = dotted_form(n_naddr, -1, false, true);
-    string my_addr = dotted_form(my_naddr, -1, false, true);
+    string neighbor_addr = dotted_form_naddr(n_naddr, -1, false, true);
+    string my_addr = dotted_form_me(-1, false, true);
     FakeArc arc = new FakeArc(n_naddr, nodeid, neighbour_mac, c, n_nic_addr, nic_addr, dev);
     my_arcs.add(arc);
     try {
@@ -728,15 +728,15 @@ void run_manager()
         // An arc (is not working) has been removed from my list.
         IQspnArc arc = _arc;
         FakeArc a = (FakeArc)arc;
-        string n_ip = dotted_form(a.naddr, -1, false, true);
+        string n_ip = dotted_form_naddr(a.naddr, -1, false, true);
         print(@"\nAn arc removed: $(a.dev),$(a.neighbour_mac),$(n_ip).\n");
         if (a in my_arcs) my_arcs.remove(a);
     });
-    address_manager.qspn_manager.destination_added.connect((_d) => {
+    address_manager.qspn_manager.destination_added.connect((_h) => {
         // A gnode (or node) is now known on the network and the first path towards
         //  it is now available to this node.
-        IQspnPartialNaddr d = _d;
-        string dest = dotted_form(d);
+        HCoord h = _h;
+        string dest = dotted_form_hcoord(h);
         print(@"\nA destination added: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
@@ -745,14 +745,14 @@ void run_manager()
         DispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationAddedTasklet ts = new DestinationAddedTasklet();
         ts.dest = dest;
-        ts.d = d;
+        ts.h = h;
         dt.dispatch(ts);
     });
-    address_manager.qspn_manager.destination_removed.connect((_d) => {
+    address_manager.qspn_manager.destination_removed.connect((_h) => {
         // A gnode (or node) has been removed from the network and the last path
         //  towards it has been deleted from this node.
-        IQspnPartialNaddr d = _d;
-        string dest = dotted_form(d);
+        HCoord h = _h;
+        string dest = dotted_form_hcoord(h);
         print(@"\nA destination removed: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
@@ -761,79 +761,85 @@ void run_manager()
         DispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationRemovedTasklet ts = new DestinationRemovedTasklet();
         ts.dest = dest;
-        ts.d = d;
+        ts.h = h;
         dt.dispatch(ts, true);
         if (dt.is_empty()) my_destinations_dispatchers.unset(dest);
     });
     address_manager.qspn_manager.path_added.connect((_p) => {
         // A new path (might be the first) to a destination has been found.
         IQspnNodePath p = _p;
-        string dest = dotted_form(p.i_qspn_get_hops().last().i_qspn_get_naddr());
+        string dest = dotted_form_hcoord(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         print(@"\nA path added to $(dest).\n");
         update_routes(p);
     });
     address_manager.qspn_manager.path_changed.connect((_p) => {
         // A path to a destination has changed.
         IQspnNodePath p = _p;
-        string dest = dotted_form(p.i_qspn_get_hops().last().i_qspn_get_naddr());
+        string dest = dotted_form_hcoord(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         print(@"\nA path changed to $(dest).\n");
         update_routes(p);
     });
     address_manager.qspn_manager.path_removed.connect((_p) => {
         // A path (might be the last) to a destination has been deleted.
         IQspnNodePath p = _p;
-        string dest = dotted_form(p.i_qspn_get_hops().last().i_qspn_get_naddr());
+        string dest = dotted_form_hcoord(p.i_qspn_get_hops().last().i_qspn_get_hcoord());
         print(@"\nA path removed to $(dest).\n");
         update_routes(p);
     });
     address_manager.qspn_manager.changed_fp.connect((_l) => {
         // My g-node of level l changed its fingerprint.
         int l = _l;
-        print(@"\nA change in my fingerprints at level $(l).\n");
-        // TODO
+        int64 id;
+        try {
+            IQspnFingerprint fp = address_manager.qspn_manager.get_fingerprint(l);
+            FakeFingerprint f_fp = (FakeFingerprint)fp;
+            id = f_fp.id;
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        print(@"\nA change in my fingerprints at level $(l). Now its id is $(id).\n");
     });
     address_manager.qspn_manager.changed_nodes_inside.connect((_l) => {
         // My g-node of level l changed its nodes_inside.
         int l = _l;
-        print(@"\nA change in my nodes_inside at level $(l).\n");
-        // TODO
+        int num;
+        try {
+            num = address_manager.qspn_manager.get_nodes_inside(l);
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        print(@"\nA change in my nodes_inside at level $(l). Now they are $(num).\n");
     });
-    address_manager.qspn_manager.gnode_splitted.connect((_a, _d, _fp) => {
+    address_manager.qspn_manager.gnode_splitted.connect((_a, _hdest, _fp) => {
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
         IQspnArc a = _a;
-        HCoord d = _d;
+        HCoord hdest = _hdest;
         IQspnFingerprint fp = _fp;
-        print(@"\nA g-node split.\n");
-        // TODO
+        FakeArc f_a = (FakeArc)a;
+        FakeFingerprint f_fp = (FakeFingerprint)fp;
+        print(@"\nA g-node ($(hdest.lvl),$(hdest.pos)) split. My neighbor $(f_a.neighbour_nic_addr) has fingerprint $(f_fp.id) and must migrate.\n");
     });
 }
 
 void update_routes(IQspnNodePath p)
 {
-    IQspnHop f = p.i_qspn_get_hops().last();
-    IQspnPartialNaddr d = f.i_qspn_get_naddr();
-    HCoord h = my_naddr.i_qspn_get_coord_by_address(d);
+    HCoord h = p.i_qspn_get_hops().last().i_qspn_get_hcoord();
     update_routes_to_dest(h);
 }
 
 void update_routes_to_dest(HCoord h)
 {
-    IQspnPartialNaddr d = my_naddr.i_qspn_get_address_by_coord(h);
-    string dest = dotted_form(d);
+    string dest = dotted_form_hcoord(h);
     if (! my_destinations_dispatchers.has_key(dest))
     {
         my_destinations_dispatchers[dest] = new DispatchableTasklet(ntkd_tasklet);
     }
     DispatchableTasklet dt = my_destinations_dispatchers[dest];
     UpdateRoutesTasklet ts = new UpdateRoutesTasklet();
-    ts.d = d;
+    ts.h = h;
     dt.dispatch(ts);
 }
 
 class DestinationAddedTasklet : Object, INtkdTaskletSpawnable
 {
     public string dest;
-    public IQspnPartialNaddr d;
+    public HCoord h;
     public void * func()
     {
         if (dest in my_destinations)
@@ -846,7 +852,7 @@ class DestinationAddedTasklet : Object, INtkdTaskletSpawnable
 class DestinationRemovedTasklet : Object, INtkdTaskletSpawnable
 {
     public string dest;
-    public IQspnPartialNaddr d;
+    public HCoord h;
     public void * func()
     {
         if (! (dest in my_destinations))
@@ -859,32 +865,31 @@ class DestinationRemovedTasklet : Object, INtkdTaskletSpawnable
 class NeighborData : Object
 {
     public string mac;
-    public FakeGenericNaddr d_as_partial;
+    public HCoord h;
 }
 
 class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
 {
-    public IQspnPartialNaddr d;
+    public HCoord h;
     public void * func()
     {
         HashMap<string, Route> new_routes = new HashMap<string, Route>();
         Gee.List<IQspnNodePath> paths;
         try {
             paths =
-                address_manager.qspn_manager.get_paths_to(my_naddr.i_qspn_get_coord_by_address(d));
+                address_manager.qspn_manager.get_paths_to(h);
         } catch (QspnBootstrapInProgressError e) {
             // not available yet
             print("UpdateRoutesTasklet: bootstrap not completed yet\n");
             return null;
         }
-        string dest = dotted_form(d);
+        string dest = dotted_form_hcoord(h);
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (FakeArc arc in my_arcs)
         {
             NeighborData neighbor = new NeighborData();
             neighbor.mac = arc.neighbour_mac;
-            neighbor.d_as_partial = (FakeGenericNaddr)my_naddr.i_qspn_get_address_by_coord(
-                    my_naddr.i_qspn_get_coord_by_address(arc.naddr));
+            neighbor.h = my_naddr.i_qspn_get_coord_by_address(arc.naddr);
             neighbors.add(neighbor);
         }
         foreach (IQspnNodePath path in paths)
@@ -895,7 +900,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             {
                 // absolute best
                 string k = @"$(dest)_main";
-                string gw = dotted_form(path_arc.naddr, -1, false, true);
+                string gw = dotted_form_naddr(path_arc.naddr, -1, false, true);
                 Route r = new Route(dest, gw, path_dev);
                 new_routes[k] = r;
             }
@@ -907,16 +912,16 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 // new_routes contains k?
                 if (new_routes.has_key(k)) continue;
                 // path contains neighbor's g-node?
-                ArrayList<FakeGenericNaddr> searchable_path = new ArrayList<FakeGenericNaddr>((a, b) => a.equals(b));
+                ArrayList<HCoord> searchable_path = new ArrayList<HCoord>((a, b) => a.equals(b));
                 foreach (IQspnHop path_h in path.i_qspn_get_hops())
-                    searchable_path.add((FakeGenericNaddr)path_h.i_qspn_get_naddr());
-                if (neighbor.d_as_partial in searchable_path)
+                    searchable_path.add(path_h.i_qspn_get_hcoord());
+                if (neighbor.h in searchable_path)
                 {
                     completed = false;
                     continue;
                 }
                 // best without neighbor.
-                string gw = dotted_form(path_arc.naddr, -1, false, true);
+                string gw = dotted_form_naddr(path_arc.naddr, -1, false, true);
                 Route r = new Route(dest, gw, path_dev);
                 new_routes[k] = r;
             }
@@ -969,19 +974,61 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
     }
 }
 
-string dotted_form(IQspnPartialNaddr naddr, int inside_level=-1, bool anonymous_form=false, bool omit_suffix=false)
+string dotted_form_me(int inside_level=-1, bool anonymous_form=false, bool omit_suffix=false)
 {
+    return dotted_form_naddr(my_naddr, inside_level, anonymous_form, omit_suffix);
+}
+
+string dotted_form_hcoord(HCoord h, bool inside_upper_level=false, bool anonymous_form=false, bool omit_suffix=false)
+{
+    int inside_level = -1;
+    if (inside_upper_level) inside_level = h.lvl+1;
     int i = 0;
     int multiplier = 1;
-    int levels = naddr.i_qspn_get_levels();
-    int level_of_gnode = naddr.i_qspn_get_level_of_gnode();
+    int levels = my_naddr.i_qspn_get_levels();
+    int level_of_gnode = h.lvl;
     int class_size = 1;
     for (int j = 0; j < levels; j++)
     {
         int pos_j;
         if (j == level_of_gnode) class_size = multiplier;
-        if (j >= level_of_gnode) pos_j = naddr.i_qspn_get_pos(j);
+        if (j > level_of_gnode) pos_j = my_naddr.i_qspn_get_pos(j);
+        else if (j == level_of_gnode) pos_j = h.pos;
         else pos_j = 0;
+        if (inside_level != -1 && j == levels-1)
+        {
+            i += inside_level * multiplier;
+        }
+        else if (inside_level == -1 || inside_level > j)
+        {
+            i += pos_j * multiplier;
+        }
+        int gsize = my_naddr.i_qspn_get_gsize(j);
+        multiplier *= gsize;
+    }
+    if (anonymous_form) i += multiplier;
+    multiplier *= 2;
+    if (inside_level != -1) i += multiplier;
+
+    int suffix = 32 - (int)(Math.floor( Math.log2( class_size ) ));
+    int i0 = i % 256;
+    i /= 256;
+    int i1 = i % 256;
+    i /= 256;
+    int i2 = i;
+    string ret = @"10.$(i2).$(i1).$(i0)";
+    if (!omit_suffix) ret = @"$(ret)/$(suffix)";
+    return ret;
+}
+
+string dotted_form_naddr(IQspnNaddr naddr, int inside_level=-1, bool anonymous_form=false, bool omit_suffix=false)
+{
+    int i = 0;
+    int multiplier = 1;
+    int levels = naddr.i_qspn_get_levels();
+    for (int j = 0; j < levels; j++)
+    {
+        int pos_j = naddr.i_qspn_get_pos(j);
         if (inside_level != -1 && j == levels-1)
         {
             i += inside_level * multiplier;
@@ -997,7 +1044,7 @@ string dotted_form(IQspnPartialNaddr naddr, int inside_level=-1, bool anonymous_
     multiplier *= 2;
     if (inside_level != -1) i += multiplier;
 
-    int suffix = 32 - (int)(Math.floor( Math.log2( class_size ) ));
+    int suffix = 32;
     int i0 = i % 256;
     i /= 256;
     int i1 = i % 256;
@@ -1020,10 +1067,10 @@ void stop_manager()
 
 void remove_neighbors_routes()
 {
-    string my_addr = dotted_form(my_naddr, -1, false, true);
+    string my_addr = dotted_form_me(-1, false, true);
     foreach (FakeArc arc in my_arcs)
     {
-        string neighbor_addr = dotted_form(arc.naddr, -1, false, true);
+        string neighbor_addr = dotted_form_naddr(arc.naddr, -1, false, true);
         string dev = arc.dev;
         try {
             string cmd = @"ip route del $(neighbor_addr) dev $(dev) src $(my_addr)";

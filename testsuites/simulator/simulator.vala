@@ -365,18 +365,6 @@ void test0()
         print(@"node $(k): that's enough.\n");
     }
 
-    TestMapTasklet ts1 = new TestMapTasklet();
-    ts1.mgr = nodes["1"].sn.mgr;
-    ts1.my_naddr = new FakeGenericNaddr(nodes["1"].positions.to_array(), gsizes.to_array());
-    ts1.dest = new HCoord(0, 2);
-    tasklet.spawn(ts1);
-
-    TestMapTasklet ts2 = new TestMapTasklet();
-    ts2.mgr = nodes["2"].sn.mgr;
-    ts2.my_naddr = new FakeGenericNaddr(nodes["2"].positions.to_array(), gsizes.to_array());
-    ts2.dest = new HCoord(0, 1);
-    tasklet.spawn(ts2);
-
     {
         try {
             QspnManager mgr = nodes["1"].sn.mgr;
@@ -388,7 +376,7 @@ void test0()
             print(@"the path has $(lsth.size) hops.\n");
             assert(lsth.size == 1);
             IQspnHop h = lsth[0];
-            int h_pos = h.i_qspn_get_naddr().i_qspn_get_pos(0);
+            int h_pos = h.i_qspn_get_hcoord().pos;
             assert(h_pos == 2);
         } catch (QspnBootstrapInProgressError e) {
             assert_not_reached();  // every node has completed bootstrap
@@ -595,64 +583,16 @@ void test_file(string[] args)
             print(s_addr_from);
             foreach (IQspnHop hop in p.i_qspn_get_hops())
             {
-                print(@" ($(hop.i_qspn_get_arc_id())) $(partial_naddr_to_string(hop.i_qspn_get_naddr()))");
+                print(@" -arc $(hop.i_qspn_get_arc_id())- $(hcoord_to_string(hop.i_qspn_get_hcoord()))");
             }
             print("\n");
         }
     }
 }
 
-string partial_naddr_to_string(IQspnPartialNaddr pn)
+string hcoord_to_string(HCoord h)
 {
-    string ret = "";
-    string next = "";
-    for (int i = pn.i_qspn_get_level_of_gnode(); i < pn.i_qspn_get_levels(); i++)
-    {
-        ret = @"$(pn.i_qspn_get_pos(i))$(next)$(ret)";
-        next = ".";
-    }
-    return ret;
-}
-
-class TestMapTasklet : Object, INtkdTaskletSpawnable
-{
-    public IQspnNaddr my_naddr;
-    public QspnManager mgr;
-    public HCoord dest;
-    private string repr_naddr(IQspnNaddr naddr)
-    {
-        string ret = "";
-        for (int lvl = 0; lvl < naddr.i_qspn_get_levels(); lvl++)
-        {
-            int pos = naddr.i_qspn_get_pos(lvl);
-            ret = @".$(pos)$(ret)";
-        }
-        return ret;
-    }
-    public void * func()
-    {
-        try {
-            while (true)
-            {
-                Gee.List<IQspnNodePath> lst = mgr.get_paths_to(dest);
-                foreach (IQspnNodePath p in lst)
-                {
-                    ArrayList<string> no_dup = new ArrayList<string>();
-                    no_dup.add(repr_naddr(my_naddr));
-                    Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
-                    foreach (IQspnHop h in lsth)
-                    {
-                        string hop = repr_naddr(h.i_qspn_get_naddr());
-                        assert(!(hop in no_dup));
-                        no_dup.add(hop);
-                    }
-                }
-                tasklet.ms_wait(2);
-            }
-        } catch (QspnBootstrapInProgressError e) {
-            assert_not_reached();  // every node has completed bootstrap
-        }
-    }
+    return @"($(h.lvl), $(h.pos))";
 }
 
 INtkdTasklet tasklet;
