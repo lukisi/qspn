@@ -490,8 +490,7 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                     string arcs = " ";
                     foreach (FakeArc a in my_arcs)
                     {
-                        string n_ip = dotted_form_naddr(a.naddr, -1, false, true);
-                        arcs += @"$(a.dev),$(a.neighbour_mac),$(n_ip) ";
+                        arcs += @"$(a.dev),$(a.neighbour_mac),$(a.neighbour_nic_addr) ";
                     }
                     print(@"Arcs: [$(arcs)]\n");
                     if (address_manager == null) print("Not started.\n");
@@ -505,6 +504,19 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                             string prevmac = r.prevmac == null ? "null" : r.prevmac;
                             print(@" from $(prevmac) to $(r.dest) src $(r.src) gw $(r.gw) dev $(r.dev)\n");
                         }
+                        try {
+                            if (address_manager.qspn_manager.is_bootstrap_complete())
+                            {
+                                print("Level - Number of nodes inside - Fingerprint ID\n");
+                                for (int l = 0; l < my_naddr.i_qspn_get_levels(); l++)
+                                {
+                                    int num = address_manager.qspn_manager.get_nodes_inside(l);
+                                    var fp = address_manager.qspn_manager.get_fingerprint(l);
+                                    int64 id = ((FakeFingerprint)fp).id;
+                                    print(@"  $(l)                 $(num)                  $(id)\n");
+                                }
+                            }
+                        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
                     }
                 }
                 else if (_args[0] == "g" && _args.size == 1)
@@ -793,8 +805,11 @@ void run_manager()
             IQspnFingerprint fp = address_manager.qspn_manager.get_fingerprint(l);
             FakeFingerprint f_fp = (FakeFingerprint)fp;
             id = f_fp.id;
-        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
-        print(@"\nA change in my fingerprints at level $(l). Now its id is $(id).\n");
+            print(@"\nA change in my fingerprints at level $(l). Now its id is $(id).\n");
+        } catch (QspnBootstrapInProgressError e) {
+            print(@"\nA change in my fingerprints at level $(l). Not bootstrapped yet.\n");
+        }
+        
     });
     address_manager.qspn_manager.changed_nodes_inside.connect((_l) => {
         // My g-node of level l changed its nodes_inside.
@@ -802,8 +817,10 @@ void run_manager()
         int num;
         try {
             num = address_manager.qspn_manager.get_nodes_inside(l);
-        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
-        print(@"\nA change in my nodes_inside at level $(l). Now they are $(num).\n");
+            print(@"\nA change in my nodes_inside at level $(l). Now they are $(num).\n");
+        } catch (QspnBootstrapInProgressError e) {
+            print(@"\nA change in my nodes_inside at level $(l). Not bootstrapped yet.\n");
+        }
     });
     address_manager.qspn_manager.gnode_splitted.connect((_a, _hdest, _fp) => {
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
@@ -949,7 +966,6 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     if (new_r.dev != old_r.dev || new_r.gw != old_r.gw)
                     {
                         // change
-                        print(@"Change in table $(table) route to $(dest) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)\n");
                         try {
                             string cmd = @"ip route change $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
@@ -964,7 +980,6 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 {
                     // add
                     Route new_r = new_routes[k];
-                    print(@"Add in table $(table) route to $(dest) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)\n");
                     try {
                         string cmd = @"ip route add $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
                         print(@"$(cmd)\n");
@@ -981,7 +996,6 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 {
                     // remove
                     Route old_r = my_routes[k];
-                    print(@"Delete in table $(table) route to $(dest) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)\n");
                     try {
                         string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
                         print(@"$(cmd)\n");
@@ -1096,7 +1110,6 @@ void stop_manager()
         if (! (suffix in tables)) tables.add(suffix);
         // remove
         Route old_r = my_routes[k];
-        print(@"Delete in table $(table) route to $(dest) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)\n");
         try {
             string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
             print(@"$(cmd)\n");
@@ -1273,7 +1286,7 @@ namespace LinuxRoute
                 int pos2 = prefix.index_of("\t");
                 if (pos1 == pos2) continue;
                 if (pos1 == -1 || pos1 > pos2) pos1 = pos2;
-                prefix = prefix.substring(pos1);
+                prefix = prefix.substring(0, pos1);
                 int busynum = int.parse(prefix);
                 busy_nums.add(busynum);
             }
@@ -1306,7 +1319,7 @@ namespace LinuxRoute
             {
                 error("no more free numbers in rt_tables: not implemented yet");
             }
-            string to_add = @"$(new_num)\t$(tablename)\n";
+            string to_add = @"\n$(new_num)\t$(tablename)\n";
             // a path
             File fout = File.new_for_path(RT_TABLES);
             // add "to_add" to file
@@ -1367,13 +1380,15 @@ namespace LinuxRoute
         string[] lines = rt_tables_content.split("\n");
         {
             string new_cont = "";
-            string next = "";
             foreach (string old_line in lines)
             {
-                new_cont += next;
-                next = "\n";
-                if (old_line != line) new_cont += old_line;
+                if (old_line == line) continue;
+                new_cont += old_line;
+                new_cont += "\n";
             }
+            // twice remove trailing new-line
+            if (new_cont.has_suffix("\n")) new_cont = new_cont.substring(0, new_cont.length-1);
+            if (new_cont.has_suffix("\n")) new_cont = new_cont.substring(0, new_cont.length-1);
             // replace into path
             File fout = File.new_for_path(RT_TABLES);
             try {
