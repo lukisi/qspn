@@ -498,17 +498,17 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                     {
                         print("Started.\n");
                         print(@"Routes: $(my_routes.keys.size)\n");
-                        foreach (string dst in my_routes.keys)
+                        foreach (string k in my_routes.keys)
                         {
-                            Route r = my_routes[dst];
+                            Route r = my_routes[k];
                             string prevmac = r.prevmac == null ? "null" : r.prevmac;
-                            print(@" from $(prevmac) to $(r.dest) src $(r.src) gw $(r.gw) dev $(r.dev)\n");
+                            print(@" k:$(k) from $(prevmac) to $(r.dest) src $(r.src) gw $(r.gw) dev $(r.dev)\n");
                         }
                         try {
                             if (address_manager.qspn_manager.is_bootstrap_complete())
                             {
                                 print("Level - Number of nodes inside - Fingerprint ID\n");
-                                for (int l = 0; l < my_naddr.i_qspn_get_levels(); l++)
+                                for (int l = 1; l <= my_naddr.i_qspn_get_levels(); l++)
                                 {
                                     int num = address_manager.qspn_manager.get_nodes_inside(l);
                                     var fp = address_manager.qspn_manager.get_fingerprint(l);
@@ -639,6 +639,12 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     if (address_manager != null)
     {
         address_manager.qspn_manager.arc_add(arc);
+        Gee.List<HCoord> dests;
+        try {
+            dests = address_manager.qspn_manager.get_known_destinations();
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        foreach (HCoord dest in dests)
+            update_routes_to_dest(dest);
     }
 }
 
@@ -944,7 +950,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 // best without neighbor.
                 string gw = path_arc.neighbour_nic_addr;
                 string src = dotted_form_me();
-                Route r = new Route(dest, gw, path_dev, src);
+                Route r = new Route(dest, gw, path_dev, src, neighbor.mac);
                 new_routes[k] = r;
             }
             if (completed) break;
@@ -1102,7 +1108,8 @@ void stop_manager()
 
     // remove routes
     ArrayList<string> tables = new ArrayList<string>();
-    foreach (string k in my_routes.keys)
+    ArrayList<string> keys = new ArrayList<string>(); keys.add_all(my_routes.keys);
+    foreach (string k in keys)
     {
         string dest = k.split("_")[0];
         string suffix = k.split("_")[1];
