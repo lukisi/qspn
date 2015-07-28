@@ -347,7 +347,7 @@ int main(string[] args)
     my_arcs = new ArrayList<FakeArc>((a, b) => a.i_qspn_equals(b));
     my_routes = new HashMap<string, Route>();
     my_destinations = new ArrayList<string>();
-    my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
+    my_destinations_dispatchers = new HashMap<string, NtkdDispatchableTasklet>();
     if (interfaces.length == 0) error("You have to handle some NICs (option -i)");
     nic_addr_map = new HashMap<string, string>();
     foreach (string dev_def in interfaces)
@@ -583,7 +583,7 @@ ArrayList<string> my_addresses;
 FakeFingerprint my_fp;
 ArrayList<FakeArc> my_arcs;
 ArrayList<string> my_destinations;
-HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
+HashMap<string, NtkdDispatchableTasklet> my_destinations_dispatchers;
 HashMap<string, Route> my_routes;
 
 class Route : Object
@@ -757,9 +757,9 @@ void run_manager()
         print(@"\nA destination added: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
-            my_destinations_dispatchers[dest] = new DispatchableTasklet(ntkd_tasklet);
+            my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
         }
-        DispatchableTasklet dt = my_destinations_dispatchers[dest];
+        NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationAddedTasklet ts = new DestinationAddedTasklet();
         ts.dest = dest;
         ts.h = h;
@@ -773,9 +773,9 @@ void run_manager()
         print(@"\nA destination removed: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
-            my_destinations_dispatchers[dest] = new DispatchableTasklet(ntkd_tasklet);
+            my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
         }
-        DispatchableTasklet dt = my_destinations_dispatchers[dest];
+        NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationRemovedTasklet ts = new DestinationRemovedTasklet();
         ts.dest = dest;
         ts.h = h;
@@ -854,9 +854,9 @@ void update_routes_to_dest(HCoord h)
     string dest = dotted_form_hcoord(h);
     if (! my_destinations_dispatchers.has_key(dest))
     {
-        my_destinations_dispatchers[dest] = new DispatchableTasklet(ntkd_tasklet);
+        my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
     }
-    DispatchableTasklet dt = my_destinations_dispatchers[dest];
+    NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
     UpdateRoutesTasklet ts = new UpdateRoutesTasklet();
     ts.h = h;
     dt.dispatch(ts);
@@ -1189,60 +1189,6 @@ void remove_addresses()
         }
     }
 }
-
-public class DispatchableTasklet
-{
-    private class DispatchedTasklet : Object
-    {
-        public INtkdChannel ch;
-        public INtkdTaskletSpawnable sp;
-    }
-    private class DispatcherTasklet : Object, INtkdTaskletSpawnable
-    {
-        public DispatchableTasklet dsp;
-        public void * func()
-        {
-            while (dsp.lst_sp.size > 0)
-            {
-                DispatchedTasklet x = dsp.lst_sp.remove_at(0);
-                x.sp.func();
-                if (x.ch.get_balance() < 0) x.ch.send_async(0);
-            }
-            return null;
-        }
-    }
-    private INtkdTaskletHandle? t;
-    private ArrayList<DispatchedTasklet> lst_sp;
-    private INtkdTasklet tasklet;
-    public DispatchableTasklet(INtkdTasklet tasklet)
-    {
-        this.tasklet = tasklet;
-        t = null;
-        lst_sp = new ArrayList<DispatchedTasklet>();
-    }
-    public void dispatch(INtkdTaskletSpawnable sp, bool wait=false)
-    {
-        DispatchedTasklet dt = new DispatchedTasklet();
-        dt.ch = tasklet.get_channel();
-        dt.sp = sp;
-        lst_sp.add(dt);
-        if (t == null || !t.is_running())
-        {
-            DispatcherTasklet ts = new DispatcherTasklet();
-            ts.dsp = this;
-            t = tasklet.spawn(ts);
-        }
-        if (wait)
-        {
-            dt.ch.recv();
-        }
-    }
-    public bool is_empty()
-    {
-        return t == null || !t.is_running();
-    }
-}
-
 
 namespace LinuxRoute
 {
