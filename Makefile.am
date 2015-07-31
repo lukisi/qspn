@@ -34,10 +34,6 @@ libmacgetter_la_CPPFLAGS = \
 libmacgetter_la_LIBADD = \
 	$(NULL)
 
-libneighborhood_la_SOURCES = \
-	neighborhood.vala \
-	$(NULL)
-
 libqspn_la_SOURCES = \
 	qspn.vala \
 	serialize_helpers.vala \

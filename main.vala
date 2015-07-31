@@ -369,7 +369,7 @@ int main(string[] args)
     typeof(BroadcastID).class_peek();
     // Pass tasklet system to ModRpc (and ZCD)
     zcd.ModRpc.init_tasklet_system(zcd_tasklet);
-    // Pass tasklet system to module neighborhood
+    // Pass tasklet system to module qspn
     QspnManager.init(ntkd_tasklet);
 
     // instantiate delegate in order to be able to listen on the NICs
@@ -421,24 +421,35 @@ int main(string[] args)
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
+    if (go) run_manager();
+
+    // main table and its rule
+    LinuxRoute.create_table(maintable);
+    LinuxRoute.rule_default(maintable);
+    try {
+        string cmd = @"ip route add unreachable 10.0.0.0/8 table $(maintable)";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
+        if (com_ret.exit_status != 0)
+            error(@"$(com_ret.cmderr)\n");
+    } catch (SpawnError e) {error("Unable to spawn a command");}
+
+    // start a tasklet to get commands from stdin.
+    CommandLineInterfaceTasklet ts = new CommandLineInterfaceTasklet();
+    ntkd_tasklet.spawn(ts);
+
+    // register handlers for SIGINT and SIGTERM to exit
+    Posix.signal(Posix.SIGINT, safe_exit);
+    Posix.signal(Posix.SIGTERM, safe_exit);
+    // Main loop
+    while (true)
     {
-        if (go) run_manager();
-
-        // start a tasklet to get commands from stdin.
-        CommandLineInterfaceTasklet ts = new CommandLineInterfaceTasklet();
-        ntkd_tasklet.spawn(ts);
-
-        // register handlers for SIGINT and SIGTERM to exit
-        Posix.signal(Posix.SIGINT, safe_exit);
-        Posix.signal(Posix.SIGTERM, safe_exit);
-        // Main loop
-        while (true)
-        {
-            zcd_tasklet.ms_wait(100);
-            if (do_me_exit) break;
-        }
+        zcd_tasklet.ms_wait(100);
+        if (do_me_exit) break;
     }
+
     if (address_manager != null) stop_manager();
+    remove_tables_and_rules();
     remove_neighbors_routes();
     remove_handlers();
     remove_addresses();
@@ -636,6 +647,13 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     } catch (SpawnError e) {error("Unable to spawn a command");}
     LinuxRoute.create_table(@"$(maintable)_from_$(neighbour_mac)");
     LinuxRoute.rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
+    try {
+        string cmd = @"ip route add unreachable 10.0.0.0/8 table $(maintable)_from_$(neighbour_mac)";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
+        if (com_ret.exit_status != 0)
+            error(@"$(com_ret.cmderr)\n");
+    } catch (SpawnError e) {error("Unable to spawn a command");}
     if (address_manager != null)
     {
         address_manager.qspn_manager.arc_add(arc);
@@ -703,10 +721,19 @@ void remove_arc(string n_nic_addr)
         }
     }
     assert(found != null);
-    LinuxRoute.remove_rule_coming_from_macaddr(found.neighbour_mac, @"$(maintable)_from_$(found.neighbour_mac)");
-    LinuxRoute.remove_table(@"$(maintable)_from_$(found.neighbour_mac)");
     address_manager.qspn_manager.arc_remove(found);
     my_arcs.remove_at(i);
+    // remove route to neighbor. this wont emit arc_removed.
+    try {
+        string cmd = @"ip route del $(found.neighbour_nic_addr) dev $(found.dev) src $(nic_addr_map[found.dev])";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
+        if (com_ret.exit_status != 0)
+            error(@"$(com_ret.cmderr)\n");
+    } catch (SpawnError e) {error("Unable to spawn a command");}
+    // remove table and rule.
+    LinuxRoute.remove_rule_coming_from_macaddr(found.neighbour_mac, @"$(maintable)_from_$(found.neighbour_mac)");
+    LinuxRoute.remove_table(@"$(maintable)_from_$(found.neighbour_mac)");
 }
 
 void run_manager()
@@ -748,6 +775,17 @@ void run_manager()
         string n_ip = dotted_form_naddr(a.naddr, -1, false, true);
         print(@"\nAn arc removed: $(a.dev),$(a.neighbour_mac),$(n_ip).\n");
         if (a in my_arcs) my_arcs.remove(a);
+        // remove route to neighbor.
+        try {
+            string cmd = @"ip route del $(a.neighbour_nic_addr) dev $(a.dev) src $(nic_addr_map[a.dev])";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        // remove table and rule.
+        LinuxRoute.remove_rule_coming_from_macaddr(a.neighbour_mac, @"$(maintable)_from_$(a.neighbour_mac)");
+        LinuxRoute.remove_table(@"$(maintable)_from_$(a.neighbour_mac)");
     });
     address_manager.qspn_manager.destination_added.connect((_h) => {
         // A gnode (or node) is now known on the network and the first path towards
@@ -837,10 +875,6 @@ void run_manager()
         FakeFingerprint f_fp = (FakeFingerprint)fp;
         print(@"\nA g-node ($(hdest.lvl),$(hdest.pos)) split. My neighbor $(f_a.neighbour_nic_addr) has fingerprint $(f_fp.id) and must migrate.\n");
     });
-
-    // main table and its rule
-    LinuxRoute.create_table(maintable);
-    LinuxRoute.rule_default(maintable);
 }
 
 void update_routes(IQspnNodePath p)
@@ -1127,12 +1161,22 @@ void stop_manager()
         my_routes.unset(k);
     }
 
+    address_manager.qspn_manager = null;
+    address_manager = null;
+}
+
+void remove_tables_and_rules()
+{
+    // each arc
+    foreach (FakeArc arc in my_arcs)
+    {
+        LinuxRoute.remove_rule_coming_from_macaddr(arc.neighbour_mac, @"$(maintable)_from_$(arc.neighbour_mac)");
+        LinuxRoute.remove_table(@"$(maintable)_from_$(arc.neighbour_mac)");
+    }
+
     // main table and its rule
     LinuxRoute.remove_rule_default(maintable);
     LinuxRoute.remove_table(maintable);
-
-    address_manager.qspn_manager = null;
-    address_manager = null;
 }
 
 void remove_neighbors_routes()
@@ -1147,8 +1191,6 @@ void remove_neighbors_routes()
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
-        LinuxRoute.remove_rule_coming_from_macaddr(arc.neighbour_mac, @"$(maintable)_from_$(arc.neighbour_mac)");
-        LinuxRoute.remove_table(@"$(maintable)_from_$(arc.neighbour_mac)");
     }
 }
 
