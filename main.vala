@@ -755,6 +755,18 @@ void remove_arc(string n_nic_addr)
     // remove table and rule.
     LinuxRoute.remove_rule_coming_from_macaddr(found.neighbour_mac, @"$(maintable)_from_$(found.neighbour_mac)");
     LinuxRoute.remove_table(@"$(maintable)_from_$(found.neighbour_mac)");
+    // remove from my_routes.
+    ArrayList<string> keys = new ArrayList<string>();
+    keys.add_all(my_routes.keys);
+    foreach (string k in keys) if (k.has_suffix(@"_$(found.neighbour_mac)"))
+        my_routes.unset(k);
+    // update all known destinations from qspn_manager.
+    Gee.List<HCoord> dests;
+    try {
+        dests = address_manager.qspn_manager.get_known_destinations();
+    } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+    foreach (HCoord dest in dests)
+        update_routes_to_dest(dest);
 }
 
 void run_manager()
