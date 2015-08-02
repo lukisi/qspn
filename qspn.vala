@@ -1297,7 +1297,15 @@ namespace Netsukuku
                     int d_lvl = p.hops[j].lvl;
                     int d_pos = p.hops[j].pos;
                     assert(destinations.size > d_lvl);
-                    assert(destinations[d_lvl].has_key(d_pos));
+                    if (! destinations[d_lvl].has_key(d_pos))
+                    {
+                        if (p.cost.i_qspn_is_dead())
+                        {
+                            p.ignore_outside.add(false);
+                            continue;
+                        }
+                        else assert_not_reached();
+                    }
                     Destination d = destinations[d_lvl][d_pos];
                     NodePath? best_to_arc = null;
                     foreach (NodePath q in d.paths)

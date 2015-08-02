@@ -557,7 +557,29 @@ void test_file(string[] args)
     } catch (QspnBootstrapInProgressError e) {
         assert_not_reached();  // node has completed bootstrap
     }
-    if (args.length > 3)
+    if (args.length > 2 && args[2] == "remove_arc")
+    {
+        NodeData nd_from = nodes[args[3]];
+        NodeData nd_to = nodes[args[4]];
+        foreach (FakeArc a in nd_from.sn.arcs)
+        {
+            if (a.neighbour_qspnmgr == nd_to.sn.mgr)
+            {
+                nd_from.sn.mgr.arc_remove(a);
+                break;
+            }
+        }
+        foreach (FakeArc a in nd_to.sn.arcs)
+        {
+            if (a.neighbour_qspnmgr == nd_from.sn.mgr)
+            {
+                nd_to.sn.mgr.arc_remove(a);
+                break;
+            }
+        }
+        tasklet.ms_wait(2000);
+    }
+    else if (args.length > 3)
     {
         string s_addr_from = args[2];
         NodeData nd_from = nodes[s_addr_from];
