@@ -307,19 +307,25 @@ string elderships;
 [CCode (array_length = false, array_null_terminated = true)]
 string[] interfaces;
 bool go;
+bool accept_anonymous_requests;
+bool no_anonymize;
 
 int main(string[] args)
 {
     go = false; // default
+    accept_anonymous_requests = false; // default
+    no_anonymize = false; // default
     mynodeid = -1;
     OptionContext oc = new OptionContext();
-    OptionEntry[] entries = new OptionEntry[7];
+    OptionEntry[] entries = new OptionEntry[9];
     int index = 0;
     entries[index++] = {"nodeid", 'n', 0, OptionArg.INT, ref mynodeid, "My node ID. unique number.", null};
     entries[index++] = {"naddr", 'a', 0, OptionArg.STRING, ref naddr, "My Netsukuku Address, dotted-form.", null};
     entries[index++] = {"gsizes", 's', 0, OptionArg.STRING, ref gsizes, "Sizes of groups, dotted-form.", null};
     entries[index++] = {"elderships", 'e', 0, OptionArg.STRING, ref elderships, "My elderships, dotted-form", null};
     entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface and its nic_addr (only last 2 octets) coma-separated. e.g. -i eth1,11.22. You can use it multiple times.", null};
+    entries[index++] = {"serve-anonymous", 'k', 0, OptionArg.NONE, ref accept_anonymous_requests, "Accept anonymous requests", null};
+    entries[index++] = {"no-anonymize", 'j', 0, OptionArg.NONE, ref no_anonymize, "Disable anonymizer", null};
     entries[index++] = {"go", 'g', 0, OptionArg.NONE, ref go, "Start immediately as new network", null};
     entries[index++] = { null };
     oc.add_main_entries(entries, null);
@@ -399,16 +405,16 @@ int main(string[] args)
 
     // Add addresses:
     my_addresses = new ArrayList<string>();
-    //  * base
+    //  * global form
     my_addresses.add(dotted_form_me());
-    //  * base (anonymous form)
-    my_addresses.add(dotted_form_me(-1, true));
-    for (int inside_level = my_naddr.i_qspn_get_levels() - 1; inside_level > 0; inside_level--)
+    //  * global form (anonymous form)
+    if (accept_anonymous_requests) my_addresses.add(dotted_form_me(-1, true));
+    for (int inside_level = 1; inside_level < my_naddr.i_qspn_get_levels(); inside_level++)
     {
         //  * internal in inside_level
         my_addresses.add(dotted_form_me(inside_level));
         //  * internal in inside_level (anonymous form)
-        my_addresses.add(dotted_form_me(inside_level, true));
+        if (accept_anonymous_requests) my_addresses.add(dotted_form_me(inside_level, true));
     }
     foreach (string dev in nic_addr_map.keys) foreach (string s in my_addresses)
     {
@@ -420,6 +426,9 @@ int main(string[] args)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
+
+    // enable source nat
+    if (! no_anonymize) enable_snat();
 
     if (go) run_manager();
 
@@ -452,6 +461,7 @@ int main(string[] args)
     remove_tables_and_rules();
     remove_neighbors_routes();
     remove_handlers();
+    if (! no_anonymize) enable_snat(false); // disable source nat
     remove_addresses();
     MyTaskletSystem.kill();
     print("\nExiting.\n");
@@ -513,7 +523,7 @@ class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
                         {
                             Route r = my_routes[k];
                             string prevmac = r.prevmac == null ? "null" : r.prevmac;
-                            print(@" k:$(k) from $(prevmac) to $(r.dest) src $(r.src) gw $(r.gw) dev $(r.dev)\n");
+                            print(@" k:$(k) from $(prevmac) to $(r.dest_global) src $(r.src_global) gw $(r.gw) dev $(r.dev)\n");
                         }
                         try {
                             if (address_manager.qspn_manager.is_bootstrap_complete())
@@ -599,19 +609,30 @@ HashMap<string, Route> my_routes;
 
 class Route : Object
 {
-    public Route(string dest, string gw, string dev, string src, string? prevmac=null)
+    public Route(string dest_global, string dest_anonymous_global, string? dest_internal, string? dest_anonymous_internal,
+                 string gw, string dev,
+                 string src_global, string? src_internal,
+                 string? prevmac=null)
     {
         this.prevmac = prevmac;
-        this.dest = dest;
+        this.dest_global = dest_global;
+        this.dest_anonymous_global = dest_anonymous_global;
+        this.dest_internal = dest_internal;
+        this.dest_anonymous_internal = dest_anonymous_internal;
         this.gw = gw;
         this.dev = dev;
-        this.src = src;
+        this.src_global = src_global;
+        this.src_internal = src_internal;
     }
     public string? prevmac;
-    public string dest;
+    public string dest_global;
+    public string dest_anonymous_global;
+    public string? dest_internal;
+    public string? dest_anonymous_internal;
     public string gw;
     public string dev;
-    public string src;
+    public string src_global;
+    public string? src_internal;
 }
 const string maintable = "ntk";
 
@@ -943,7 +964,15 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             print("UpdateRoutesTasklet: bootstrap not completed yet\n");
             return null;
         }
-        string dest = dotted_form_hcoord(h);
+        string dest_global = dotted_form_hcoord(h);
+        string dest_anonymous_global = dotted_form_hcoord(h, false, true);
+        string? dest_internal = null;
+        string? dest_anonymous_internal = null;
+        if (h.lvl < my_naddr.i_qspn_get_levels()-1)
+        {
+            dest_internal = dotted_form_hcoord(h, true);
+            dest_anonymous_internal = dotted_form_hcoord(h, true, true);
+        }
         ArrayList<NeighborData> neighbors = new ArrayList<NeighborData>();
         foreach (FakeArc arc in my_arcs)
         {
@@ -959,17 +988,22 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
             if (new_routes.is_empty)
             {
                 // absolute best
-                string k = @"$(dest)_main";
+                string k = @"$(dest_global)_main";
                 string gw = path_arc.neighbour_nic_addr;
-                string src = dotted_form_me();
-                Route r = new Route(dest, gw, path_dev, src);
+                string src_global = dotted_form_me();
+                string? src_internal = null;
+                if (h.lvl < my_naddr.i_qspn_get_levels()-1)
+                {
+                    src_internal = dotted_form_me(h.lvl+1);
+                }
+                Route r = new Route(dest_global, dest_anonymous_global, dest_internal, dest_anonymous_internal, gw, path_dev, src_global, src_internal);
                 new_routes[k] = r;
             }
             bool completed = true;
             foreach (NeighborData neighbor in neighbors)
             {
                 // is it best without neighbor?
-                string k = @"$(dest)_$(neighbor.mac)";
+                string k = @"$(dest_global)_$(neighbor.mac)";
                 // new_routes contains k?
                 if (new_routes.has_key(k)) continue;
                 // path contains neighbor's g-node?
@@ -983,8 +1017,13 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 }
                 // best without neighbor.
                 string gw = path_arc.neighbour_nic_addr;
-                string src = dotted_form_me();
-                Route r = new Route(dest, gw, path_dev, src, neighbor.mac);
+                string src_global = dotted_form_me();
+                string? src_internal = null;
+                if (h.lvl < my_naddr.i_qspn_get_levels()-1)
+                {
+                    src_internal = dotted_form_me();
+                }
+                Route r = new Route(dest_global, dest_anonymous_global, dest_internal, dest_anonymous_internal, gw, path_dev, src_global, src_internal, neighbor.mac);
                 new_routes[k] = r;
             }
             if (completed) break;
@@ -994,7 +1033,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
         foreach (NeighborData neighbor in neighbors) suffixes.add(neighbor.mac);
         foreach (string suffix in suffixes)
         {
-            string k = @"$(dest)_$(suffix)";
+            string k = @"$(dest_global)_$(suffix)";
             string table = suffix == "main" ? maintable : @"$(maintable)_from_$(suffix)";
             if (k in new_routes.keys)
             {
@@ -1007,12 +1046,36 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     {
                         // change
                         try {
-                            string cmd = @"ip route change $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
+                            string cmd = @"ip route change $(dest_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
                             CommandResult com_ret = Tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
                                 error(@"$(com_ret.cmderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
+                        try {
+                            string cmd = @"ip route change $(dest_anonymous_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
+                        if (dest_internal != null)
+                        {
+                            try {
+                                string cmd = @"ip route change $(dest_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
+                                print(@"$(cmd)\n");
+                                CommandResult com_ret = Tasklet.exec_command(cmd);
+                                if (com_ret.exit_status != 0)
+                                    error(@"$(com_ret.cmderr)\n");
+                            } catch (SpawnError e) {error("Unable to spawn a command");}
+                            try {
+                                string cmd = @"ip route change $(dest_anonymous_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
+                                print(@"$(cmd)\n");
+                                CommandResult com_ret = Tasklet.exec_command(cmd);
+                                if (com_ret.exit_status != 0)
+                                    error(@"$(com_ret.cmderr)\n");
+                            } catch (SpawnError e) {error("Unable to spawn a command");}
+                        }
                         my_routes[k] = new_routes[k];
                     }
                 }
@@ -1021,12 +1084,36 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     // add
                     Route new_r = new_routes[k];
                     try {
-                        string cmd = @"ip route add $(dest) table $(table) src $(new_r.src) via $(new_r.gw) dev $(new_r.dev)";
+                        string cmd = @"ip route add $(dest_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                         print(@"$(cmd)\n");
                         CommandResult com_ret = Tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
                             error(@"$(com_ret.cmderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
+                    try {
+                        string cmd = @"ip route add $(dest_anonymous_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
+                        print(@"$(cmd)\n");
+                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        if (com_ret.exit_status != 0)
+                            error(@"$(com_ret.cmderr)\n");
+                    } catch (SpawnError e) {error("Unable to spawn a command");}
+                    if (dest_internal != null)
+                    {
+                        try {
+                            string cmd = @"ip route add $(dest_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
+                        try {
+                            string cmd = @"ip route add $(dest_anonymous_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
+                    }
                     my_routes[k] = new_routes[k];
                 }
             }
@@ -1037,12 +1124,36 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     // remove
                     Route old_r = my_routes[k];
                     try {
-                        string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
+                        string cmd = @"ip route del $(dest_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
                         print(@"$(cmd)\n");
                         CommandResult com_ret = Tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
                             error(@"$(com_ret.cmderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
+                    try {
+                        string cmd = @"ip route del $(dest_anonymous_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
+                        print(@"$(cmd)\n");
+                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        if (com_ret.exit_status != 0)
+                            error(@"$(com_ret.cmderr)\n");
+                    } catch (SpawnError e) {error("Unable to spawn a command");}
+                    if (dest_internal != null)
+                    {
+                        try {
+                            string cmd = @"ip route del $(dest_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
+                        try {
+                            string cmd = @"ip route del $(dest_anonymous_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
+                            print(@"$(cmd)\n");
+                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            if (com_ret.exit_status != 0)
+                                error(@"$(com_ret.cmderr)\n");
+                        } catch (SpawnError e) {error("Unable to spawn a command");}
+                    }
                     my_routes.unset(k);
                 }
                 else
@@ -1087,9 +1198,9 @@ string dotted_form_hcoord(HCoord h, bool inside_upper_level=false, bool anonymou
         int gsize = my_naddr.i_qspn_get_gsize(j);
         multiplier *= gsize;
     }
-    if (anonymous_form) i += multiplier;
-    multiplier *= 2;
     if (inside_level != -1) i += multiplier;
+    multiplier *= 2;
+    if (anonymous_form) i += multiplier;
 
     int suffix = 32 - (int)(Math.floor( Math.log2( class_size ) ));
     int i0 = i % 256;
@@ -1121,9 +1232,9 @@ string dotted_form_naddr(IQspnNaddr naddr, int inside_level=-1, bool anonymous_f
         int gsize = naddr.i_qspn_get_gsize(j);
         multiplier *= gsize;
     }
-    if (anonymous_form) i += multiplier;
-    multiplier *= 2;
     if (inside_level != -1) i += multiplier;
+    multiplier *= 2;
+    if (anonymous_form) i += multiplier;
 
     int suffix = 32;
     int i0 = i % 256;
@@ -1136,6 +1247,48 @@ string dotted_form_naddr(IQspnNaddr naddr, int inside_level=-1, bool anonymous_f
     return ret;
 }
 
+string range_anonymous_global()
+{
+    return range_anonymous(false, -1);
+}
+
+string range_anonymous_internal(int inside_level)
+{
+    return range_anonymous(true, inside_level);
+}
+
+string range_anonymous(bool internal_form, int inside_level)
+{
+    int i = 0;
+    int multiplier = 1;
+    int levels = my_naddr.i_qspn_get_levels();
+    int class_size = -1;
+    for (int j = 0; j < levels; j++)
+    {
+        if (internal_form && j == levels-1)
+        {
+            i += inside_level * multiplier;
+            class_size = multiplier;
+        }
+        int gsize = my_naddr.i_qspn_get_gsize(j);
+        multiplier *= gsize;
+    }
+    if (internal_form) i += multiplier;
+    if (! internal_form) class_size = multiplier;
+    multiplier *= 2;
+    i += multiplier;
+
+    int suffix = 32 - (int)(Math.floor( Math.log2( class_size ) ));
+    int i0 = i % 256;
+    i /= 256;
+    int i1 = i % 256;
+    i /= 256;
+    int i2 = i;
+    string ret = @"10.$(i2).$(i1).$(i0)";
+    ret = @"$(ret)/$(suffix)";
+    return ret;
+}
+
 void stop_manager()
 {
     assert(address_manager != null);
@@ -1145,19 +1298,42 @@ void stop_manager()
     ArrayList<string> keys = new ArrayList<string>(); keys.add_all(my_routes.keys);
     foreach (string k in keys)
     {
-        string dest = k.split("_")[0];
         string suffix = k.split("_")[1];
         string table = suffix == "main" ? maintable : @"$(maintable)_from_$(suffix)";
         if (! (suffix in tables)) tables.add(suffix);
         // remove
         Route old_r = my_routes[k];
         try {
-            string cmd = @"ip route del $(dest) table $(table) src $(old_r.src) via $(old_r.gw) dev $(old_r.dev)";
+            string cmd = @"ip route del $(old_r.dest_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
             print(@"$(cmd)\n");
             CommandResult com_ret = Tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
                 error(@"$(com_ret.cmderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
+        try {
+            string cmd = @"ip route del $(old_r.dest_anonymous_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
+        if (old_r.dest_internal != null)
+        {
+            try {
+                string cmd = @"ip route del $(old_r.dest_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
+                print(@"$(cmd)\n");
+                CommandResult com_ret = Tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.cmderr)\n");
+            } catch (SpawnError e) {error("Unable to spawn a command");}
+            try {
+                string cmd = @"ip route del $(old_r.dest_anonymous_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
+                print(@"$(cmd)\n");
+                CommandResult com_ret = Tasklet.exec_command(cmd);
+                if (com_ret.exit_status != 0)
+                    error(@"$(com_ret.cmderr)\n");
+            } catch (SpawnError e) {error("Unable to spawn a command");}
+        }
         my_routes.unset(k);
     }
 
@@ -1229,6 +1405,35 @@ void remove_addresses()
                     error(@"$(com_ret.cmderr)\n");
             } catch (SpawnError e) {error("Unable to spawn a command");}
         }
+    }
+}
+
+void enable_snat(bool enable=true)
+{
+    string command = "A";
+    if (!enable) command = "D";
+    // * global form
+    string anonymous_global_range = range_anonymous_global();
+    string global_src = dotted_form_me();
+    try {
+        string cmd = @"iptables -t nat -$(command) POSTROUTING -d $(anonymous_global_range) -j SNAT --to $(global_src)";
+        print(@"$(cmd)\n");
+        CommandResult com_ret = Tasklet.exec_command(cmd);
+        if (com_ret.exit_status != 0)
+            error(@"$(com_ret.cmderr)\n");
+    } catch (SpawnError e) {error("Unable to spawn a command");}
+    for (int inside_level = 1; inside_level < my_naddr.i_qspn_get_levels(); inside_level++)
+    {
+        //  * internal in inside_level
+        string anonymous_inside_range = range_anonymous_internal(inside_level);
+        string inside_src = dotted_form_me(inside_level);
+        try {
+            string cmd = @"iptables -t nat -$(command) POSTROUTING -d $(anonymous_inside_range) -j SNAT --to $(inside_src)";
+            print(@"$(cmd)\n");
+            CommandResult com_ret = Tasklet.exec_command(cmd);
+            if (com_ret.exit_status != 0)
+                error(@"$(com_ret.cmderr)\n");
+        } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 }
 
