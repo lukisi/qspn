@@ -12,15 +12,17 @@ noinst_PROGRAMS =  \
 
 TESTS = \
 	test_serialize_helpers \
+	test_split_signal \
+	test_not_split_signal \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_serialize_helpers \
+	simulator \
 	$(NULL)
 
 EXTRA_PROGRAMS = \
 	auto_graph \
-	simulator \
 	$(NULL)
 
 libmacgetter_la_SOURCES = \

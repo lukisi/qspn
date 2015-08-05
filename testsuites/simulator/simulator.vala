@@ -241,7 +241,7 @@ class FakeThresholdCalculator : Object, IQspnThresholdCalculator
 {
     public int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2)
     {
-        return 10000;
+        return 3000;
     }
 }
 
@@ -268,19 +268,90 @@ class SimulatorNode : Object
         arcs.add(a);
         return a;
     }
+
+    public void handle_failed_hook()
+    {
+    }
+
+    private Timer? tm_handle_gnode_splitted;
+    public FakeArc f_a_handle_gnode_splitted;
+    public FakeFingerprint f_fp_handle_gnode_splitted;
+    public void handle_gnode_splitted(IQspnArc a, HCoord hdest, IQspnFingerprint fp)
+    {
+        f_a_handle_gnode_splitted = (FakeArc)a;
+        f_fp_handle_gnode_splitted = (FakeFingerprint)fp;
+        tm_handle_gnode_splitted = new Timer(3000);
+    }
+    public bool has_handled_gnode_splitted()
+    {
+        if (tm_handle_gnode_splitted == null) return false;
+        if (tm_handle_gnode_splitted.is_expired()) return false;
+        return true;
+    }
 }
 
-class NodeData : Object
+internal class Timer : Object
 {
+    private TimeVal start;
+    private long msec_ttl;
+    public Timer(long msec_ttl)
+    {
+        start = TimeVal();
+        start.get_current_time();
+        this.msec_ttl = msec_ttl;
+    }
+
+    private long get_lap()
+    {
+        TimeVal lap = TimeVal();
+        lap.get_current_time();
+        long sec = lap.tv_sec - start.tv_sec;
+        long usec = lap.tv_usec - start.tv_usec;
+        if (usec < 0)
+        {
+            usec += 1000000;
+            sec--;
+        }
+        return sec*1000000 + usec;
+    }
+
+    public bool is_expired()
+    {
+        return get_lap() > msec_ttl*1000;
+    }
+}
+
+class Directive : Object
+{
+    // Activate a node
+    public bool activate_node = false;
     public string name;
     public ArrayList<int> positions;
     public ArrayList<int> elderships;
     public ArrayList<ArcData> arcs;
-    public SimulatorNode sn;
+    // Wait
+    public bool wait = false;
+    public int wait_msec;
+    // Add arc
+    public bool add_arc = false;
+    public ArcData arc_add;
+    // Change arc
+    public bool change_arc = false;
+    public ArcData arc_change;
+    // Remove arc
+    public bool remove_arc = false;
+    public ArcData arc_remove;
+    // Check Split signal
+    public bool check_split_signal = false;
+    public string check_split_from_name;
+    public HCoord check_split_to_h;
+    public bool check_split_returns;
+    public int check_split_wait_msec;
 }
 
 class ArcData : Object
 {
+    public string from_name;
     public string to_name;
     public int cost;
     public int revcost;
@@ -296,9 +367,10 @@ string[] read_file(string path)
             assert(FileUtils.get_contents(path, out contents));
             ret = contents.split("\n");
         } catch (FileError e) {
-            error("%s: %d: %s".printf(e.domain.to_string(), e.code, e.message));
+            error(@"$(e.domain.to_string()): $(e.code): $(e.message)");
         }
     }
+    else error(@"Script $(path) not found");
     return ret;
 }
 
@@ -306,172 +378,40 @@ const int max_paths = 5;
 const double max_common_hops_ratio = 0.6;
 const int arc_timeout = 3000;
 
-void activate_node(HashMap<string, NodeData> nodes, string k, ArrayList<int> gsizes)
+void activate_node(Directive dd, HashMap<string, SimulatorNode> nodes, ArrayList<int> gsizes)
 {
-    NodeData nd = nodes[k];
-    nd.sn = new SimulatorNode("eth0", new FakeGenericNaddr(nd.positions.to_array(), gsizes.to_array()));
-    var fp = new FakeFingerprint(nd.elderships.to_array());
-    nd.sn.stub_f = new FakeStubFactory(); nd.sn.stub_f.sn = nd.sn;
+    SimulatorNode sn = new SimulatorNode("eth0", new FakeGenericNaddr(dd.positions.to_array(), gsizes.to_array()));
+    var fp = new FakeFingerprint(dd.elderships.to_array());
+    sn.stub_f = new FakeStubFactory(); sn.stub_f.sn = sn;
     var threshold_c = new FakeThresholdCalculator();
-    foreach (ArcData ad in nd.arcs)
+    foreach (ArcData ad in dd.arcs)
     {
-        nd.sn.add_arc(nodes[ad.to_name].sn, ad.cost);
+        sn.add_arc(nodes[ad.to_name], ad.cost);
     }
-    nd.sn.mgr = new QspnManager(nd.sn.naddr, max_paths, max_common_hops_ratio, arc_timeout, nd.sn.arcs, fp, threshold_c, nd.sn.stub_f);
-    foreach (ArcData ad in nd.arcs)
+    sn.mgr = new QspnManager(sn.naddr, max_paths, max_common_hops_ratio, arc_timeout, sn.arcs, fp, threshold_c, sn.stub_f);
+    sn.mgr.failed_hook.connect(() => sn.handle_failed_hook());
+    sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
+    foreach (ArcData ad in dd.arcs)
     {
         tasklet.ms_wait(1);
-        nodes[ad.to_name].sn.mgr.arc_add(nodes[ad.to_name].sn.add_arc(nd.sn, ad.revcost));
+        nodes[ad.to_name].mgr.arc_add(nodes[ad.to_name].add_arc(sn, ad.revcost));
     }
     while (true)
     {
-        if (nd.sn.mgr.is_bootstrap_complete()) break;
+        if (sn.mgr.is_bootstrap_complete()) break;
         tasklet.ms_wait(10);
     }
-}
-
-void test0()
-{
-    ArrayList<int> gsizes = new ArrayList<int>.wrap({10});
-    HashMap<string, NodeData> nodes = new HashMap<string, NodeData>();
-
-    {
-        NodeData nd = new NodeData();
-        nd.name = "1";
-        nd.positions = new ArrayList<int>.wrap({1});
-        nd.elderships = new ArrayList<int>.wrap({0});
-        nd.arcs = new ArrayList<ArcData>.wrap({});
-        nodes[nd.name] = nd;
-    }
-    {
-        NodeData nd = new NodeData();
-        nd.name = "2";
-        nd.positions = new ArrayList<int>.wrap({2});
-        nd.elderships = new ArrayList<int>.wrap({1});
-        ArcData ad0 = new ArcData();
-        ad0.to_name = "1";
-        ad0.cost = 854;
-        ad0.revcost = 533;
-        nd.arcs = new ArrayList<ArcData>.wrap({ad0});
-        nodes[nd.name] = nd;
-    }
-
-    foreach (string k in new ArrayList<string>.wrap({"1", "2"}))
-    {
-        activate_node(nodes, k, gsizes);
-        print(@"node $(k): bootstrap complete\n");
-        print(@"node $(k): waiting for more messages...\n");
-        tasklet.ms_wait(400);
-        print(@"node $(k): that's enough.\n");
-    }
-
-    {
-        try {
-            QspnManager mgr = nodes["1"].sn.mgr;
-            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
-            print(@"node 1 to reach 2 knows $(lst.size) paths.\n");
-            assert(lst.size == 1);
-            IQspnNodePath p = lst[0];
-            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
-            print(@"the path has $(lsth.size) hops.\n");
-            assert(lsth.size == 1);
-            IQspnHop h = lsth[0];
-            int h_pos = h.i_qspn_get_hcoord().pos;
-            assert(h_pos == 2);
-        } catch (QspnBootstrapInProgressError e) {
-            assert_not_reached();  // every node has completed bootstrap
-        }
-    }
-
-    {
-        NodeData nd = new NodeData();
-        nd.name = "3";
-        nd.positions = new ArrayList<int>.wrap({3});
-        nd.elderships = new ArrayList<int>.wrap({2});
-        ArcData ad0 = new ArcData();
-        ad0.to_name = "1";
-        ad0.cost = 1125;
-        ad0.revcost = 1047;
-        ArcData ad1 = new ArcData();
-        ad1.to_name = "2";
-        ad1.cost = 987;
-        ad1.revcost = 1011;
-        nd.arcs = new ArrayList<ArcData>.wrap({ad0, ad1});
-        nodes[nd.name] = nd;
-    }
-    {
-        activate_node(nodes, "3", gsizes);
-        print(@"node 3: bootstrap complete\n");
-        print(@"node 3: waiting for more messages...\n");
-        tasklet.ms_wait(400);
-        print(@"node 3: waiting for more messages...\n");
-        tasklet.ms_wait(400);
-        print(@"node 3: that's enough.\n");
-
-        try {
-            QspnManager mgr = nodes["1"].sn.mgr;
-            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
-            print(@"node 1 to reach 2 knows $(lst.size) paths.\n");
-            // It could be 2 or less, because of the order with which the paths are examined
-            // a path might be discarded if a hop is not yet in 'destinations'.
-            assert(lst.size <= 2);
-            assert(lst.size > 0);
-            IQspnNodePath p = lst[0];
-            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
-            print(@"first path has $(lsth.size) hops.\n");
-        } catch (QspnBootstrapInProgressError e) {
-            assert_not_reached();  // every node has completed bootstrap
-        }
-    }
-
-    {
-        NodeData nd = new NodeData();
-        nd.name = "4";
-        nd.positions = new ArrayList<int>.wrap({4});
-        nd.elderships = new ArrayList<int>.wrap({3});
-        ArcData ad0 = new ArcData();
-        ad0.to_name = "3";
-        ad0.cost = 1125;
-        ad0.revcost = 1047;
-        nd.arcs = new ArrayList<ArcData>.wrap({ad0});
-        nodes[nd.name] = nd;
-    }
-    {
-        activate_node(nodes, "4", gsizes);
-        print(@"node 4: bootstrap complete\n");
-        print(@"node 4: waiting for more messages...\n");
-        tasklet.ms_wait(400);
-        print(@"node 4: waiting for more messages...\n");
-        tasklet.ms_wait(400);
-        print(@"node 4: that's enough.\n");
-
-        try {
-            QspnManager mgr = nodes["4"].sn.mgr;
-            Gee.List<IQspnNodePath> lst = mgr.get_paths_to(new HCoord(0, 2));
-            print(@"node 4 to reach 2 knows $(lst.size) paths.\n");
-            // It could be 2 or less, because of the order with which the paths are examined
-            // a path might be discarded if a hop is not yet in 'destinations'.
-            assert(lst.size <= 2);
-            assert(lst.size > 0);
-            IQspnNodePath p = lst[0];
-            Gee.List<IQspnHop> lsth = p.i_qspn_get_hops();
-            print(@"first path has $(lsth.size) hops.\n");
-        } catch (QspnBootstrapInProgressError e) {
-            assert_not_reached();  // every node has completed bootstrap
-        }
-    }
-
+    nodes[dd.name] = sn;
 }
 
 void test_file(string[] args)
 {
     string fname = args[1];
-    bool wait = false;
     // read data
     int levels;
     ArrayList<int> gsizes = new ArrayList<int>();
-    HashMap<string, NodeData> nodes = new HashMap<string, NodeData>();
-    ArrayList<string> keys_list = new ArrayList<string>();
+    HashMap<string, SimulatorNode> nodes = new HashMap<string, SimulatorNode>();
+    ArrayList<Directive> directives = new ArrayList<Directive>();
     string[] data = read_file(fname);
     int data_cur = 0;
     while (data[data_cur] != "topology") data_cur++;
@@ -482,107 +422,229 @@ void test_file(string[] args)
     foreach (string s_piece in s_topology_pieces) gsizes.insert(0, int.parse(s_piece));
     while (true)
     {
-        bool eof = false;
-        while (data[data_cur] != "node")
+        if (data[data_cur] == "node")
         {
             data_cur++;
-            if (data_cur >= data.length)
+            string s_addr = data[data_cur++];
+            string s_elderships = data[data_cur++];
+            string[] arcs_addr = {};
+            int[] arcs_cost = {};
+            int[] arcs_revcost = {};
+            while (data[data_cur] != "")
             {
-                eof = true;
-                break;
+                string line = data[data_cur];
+                string[] line_pieces = line.split(" ");
+                if (line_pieces[0] == "arc")
+                {
+                    assert(line_pieces[1] == "to");
+                    arcs_addr += line_pieces[2];
+                    assert(line_pieces[3] == "cost");
+                    arcs_cost += int.parse(line_pieces[4]);
+                    assert(line_pieces[5] == "revcost");
+                    arcs_revcost += int.parse(line_pieces[6]);
+                }
+                data_cur++;
             }
+            // data input done
+            Directive dd = new Directive();
+            dd.activate_node = true;
+            dd.name = s_addr;
+            dd.positions = new ArrayList<int>();
+            dd.elderships = new ArrayList<int>();
+            dd.arcs = new ArrayList<ArcData>();
+            foreach (string s_piece in s_addr.split(".")) dd.positions.insert(0, int.parse(s_piece));
+            foreach (string s_piece in s_elderships.split(" ")) dd.elderships.insert(0, int.parse(s_piece));
+            for (int i = 0; i < arcs_addr.length; i++)
+            {
+                ArcData ad = new ArcData();
+                ad.to_name = arcs_addr[i];
+                ad.cost = arcs_cost[i];
+                ad.revcost = arcs_revcost[i];
+                dd.arcs.add(ad);
+            }
+            directives.add(dd);
         }
-        if (eof) break;
-        data_cur++;
-        string s_addr = data[data_cur++];
-        string s_elderships = data[data_cur++];
-        string[] arcs_addr = {};
-        int[] arcs_cost = {};
-        int[] arcs_revcost = {};
-        while (data[data_cur] != "")
+        else if (data[data_cur] != null && data[data_cur].has_prefix("wait_msec"))
         {
             string line = data[data_cur];
             string[] line_pieces = line.split(" ");
-            if (line_pieces[0] == "arc")
-            {
-                assert(line_pieces[1] == "to");
-                arcs_addr += line_pieces[2];
-                assert(line_pieces[3] == "cost");
-                arcs_cost += int.parse(line_pieces[4]);
-                assert(line_pieces[5] == "revcost");
-                arcs_revcost += int.parse(line_pieces[6]);
-            }
+            int wait_msec = int.parse(line_pieces[1]);
+            // data input done
+            Directive dd = new Directive();
+            dd.wait = true;
+            dd.wait_msec = wait_msec;
+            directives.add(dd);
+            data_cur++;
+            assert(data[data_cur] == "");
+        }
+        else if (data[data_cur] != null && data[data_cur].has_prefix("add_arc"))
+        {
+            string line = data[data_cur];
+            string[] line_pieces = line.split(" ");
+            assert(line_pieces[1] == "from");
+            string from_addr = line_pieces[2];
+            assert(line_pieces[3] == "to");
+            string to_addr = line_pieces[4];
+            assert(line_pieces[5] == "cost");
+            int cost = int.parse(line_pieces[6]);
+            assert(line_pieces[7] == "revcost");
+            int revcost = int.parse(line_pieces[8]);
+            // data input done
+            Directive dd = new Directive();
+            dd.add_arc = true;
+            dd.arc_add = new ArcData();
+            dd.arc_add.from_name = from_addr;
+            dd.arc_add.to_name = to_addr;
+            dd.arc_add.cost = cost;
+            dd.arc_add.revcost = revcost;
+            directives.add(dd);
+            data_cur++;
+            assert(data[data_cur] == "");
+        }
+        else if (data[data_cur] != null && data[data_cur].has_prefix("remove_arc"))
+        {
+            string line = data[data_cur];
+            string[] line_pieces = line.split(" ");
+            assert(line_pieces[1] == "from");
+            string from_addr = line_pieces[2];
+            assert(line_pieces[3] == "to");
+            string to_addr = line_pieces[4];
+            // data input done
+            Directive dd = new Directive();
+            dd.remove_arc = true;
+            dd.arc_remove = new ArcData();
+            dd.arc_remove.from_name = from_addr;
+            dd.arc_remove.to_name = to_addr;
+            directives.add(dd);
+            data_cur++;
+            assert(data[data_cur] == "");
+        }
+        else if (data[data_cur] != null && data[data_cur].has_prefix("check_split_signal"))
+        {
+            // check_split_signal from 2.1.0.0.1.0 to_coord 5,12 wait_msec 12000 returns true
+            string line = data[data_cur];
+            string[] line_pieces = line.split(" ");
+            assert(line_pieces[1] == "from");
+            string from_addr = line_pieces[2];
+            assert(line_pieces[3] == "to_coord");
+            string to_hcoord = line_pieces[4];
+            string to_hcoord_lvl = to_hcoord.split(",")[0];
+            string to_hcoord_pos = to_hcoord.split(",")[1];
+            HCoord to_h = new HCoord(int.parse(to_hcoord_lvl), int.parse(to_hcoord_pos));
+            assert(line_pieces[5] == "wait_msec");
+            int wait_msec = int.parse(line_pieces[6]);
+            assert(line_pieces[7] == "returns");
+            bool returns = line_pieces[8].up() == "TRUE";
+            // data input done
+            Directive dd = new Directive();
+            dd.check_split_signal = true;
+            dd.check_split_from_name = from_addr;
+            dd.check_split_to_h = to_h;
+            dd.check_split_wait_msec = wait_msec;
+            dd.check_split_returns = returns;
+            directives.add(dd);
+            data_cur++;
+            assert(data[data_cur] == "");
+        }
+        else if (data_cur >= data.length)
+        {
+            break;
+        }
+        else
+        {
             data_cur++;
         }
-        // data input done
-        NodeData nd = new NodeData();
-        nd.name = s_addr;
-        nd.positions = new ArrayList<int>();
-        nd.elderships = new ArrayList<int>();
-        nd.arcs = new ArrayList<ArcData>();
-        foreach (string s_piece in s_addr.split(".")) nd.positions.insert(0, int.parse(s_piece));
-        foreach (string s_piece in s_elderships.split(" ")) nd.elderships.insert(0, int.parse(s_piece));
-        for (int i = 0; i < arcs_addr.length; i++)
-        {
-            ArcData ad = new ArcData();
-            ad.to_name = arcs_addr[i];
-            ad.cost = arcs_cost[i];
-            ad.revcost = arcs_revcost[i];
-            nd.arcs.add(ad);
-        }
-        nodes[nd.name] = nd;
-        keys_list.add(nd.name);
     }
 
-    // activate and wait the bootstrap for each node
-    foreach (string k in keys_list)
+    // execute directives
+    foreach (Directive dd in directives)
     {
-        activate_node(nodes, k, gsizes);
-        print(@"node $(k): bootstrap complete\n");
-        if (wait)
+        if (dd.activate_node)
         {
-            print(@"node $(k): waiting for more messages...\n");
-            tasklet.ms_wait(200);
-            print(@"node $(k): presume that's enough.\n");
-            print(@"node $(k): any more ...?\n");
-            tasklet.ms_wait(200);
-            print(@"node $(k): that's enough.\n");
+            print(@"activating node $(dd.name) with $(dd.arcs.size) arcs:\n");
+            foreach (ArcData ad in dd.arcs)
+            {
+                print(@"  to $(ad.to_name)\n");
+            }
+            activate_node(dd, nodes, gsizes);
+            print(@"node $(dd.name): bootstrap complete\n");
+        }
+        else if (dd.wait)
+        {
+            print(@"waiting $(dd.wait_msec) msec...");
+            tasklet.ms_wait(dd.wait_msec);
+            print("\n");
+        }
+        else if (dd.add_arc)
+        {
+            SimulatorNode sn_from = nodes[dd.arc_add.from_name];
+            SimulatorNode sn_to = nodes[dd.arc_add.to_name];
+            sn_from.mgr.arc_add(sn_from.add_arc(sn_to, dd.arc_add.cost));
+            tasklet.ms_wait(10);
+            sn_to.mgr.arc_add(sn_to.add_arc(sn_from, dd.arc_add.revcost));
+            print(@"added arc from $(dd.arc_add.from_name) to $(dd.arc_add.to_name)\n");
+        }
+        else if (dd.change_arc)
+        {
+        }
+        else if (dd.remove_arc)
+        {
+            SimulatorNode sn_from = nodes[dd.arc_remove.from_name];
+            SimulatorNode sn_to = nodes[dd.arc_remove.to_name];
+            foreach (FakeArc a in sn_from.arcs)
+            {
+                if (a.neighbour_qspnmgr == sn_to.mgr)
+                {
+                    sn_from.mgr.arc_remove(a);
+                    break;
+                }
+            }
+            foreach (FakeArc a in sn_to.arcs)
+            {
+                if (a.neighbour_qspnmgr == sn_from.mgr)
+                {
+                    sn_to.mgr.arc_remove(a);
+                    break;
+                }
+            }
+            print(@"removed arc from $(dd.arc_remove.from_name) to $(dd.arc_remove.to_name)\n");
+        }
+        else if (dd.check_split_signal)
+        {
+            SimulatorNode sn_from = nodes[dd.check_split_from_name];
+            print(@"checking split signal from $(dd.check_split_from_name), give it $(dd.check_split_wait_msec) msec...");
+            Timer t_wait = new Timer(dd.check_split_wait_msec);
+            while (true)
+            {
+                if (t_wait.is_expired())
+                {
+                    print("\n");
+                    if (dd.check_split_returns) error("did not signal split, while expected");
+                    print("no split: ok\n");
+                    break;
+                }
+                if (sn_from.has_handled_gnode_splitted())
+                {
+                    print("\n");
+                    if (! dd.check_split_returns) error("handled a signal split, while not expected");
+                    print("split: ok\n");
+                    break;
+                }
+                tasklet.ms_wait(100);
+            }
         }
     }
 
-    tasklet.ms_wait(10000);
-    NodeData nd0 = nodes[keys_list[0]];
-    try {
-        for (int l = 1; l <= levels; l++) print(@"node $(nd0.name): at level $(l) we are $(nd0.sn.mgr.get_nodes_inside(l)) nodes.\n");
-    } catch (QspnBootstrapInProgressError e) {
-        assert_not_reached();  // node has completed bootstrap
-    }
-    if (args.length > 2 && args[2] == "remove_arc")
-    {
-        NodeData nd_from = nodes[args[3]];
-        NodeData nd_to = nodes[args[4]];
-        foreach (FakeArc a in nd_from.sn.arcs)
-        {
-            if (a.neighbour_qspnmgr == nd_to.sn.mgr)
-            {
-                nd_from.sn.mgr.arc_remove(a);
-                break;
-            }
-        }
-        foreach (FakeArc a in nd_to.sn.arcs)
-        {
-            if (a.neighbour_qspnmgr == nd_from.sn.mgr)
-            {
-                nd_to.sn.mgr.arc_remove(a);
-                break;
-            }
-        }
-        tasklet.ms_wait(2000);
-    }
-    else if (args.length > 3)
+    if (args.length > 3)
     {
         string s_addr_from = args[2];
-        NodeData nd_from = nodes[s_addr_from];
+        SimulatorNode sn_from = nodes[s_addr_from];
+        try {
+            for (int l = 1; l <= levels; l++) print(@"node $(s_addr_from): at level $(l) we are $(sn_from.mgr.get_nodes_inside(l)) nodes.\n");
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();  // node has completed bootstrap
+        }
+
         var positions = new ArrayList<int>();
         foreach (string s_piece in s_addr_from.split(".")) positions.insert(0, int.parse(s_piece));
         FakeGenericNaddr naddr_from = new FakeGenericNaddr(positions.to_array(), gsizes.to_array());
@@ -595,11 +657,11 @@ void test_file(string[] args)
         HCoord to_h = naddr_from.i_qspn_get_coord_by_address(naddr_to);
         Gee.List<IQspnNodePath> to_paths;
         try {
-            to_paths = nd_from.sn.mgr.get_paths_to(to_h);
+            to_paths = sn_from.mgr.get_paths_to(to_h);
         } catch (QspnBootstrapInProgressError e) {
             assert_not_reached();  // node has completed bootstrap
         }
-        print(@"node $(nd_from.name) has $(to_paths.size) paths to reach $(s_addr_to).\n");
+        print(@"node $(s_addr_from) has $(to_paths.size) paths to reach $(s_addr_to).\n");
         foreach (IQspnNodePath p in to_paths)
         {
             print(s_addr_from);
@@ -627,8 +689,7 @@ void main(string[] args)
     // pass tasklet system to module qspn
     QspnManager.init(tasklet);
 
-    if (args.length > 1) test_file(args);
-    else test0();
+    test_file(args);
 
     // end
     MyTaskletSystem.kill();

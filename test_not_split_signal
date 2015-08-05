@@ -1,0 +1,3 @@
+#!/bin/bash
+exec ./simulator test_not_split_signal.script
+
