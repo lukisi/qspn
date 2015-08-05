@@ -136,12 +136,14 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
     public int level {get; set;}
     // elderships has n items, where level + n = levels of the network.
     public ArrayList<int> elderships {get; set;}
+    public ArrayList<int> elderships_seed {get; set;}
     public FakeFingerprint(int[] elderships)
     {
-        this.id = Random.int_range(0, 1000000);
-        this.level = 0;
+        id = Random.int_range(0, 1000000);
+        level = 0;
         this.elderships = new ArrayList<int>();
         this.elderships.add_all_array(elderships);
+        elderships_seed = new ArrayList<int>();
     }
 
     public bool deserialize_property
@@ -166,6 +168,8 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
                 return false;
             }
             break;
+        case "elderships_seed":
+        case "elderships-seed":
         case "elderships":
             try {
                 ArrayList<int> ret = new ArrayList<int>();
@@ -197,6 +201,8 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
             return serialize_int64((int64)@value);
         case "level":
             return serialize_int((int)@value);
+        case "elderships_seed":
+        case "elderships-seed":
         case "elderships":
             return serialize_list_int((Gee.List<int>)@value);
         default:
@@ -208,18 +214,70 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
 
     public bool i_qspn_equals(IQspnFingerprint other)
     {
-        if (! (other is FakeFingerprint)) return false;
-        FakeFingerprint _other = other as FakeFingerprint;
+        assert(other is FakeFingerprint);
+        FakeFingerprint _other = (FakeFingerprint)other;
+
+        /* The level of the destination must be the same (and also the pos)
+         */
+        assert(_other.level == level);
+
         if (_other.id != id) return false;
         return true;
     }
 
-    public bool i_qspn_elder(IQspnFingerprint other)
+    private bool elder(IQspnFingerprint other)
     {
+        /* The class uses this method to compare fingerprints referred to
+         * two distinct destination in the same upper g-node.
+         */
+
         assert(other is FakeFingerprint);
-        FakeFingerprint _other = other as FakeFingerprint;
+        FakeFingerprint _other = (FakeFingerprint)other;
+
+        /* The level of the destination must be the same (but not the pos)
+         */
+        assert(_other.level == level);
+
+        /* The correct behaviour assures that distinct g-nodes in the same upper
+         * g-node will never get the same eldership at lower level. We should (somehow) assure that a
+         * fingerprint maliciously crafted will be spotted and dropped.
+         */
+        assert(_other.elderships[0] != elderships[0]);
+
         if (_other.elderships[0] < elderships[0]) return false; // other is elder
         return true;
+    }
+
+    public bool i_qspn_elder_seed(IQspnFingerprint other)
+    {
+        /* The program should use this method to compare fingerprints referred to
+         * one destination. And after that i_qspn_equals reveals that they are not
+         * equal. And only for levels greater than 0.
+         */
+
+        assert(other is FakeFingerprint);
+        FakeFingerprint _other = other as FakeFingerprint;
+
+        /* The level of the destination must be the same (and also the pos)
+         */
+        assert(_other.level == level);
+        assert(level > 0);
+
+        /* The compare must be made when we know that the id is not the same
+         */
+        assert(_other.id != id);
+
+        /* The correct behaviour assures that different id in the same g-node will
+         * never get the same elderships_seed. We should (somehow) assure that a
+         * fingerprint maliciously crafted will be spotted and dropped.
+         */
+        assert(_other.elderships_seed.size == elderships_seed.size);
+        for (int i = 0; i < elderships_seed.size; i++)
+        {
+            if (_other.elderships_seed[i] < elderships_seed[i]) return false; // other is elder
+            if (_other.elderships_seed[i] > elderships_seed[i]) return true; // this is elder
+        }
+        assert_not_reached();
     }
 
     public int i_qspn_get_level()
@@ -227,7 +285,7 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
         return level;
     }
 
-    public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers)
+    public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints)
     {
         // given that:
         //  levels = level + elderships.size
@@ -235,23 +293,21 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
         assert(elderships.size > 0);
         FakeFingerprint ret = new FakeFingerprint.empty();
         ret.level = level + 1;
-        ret.id = id;
         ret.elderships = new ArrayList<int>();
         for (int i = 1; i < elderships.size; i++)
             ret.elderships.add(elderships[i]);
-        int cur_eldership = elderships[0];
         // start comparing
-        foreach (IQspnFingerprint f in fingers)
+        FakeFingerprint eldest_f = this;
+        foreach (IQspnFingerprint f in fingerprints)
         {
             assert(f is FakeFingerprint);
-            FakeFingerprint _f = f as FakeFingerprint;
-            assert(_f.level == level);
-            if (_f.elderships[0] < cur_eldership)
-            {
-                cur_eldership = _f.elderships[0];
-                ret.id = _f.id;
-            }
+            FakeFingerprint _f = (FakeFingerprint)f;
+            if (_f.elder(eldest_f)) eldest_f = _f;
         }
+        ret.elderships_seed = new ArrayList<int>();
+        ret.elderships_seed.add(eldest_f.elderships[0]);
+        ret.elderships_seed.add_all(eldest_f.elderships_seed);
+        ret.id = eldest_f.id;
         return ret;
     }
 }

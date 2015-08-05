@@ -38,9 +38,9 @@ namespace Netsukuku
     public interface IQspnFingerprint : Object
     {
         public abstract bool i_qspn_equals(IQspnFingerprint other);
-        public abstract bool i_qspn_elder(IQspnFingerprint other);
         public abstract int i_qspn_get_level();
-        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingers);
+        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints);
+        public abstract bool i_qspn_elder_seed(IQspnFingerprint other);
     }
 
     internal ArrayList<IQspnFingerprint>
@@ -493,7 +493,7 @@ namespace Netsukuku
                 {
                     if (! fpd.i_qspn_equals(fpdp))
                     {
-                        if (! fpd.i_qspn_elder(fpdp))
+                        if (! fpd.i_qspn_elder_seed(fpdp))
                         {
                             fpd = fpdp;
                             nnd = nndp;
@@ -2327,7 +2327,7 @@ namespace Netsukuku
                         IQspnFingerprint? fp_eldest = null;
                         foreach (IQspnFingerprint fp in f2)
                         {
-                            if (fp_eldest == null || fp.i_qspn_elder(fp_eldest))
+                            if (fp_eldest == null || fp.i_qspn_elder_seed(fp_eldest))
                                 fp_eldest = fp;
                         }
                         NodePath? bp_eldest = null;
@@ -2500,7 +2500,48 @@ namespace Netsukuku
             // ArrayList<IQspnFingerprint> my_fingerprints;
             // ArrayList<int> my_nodes_inside;
             changes_in_my_gnodes = false;
-            for (int i = 1; i <= levels; i++)
+            // for level 1
+            {
+                Gee.List<IQspnFingerprint> fp_set = create_searchable_list_fingerprints();
+                int nn_tot = 0;
+                foreach (Destination d in destinations[0].values)
+                {
+                    NodePath? best_p = null;
+                    foreach (NodePath p in d.paths)
+                    {
+                        if (best_p == null)
+                        {
+                            best_p = p;
+                        }
+                        else
+                        {
+                            if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
+                            {
+                                best_p = p;
+                            }
+                        }
+                    }
+                    assert(best_p != null); // must not exist in 'destinations' one with empty 'paths'
+                    fp_set.add(best_p.path.fingerprint);
+                    nn_tot += 1;
+                }
+                IQspnFingerprint new_fp = my_fingerprints[0].i_qspn_construct(fp_set);
+                if (! new_fp.i_qspn_equals(my_fingerprints[1]))
+                {
+                    my_fingerprints[1] = new_fp;
+                    changes_in_my_gnodes = true;
+                    changed_fp(1);
+                }
+                int new_nn = 1 + nn_tot;
+                if (new_nn != my_nodes_inside[1])
+                {
+                    my_nodes_inside[1] = new_nn;
+                    changes_in_my_gnodes = true;
+                    changed_nodes_inside(1);
+                }
+            }
+            // for upper levels
+            for (int i = 2; i <= levels; i++)
             {
                 Gee.List<IQspnFingerprint> fp_set = create_searchable_list_fingerprints();
                 int nn_tot = 0;
@@ -2523,7 +2564,7 @@ namespace Netsukuku
                         {
                             if (! fp_d.i_qspn_equals(fp_d_p))
                             {
-                                if (! fp_d.i_qspn_elder(fp_d_p))
+                                if (! fp_d.i_qspn_elder_seed(fp_d_p))
                                 {
                                     fp_d = fp_d_p;
                                     nn_d = nn_d_p;
