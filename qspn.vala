@@ -2097,9 +2097,10 @@ namespace Netsukuku
                     md_set.add_all(dd.paths);
                 }
                 ArrayList<IQspnFingerprint> f1 = create_searchable_list_fingerprints();
-                foreach (NodePath np in md_set)
-                    if (! (np.path.fingerprint in f1))
-                        f1.add(np.path.fingerprint);
+                if (d.lvl > 0)
+                    foreach (NodePath np in md_set)
+                        if (! (np.path.fingerprint in f1))
+                            f1.add(np.path.fingerprint);
                 ArrayList<NodePath> od_set = create_searchable_list_nodepaths();
                 ArrayList<NodePath> vd_set = create_searchable_list_nodepaths();
                 ArrayList<SignalToEmit> sd = new ArrayList<SignalToEmit>();
@@ -2302,63 +2303,66 @@ namespace Netsukuku
                         destination_removed(s.h);
                 }
                 // check fingerprints
-                if (destinations[d.lvl].has_key(d.pos))
+                if (d.lvl > 0)
                 {
-                    Destination _d = destinations[d.lvl][d.pos];
-                    ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
-                    _d_paths.add_all(_d.paths);
-                    ArrayList<IQspnFingerprint> f2 = create_searchable_list_fingerprints();
-                    foreach (NodePath np in _d_paths)
-                        if (! (np.path.fingerprint in f2))
-                            f2.add(np.path.fingerprint);
-                    if (f2.size > 1)
+                    if (destinations[d.lvl].has_key(d.pos))
                     {
-                        // first detection of a split?
-                        foreach (IQspnFingerprint fp in f2)
-                        {
-                            if (! (fp in f1))
-                            {
-                                // prepare to propagate the information back.
-                                if (! (d in b_set)) b_set.add(d);
-                                break;
-                            }
-                        }
-                        // wait the threshold, then signal the split
-                        IQspnFingerprint? fp_eldest = null;
-                        foreach (IQspnFingerprint fp in f2)
-                        {
-                            if (fp_eldest == null || fp.i_qspn_elder_seed(fp_eldest))
-                                fp_eldest = fp;
-                        }
-                        NodePath? bp_eldest = null;
+                        Destination _d = destinations[d.lvl][d.pos];
+                        ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
+                        _d_paths.add_all(_d.paths);
+                        ArrayList<IQspnFingerprint> f2 = create_searchable_list_fingerprints();
                         foreach (NodePath np in _d_paths)
+                            if (! (np.path.fingerprint in f2))
+                                f2.add(np.path.fingerprint);
+                        if (f2.size > 1)
                         {
-                            if (np.path.fingerprint.i_qspn_equals(fp_eldest))
+                            // first detection of a split?
+                            foreach (IQspnFingerprint fp in f2)
                             {
-                                if (bp_eldest == null || bp_eldest.cost.i_qspn_compare_to(np.cost) > 0)
-                                    bp_eldest = np;
-                            }
-                        }
-                        f2.remove(fp_eldest);
-                        foreach (IQspnFingerprint fp in f2)
-                        {
-                            NodePath? bp = null;
-                            foreach (NodePath np in _d_paths)
-                            {
-                                if (np.path.fingerprint.i_qspn_equals(fp))
+                                if (! (fp in f1))
                                 {
-                                    if (bp == null || bp.cost.i_qspn_compare_to(np.cost) > 0)
-                                        bp = np;
+                                    // prepare to propagate the information back.
+                                    if (! (d in b_set)) b_set.add(d);
+                                    break;
                                 }
                             }
-                            SignalSplitTasklet ts = new SignalSplitTasklet();
-                            ts.mgr = this;
-                            ts.fp_eldest = fp_eldest;
-                            ts.fp = fp;
-                            ts.bp_eldest = bp_eldest;
-                            ts.bp = bp;
-                            ts.d = d;
-                            tasklet.spawn(ts);
+                            // wait the threshold, then signal the split
+                            IQspnFingerprint? fp_eldest = null;
+                            foreach (IQspnFingerprint fp in f2)
+                            {
+                                if (fp_eldest == null || fp.i_qspn_elder_seed(fp_eldest))
+                                    fp_eldest = fp;
+                            }
+                            NodePath? bp_eldest = null;
+                            foreach (NodePath np in _d_paths)
+                            {
+                                if (np.path.fingerprint.i_qspn_equals(fp_eldest))
+                                {
+                                    if (bp_eldest == null || bp_eldest.cost.i_qspn_compare_to(np.cost) > 0)
+                                        bp_eldest = np;
+                                }
+                            }
+                            f2.remove(fp_eldest);
+                            foreach (IQspnFingerprint fp in f2)
+                            {
+                                NodePath? bp = null;
+                                foreach (NodePath np in _d_paths)
+                                {
+                                    if (np.path.fingerprint.i_qspn_equals(fp))
+                                    {
+                                        if (bp == null || bp.cost.i_qspn_compare_to(np.cost) > 0)
+                                            bp = np;
+                                    }
+                                }
+                                SignalSplitTasklet ts = new SignalSplitTasklet();
+                                ts.mgr = this;
+                                ts.fp_eldest = fp_eldest;
+                                ts.fp = fp;
+                                ts.bp_eldest = bp_eldest;
+                                ts.bp = bp;
+                                ts.d = d;
+                                tasklet.spawn(ts);
+                            }
                         }
                     }
                 }
