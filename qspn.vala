@@ -340,9 +340,11 @@ namespace Netsukuku
         {
             this.arc = arc;
             this.path = path;
+            exposed = false;
         }
         public IQspnArc arc;
         public EtpPath path;
+        public bool exposed;
         private IQspnCost _cost;
         public IQspnCost cost {
             get {
@@ -2242,30 +2244,98 @@ namespace Netsukuku
                     }
                 }
                 od_set = rd;
+                // find current valid fingerprint of d
+                IQspnFingerprint? valid_fp_d = null;
+                if (d.lvl > 0)
+                {
+                    foreach (NodePath p in od_set)
+                    {
+                        IQspnFingerprint fp_d_p = p.path.fingerprint;
+                        if (valid_fp_d == null)
+                        {
+                            valid_fp_d = fp_d_p;
+                        }
+                        else
+                        {
+                            if (! fp_d_p.i_qspn_equals(valid_fp_d))
+                                if (fp_d_p.i_qspn_elder_seed(valid_fp_d)) valid_fp_d = fp_d_p;
+                        }
+                    }
+                }
                 // populate collections
                 foreach (NodePath p in od_set)
                 {
                     if (! (p in md_set))
                     {
+                        IQspnFingerprint fp_d_p = p.path.fingerprint;
                         all_paths_set.add(prepare_path_step_1(p));
-                        sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                        if (d.lvl == 0)
+                        {
+                            sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                        }
+                        else
+                        {
+                            if (fp_d_p.i_qspn_equals(valid_fp_d))
+                            {
+                                sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                                p.exposed = true;
+                            }
+                        }
                     }
                 }
                 foreach (NodePath p in md_set)
                 {
+                    IQspnFingerprint fp_d_p = p.path.fingerprint;
                     if (! (p in od_set))
                     {
                         EtpPath pp = prepare_path_step_1(p);
                         pp.cost = new DeadCost();
                         all_paths_set.add(pp);
-                        sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
+                        if (d.lvl == 0)
+                        {
+                            sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
+                        }
+                        else
+                        {
+                            if (p.exposed)
+                            {
+                                sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
+                            }
+                        }
                     }
                     else
                     {
+                        NodePath p1 = od_set[od_set.index_of(p)];
                         if (p in vd_set)
                         {
                             all_paths_set.add(prepare_path_step_1(p));
-                            sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                            if (d.lvl == 0)
+                            {
+                                sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                            }
+                            else
+                            {
+                                if (p.exposed)
+                                {
+                                    if (fp_d_p.i_qspn_equals(valid_fp_d))
+                                    {
+                                        sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                                        p1.exposed = true;
+                                    }
+                                    else
+                                    {
+                                        sd.add(new SignalToEmit.path_removed(get_ret_path(p)));
+                                    }
+                                }
+                                else
+                                {
+                                    if (fp_d_p.i_qspn_equals(valid_fp_d))
+                                    {
+                                        sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                                        p1.exposed = true;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
