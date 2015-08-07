@@ -2695,8 +2695,38 @@ namespace Netsukuku
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
-                foreach (NodePath np in destinations[d.lvl][d.pos].paths)
-                    ret.add(get_ret_path(np));
+                // find current valid fingerprint of d
+                IQspnFingerprint? valid_fp_d = null;
+                if (d.lvl > 0)
+                {
+                    foreach (NodePath p in destinations[d.lvl][d.pos].paths)
+                    {
+                        IQspnFingerprint fp_d_p = p.path.fingerprint;
+                        if (valid_fp_d == null)
+                        {
+                            valid_fp_d = fp_d_p;
+                        }
+                        else
+                        {
+                            if (! fp_d_p.i_qspn_equals(valid_fp_d))
+                                if (fp_d_p.i_qspn_elder_seed(valid_fp_d)) valid_fp_d = fp_d_p;
+                        }
+                    }
+                }
+                // prepare known valid paths
+                foreach (NodePath p in destinations[d.lvl][d.pos].paths)
+                {
+                    IQspnFingerprint fp_d_p = p.path.fingerprint;
+                    if (d.lvl == 0)
+                    {
+                        ret.add(get_ret_path(p));
+                    }
+                    else
+                    {
+                        if (fp_d_p.i_qspn_equals(valid_fp_d))
+                            ret.add(get_ret_path(p));
+                    }
+                }
             }
             return ret;
         }

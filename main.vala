@@ -1046,6 +1046,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
         foreach (string suffix in suffixes)
         {
             string k = @"$(dest_global)_$(suffix)";
+            print(@"Updating routes to $(k)...\n");
             string table = suffix == "main" ? maintable : @"$(maintable)_from_$(suffix)";
             if (k in new_routes.keys)
             {
@@ -1089,6 +1090,11 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                             } catch (SpawnError e) {error("Unable to spawn a command");}
                         }
                         my_routes[k] = new_routes[k];
+                    }
+                    else
+                    {
+                        // nothing
+                        print("no change\n");
                     }
                 }
                 else
@@ -1171,6 +1177,7 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                 else
                 {
                     // nothing
+                    print("no change (no route)\n");
                 }
             }
         }
