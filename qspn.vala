@@ -2226,10 +2226,19 @@ namespace Netsukuku
                                 int arc_out_g2 = p2.path.arcs[g2_i+1];
                                 double n_nodes = Math.floor(1.5 * Math.sqrt(num_nodes_inside[g2]));
                                 total_hops += n_nodes;
-                                if ( (g2 in p1.path.hops) &&
-                                     (arc_in_g2 in p1.path.arcs) &&
-                                     (arc_out_g2 in p1.path.arcs) )
-                                    common_hops += n_nodes;
+                                if (g2 in p1.path.hops)
+                                {
+                                    if (arc_in_g2 in p1.path.arcs)
+                                    {
+                                        if (arc_out_g2 in p1.path.arcs) common_hops += n_nodes;
+                                        else common_hops += Math.ceil(0.5 * n_nodes);
+                                    }
+                                    else
+                                    {
+                                        if (arc_out_g2 in p1.path.arcs) common_hops += Math.ceil(0.5 * n_nodes);
+                                        else common_hops += 0.0;
+                                    }
+                                }
                             }
                             if (total_hops > 0.0 && common_hops / total_hops > max_common_hops_ratio)
                             {
