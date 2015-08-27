@@ -449,12 +449,12 @@ namespace Netsukuku
 
     public interface IQspnStubFactory : Object
     {
-        public abstract IAddressManagerStub
+        public abstract IQspnManagerStub
                         i_qspn_get_broadcast(
                             IQspnMissingArcHandler? missing_handler=null,
                             IQspnArc? ignore_neighbor=null
                         );
-        public abstract IAddressManagerStub
+        public abstract IQspnManagerStub
                         i_qspn_get_tcp(
                             IQspnArc arc,
                             bool wait_reply=true
@@ -755,12 +755,12 @@ namespace Netsukuku
             public bool is_full;
             public void i_qspn_missing(IQspnArc arc)
             {
-                IAddressManagerStub stub =
+                IQspnManagerStub stub =
                         qspnman.stub_factory.i_qspn_get_tcp(arc);
                 debug("Sending reliable ETP to missing arc");
                 try {
                     assert(qspnman.check_outgoing_message(m));
-                    stub.qspn_manager.send_etp(m, is_full);
+                    stub.send_etp(m, is_full);
                 }
                 catch (QspnNotAcceptedError e) {
                     // we're not in its arcs; remove and emit signal
@@ -832,12 +832,12 @@ namespace Netsukuku
                 return;
             }
 
-            IAddressManagerStub stub_get_etp =
+            IQspnManagerStub stub_get_etp =
                     stub_factory.i_qspn_get_tcp(arc);
             IQspnEtpMessage? resp = null;
             try {
                 debug("Requesting ETP from new arc");
-                resp = stub_get_etp.qspn_manager.get_full_etp(my_naddr);
+                resp = stub_get_etp.get_full_etp(my_naddr);
             }
             catch (QspnBootstrapInProgressError e) {
                 debug("Got QspnBootstrapInProgressError. Give up.");
@@ -924,7 +924,7 @@ namespace Netsukuku
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
-                IAddressManagerStub stub_send_to_others =
+                IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
@@ -933,7 +933,7 @@ namespace Netsukuku
                 debug("Forward ETP to all but the new arc");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    stub_send_to_others.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_others.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -950,12 +950,12 @@ namespace Netsukuku
 
             // create a new etp for arc
             EtpMessage full_etp = prepare_full_etp();
-            IAddressManagerStub stub_send_to_arc =
+            IQspnManagerStub stub_send_to_arc =
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
             try {
                 assert(check_outgoing_message(full_etp));
-                stub_send_to_arc.qspn_manager.send_etp(full_etp, true);
+                stub_send_to_arc.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
                 arc_remove(arc);
@@ -1079,14 +1079,14 @@ namespace Netsukuku
             {
                 // create a new etp for all.
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
-                IAddressManagerStub stub_send_to_all =
+                IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    stub_send_to_all.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_all.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -1223,14 +1223,14 @@ namespace Netsukuku
             {
                 // create a new etp for all.
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
-                IAddressManagerStub stub_send_to_all =
+                IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    stub_send_to_all.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_all.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -1557,7 +1557,7 @@ namespace Netsukuku
         {
             public ArrayList<INtkdTaskletHandle> tasks;
             public ArrayList<IQspnArc> arcs;
-            public ArrayList<IAddressManagerStub> stubs;
+            public ArrayList<IQspnManagerStub> stubs;
             public ArrayList<PairArcEtp> results;
             public IQspnNaddr my_naddr;
             public unowned FailedArcHandler failed_arc_handler;
@@ -1571,7 +1571,7 @@ namespace Netsukuku
             GatherEtpSetData work = new GatherEtpSetData();
             work.tasks = new ArrayList<INtkdTaskletHandle>();
             work.arcs = new ArrayList<IQspnArc>();
-            work.stubs = new ArrayList<IAddressManagerStub>();
+            work.stubs = new ArrayList<IQspnManagerStub>();
             work.results = new ArrayList<PairArcEtp>();
             work.my_naddr = my_naddr;
             work.failed_arc_handler = failed_arc_handler;
@@ -1605,12 +1605,12 @@ namespace Netsukuku
         }
         private void tasklet_get_full_etp(GatherEtpSetData work, int i)
         {
-            IAddressManagerStub stub = work.stubs[i];
+            IQspnManagerStub stub = work.stubs[i];
             IQspnEtpMessage? resp = null;
             try {
                 int arc_id = get_arc_id(work.arcs[i]);
                 debug(@"Requesting ETP from arc $(arc_id)");
-                resp = stub.qspn_manager.get_full_etp(work.my_naddr);
+                resp = stub.get_full_etp(work.my_naddr);
             }
             catch (QspnBootstrapInProgressError e) {
                 debug("Got QspnBootstrapInProgressError. Give up.");
@@ -1715,12 +1715,12 @@ namespace Netsukuku
                 // Process queued events if any.
                 foreach (IQspnArc arc in queued_arcs)
                 {
-                    IAddressManagerStub stub_get_etp =
+                    IQspnManagerStub stub_get_etp =
                             stub_factory.i_qspn_get_tcp(arc);
                     IQspnEtpMessage? resp = null;
                     try {
                         debug("Requesting ETP from queued arc");
-                        resp = stub_get_etp.qspn_manager.get_full_etp(my_naddr);
+                        resp = stub_get_etp.get_full_etp(my_naddr);
                     }
                     catch (QspnBootstrapInProgressError e) {
                         debug("Got QspnBootstrapInProgressError. Give up.");
@@ -1803,14 +1803,14 @@ namespace Netsukuku
 
                 // prepare ETP and send to all my neighbors.
                 EtpMessage full_etp = prepare_full_etp();
-                IAddressManagerStub stub_send_to_all =
+                IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(full_etp));
-                    stub_send_to_all.qspn_manager.send_etp(full_etp, true);
+                    stub_send_to_all.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -1836,14 +1836,14 @@ namespace Netsukuku
                 tasklet.ms_wait(600000); // 10 minutes
                 if (my_arcs.size == 0) continue;
                 EtpMessage full_etp = prepare_full_etp();
-                IAddressManagerStub stub_send_to_all =
+                IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
                 try {
                     assert(check_outgoing_message(full_etp));
-                    stub_send_to_all.qspn_manager.send_etp(full_etp, true);
+                    stub_send_to_all.send_etp(full_etp, true);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error
@@ -2554,14 +2554,14 @@ namespace Netsukuku
             }
             if (etp_paths.is_empty) return;
             EtpMessage new_etp = prepare_new_etp(etp_paths);
-            IAddressManagerStub stub_send_to_all =
+            IQspnManagerStub stub_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
             try {
                 assert(check_outgoing_message(new_etp));
-                stub_send_to_all.qspn_manager.send_etp(new_etp, false);
+                stub_send_to_all.send_etp(new_etp, false);
             }
             catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
@@ -2958,7 +2958,7 @@ namespace Netsukuku
             {
                 EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
                                                      etp);
-                IAddressManagerStub stub_send_to_others =
+                IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false),
@@ -2967,7 +2967,7 @@ namespace Netsukuku
                 debug("Forward ETP to all but the sender");
                 try {
                     assert(check_outgoing_message(new_etp));
-                    stub_send_to_others.qspn_manager.send_etp(new_etp, false);
+                    stub_send_to_others.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
                     // a broadcast will never get a return value nor an error

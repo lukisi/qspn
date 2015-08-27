@@ -99,7 +99,7 @@ class FakeArc : Object, IQspnArc
     }
 }
 
-class FakeBroadcastClient : FakeAddressManagerStub
+class FakeBroadcastClient : Object, IQspnManagerStub
 {
     private ArrayList<FakeArc> target_arcs;
     private BroadcastID bcid;
@@ -110,7 +110,14 @@ class FakeBroadcastClient : FakeAddressManagerStub
         this.bcid = bcid;
     }
 
-    public override void send_etp
+    public IQspnEtpMessage get_full_etp
+    (Netsukuku.IQspnAddress requesting_address)
+    throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+    {
+        error("FakeBroadcastClient: you should not use broadcast for method get_full_etp.");
+    }
+
+    public void send_etp
     (IQspnEtpMessage _etp, bool is_full)
     throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
@@ -153,7 +160,7 @@ class FakeBroadcastClient : FakeAddressManagerStub
     }
 }
 
-class FakeTCPClient : FakeAddressManagerStub
+class FakeTCPClient : Object, IQspnManagerStub
 {
     private FakeArc target_arc;
     public FakeTCPClient(FakeArc target_arc)
@@ -161,7 +168,7 @@ class FakeTCPClient : FakeAddressManagerStub
         this.target_arc = target_arc;
     }
 
-    public override IQspnEtpMessage get_full_etp
+    public IQspnEtpMessage get_full_etp
     (IQspnAddress _my_naddr)
     throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
@@ -182,7 +189,7 @@ class FakeTCPClient : FakeAddressManagerStub
         return ret;
     }
 
-    public override void send_etp
+    public void send_etp
     (IQspnEtpMessage _etp, bool is_full)
     throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
     {
@@ -205,7 +212,7 @@ class FakeStubFactory : Object, IQspnStubFactory
 {
     public SimulatorNode sn;
 
-    public IAddressManagerStub
+    public IQspnManagerStub
                     i_qspn_get_broadcast(
                         IQspnMissingArcHandler? missing_handler=null,
                         IQspnArc? ignore_neighbor=null
@@ -227,7 +234,7 @@ class FakeStubFactory : Object, IQspnStubFactory
         return new FakeBroadcastClient(target_arcs, bcid);
     }
 
-    public IAddressManagerStub
+    public IQspnManagerStub
                     i_qspn_get_tcp(
                         IQspnArc arc,
                         bool wait_reply=true

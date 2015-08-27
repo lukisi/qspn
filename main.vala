@@ -74,7 +74,33 @@ Gee.List<IQspnArc> current_arcs_for_broadcast
 
 class MyStubFactory: Object, IQspnStubFactory
 {
-    public IAddressManagerStub
+    /* This "holder" class is needed because the QspnManagerRemote class provided by
+     * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
+     */
+    private class QspnManagerStubHolder : Object, IQspnManagerStub
+    {
+        public QspnManagerStubHolder(IAddressManagerStub addr)
+        {
+            this.addr = addr;
+        }
+        private IAddressManagerStub addr;
+
+		public IQspnEtpMessage get_full_etp
+		(IQspnAddress requesting_address)
+		throws QspnNotAcceptedError, QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+		{
+		    return addr.qspn_manager.get_full_etp(requesting_address);
+		}
+
+		public void send_etp
+		(IQspnEtpMessage etp, bool is_full)
+		throws QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+		{
+		    addr.qspn_manager.send_etp(etp, is_full);
+		}
+    }
+
+    public IQspnManagerStub
     i_qspn_get_broadcast
     (IQspnMissingArcHandler? missing_handler=null, IQspnArc? ignore_neighbor=null)
     {
@@ -98,7 +124,7 @@ class MyStubFactory: Object, IQspnStubFactory
             MyAckComm notify_ack = new MyAckComm(bcid, devs, missing_handler, lst_expected);
             ret = Netsukuku.ModRpc.get_addr_broadcast(devs, ntkd_port, bcid, notify_ack);
         }
-        return ret;
+        return new QspnManagerStubHolder(ret);
     }
 
     private class MyAckComm : Object, zcd.ModRpc.IAckCommunicator
@@ -162,13 +188,14 @@ class MyStubFactory: Object, IQspnStubFactory
         }
     }
 
-    public IAddressManagerStub
+    public IQspnManagerStub
     i_qspn_get_tcp
     (IQspnArc arc, bool wait_reply=true)
     {
         FakeArc _arc = (FakeArc)arc;
         string addr = _arc.neighbour_nic_addr;
-        return Netsukuku.ModRpc.get_addr_tcp_client(addr, ntkd_port);
+        IAddressManagerStub ret = Netsukuku.ModRpc.get_addr_tcp_client(addr, ntkd_port);
+        return new QspnManagerStubHolder(ret);
     }
 }
 

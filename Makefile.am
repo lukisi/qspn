@@ -158,7 +158,6 @@ auto_graph_LDADD = -lm \
 simulator_SOURCES = \
 	testsuites/simulator/simulator.vala \
 	testsuites/simulator/tasklet_system_tasklet.vala \
-	testsuites/simulator/base_fake_address_manager.vala \
 	testsuites/simulator/generic_naddr.vala \
 	testsuites/simulator/serialize_helpers.vala \
 	qspn.vapi \
