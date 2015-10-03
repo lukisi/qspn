@@ -2240,6 +2240,25 @@ namespace Netsukuku
                                     }
                                 }
                             }
+                            if (d.lvl > 0 && destinations[d.lvl].has_key(d.pos))
+                            {
+                                int num_nodes_inside_d = destinations[d.lvl][d.pos].nodes_inside;
+                                double n_nodes = Math.floor(0.75 * Math.sqrt(num_nodes_inside_d));
+                                if (n_nodes > 0.0) n_nodes -= 1.0;
+                                if (n_nodes > 0.0)
+                                {
+                                    int arc_in_d = p2.path.arcs[p2.path.hops.size-1];
+                                    total_hops += n_nodes;
+                                    if (arc_in_d in p1.path.arcs)
+                                    {
+                                        common_hops += n_nodes;
+                                    }
+                                    else
+                                    {
+                                        common_hops += 0.0;
+                                    }
+                                }
+                            }
                             if (total_hops > 0.0 && common_hops / total_hops > max_common_hops_ratio)
                             {
                                 insert = false;
