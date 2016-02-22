@@ -207,7 +207,7 @@ namespace Netsukuku
         public unowned GLib.ParamSpec find_property
         (string name)
         {
-            return ((ObjectClass)typeof(EtpMessage).class_ref()).find_property(name);
+            return get_class().find_property(name);
         }
 
         public Json.Node serialize_property
@@ -305,7 +305,7 @@ namespace Netsukuku
         public unowned GLib.ParamSpec find_property
         (string name)
         {
-            return ((ObjectClass)typeof(EtpPath).class_ref()).find_property(name);
+            return get_class().find_property(name);
         }
 
         public Json.Node serialize_property

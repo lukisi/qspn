@@ -61,7 +61,7 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
     public unowned GLib.ParamSpec find_property
     (string name)
     {
-        return ((ObjectClass)typeof(FakeGenericNaddr).class_ref()).find_property(name);
+        return get_class().find_property(name);
     }
 
     public Json.Node serialize_property
@@ -188,7 +188,7 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
     public unowned GLib.ParamSpec find_property
     (string name)
     {
-        return ((ObjectClass)typeof(FakeFingerprint).class_ref()).find_property(name);
+        return get_class().find_property(name);
     }
 
     public Json.Node serialize_property
