@@ -1,6 +1,6 @@
 /*
  *  This file is part of Netsukuku.
- *  Copyright (C) 2015 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
+ *  Copyright (C) 2015-2016 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
  *
  *  Netsukuku is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
  */
 
 using Netsukuku;
-using Netsukuku.ModRpc;
 using Gee;
 
 namespace ClientInternals

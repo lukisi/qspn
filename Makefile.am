@@ -6,20 +6,22 @@ noinst_LTLIBRARIES = \
 	libqspn.la \
 	$(NULL)
 
-noinst_PROGRAMS =  \
-	qspnclient \
-	$(NULL)
+#noinst_PROGRAMS =  \
+#	qspnclient \
+#	$(NULL)
 
 TESTS = \
 	test_serialize_helpers \
-	test_split_signal \
-	test_not_split_signal \
 	$(NULL)
+#	test_split_signal \
+#	test_not_split_signal \
+#
 
 check_PROGRAMS = \
 	test_serialize_helpers \
-	simulator \
 	$(NULL)
+#	simulator \
+#
 
 EXTRA_PROGRAMS = \
 	auto_graph \
@@ -46,10 +48,9 @@ libqspn_la_VALAFLAGS = \
 	--library qspn \
 	--pkg gee-0.8 \
 	--pkg json-glib-1.0 \
+	--pkg tasklet-system \
 	--pkg ntkd-common \
-	--pkg ntkd-tasklet-system \
 	--pkg ntkdrpc\
-	--pkg zcd-tasklet-system \
 	$(NULL)
 
 libqspn_la_CPPFLAGS = \
@@ -74,8 +75,6 @@ libqspn_la_LIBADD = \
 
 qspnclient_SOURCES =  \
 	main.vala \
-	tasklet_system_tasklet.vala \
-	base_fake_address_manager.vala \
 	generic_naddr.vala \
 	client_serialize_helpers.vala \
 	mac-getter/hw.vapi \
@@ -85,10 +84,9 @@ qspnclient_SOURCES =  \
 qspnclient_VALAFLAGS = \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
-	--pkg ntkd-tasklet-system \
-	--pkg tasklet \
+	--pkg tasklet-system \
+	--pkg pth-tasklet \
 	--pkg ntkdrpc \
-	--pkg zcd-tasklet-system \
 	$(NULL)
 
 qspnclient_CPPFLAGS = \
@@ -97,7 +95,7 @@ qspnclient_CPPFLAGS = \
 	$(GEE_CFLAGS) \
 	$(NTKDCOMMON_CFLAGS) \
 	$(TASKLETSYSTEM_CFLAGS) \
-	$(TASKLET_CFLAGS) \
+	$(PTHTASKLET_CFLAGS) \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
@@ -107,7 +105,7 @@ qspnclient_LDADD = \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
 	$(TASKLETSYSTEM_LIBS) \
-	$(TASKLET_LIBS) \
+	$(PTHTASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
 	$(builddir)/libmacgetter.la \
 	$(builddir)/libqspn.la \
@@ -157,7 +155,6 @@ auto_graph_LDADD = -lm \
 
 simulator_SOURCES = \
 	testsuites/simulator/simulator.vala \
-	testsuites/simulator/tasklet_system_tasklet.vala \
 	testsuites/simulator/generic_naddr.vala \
 	testsuites/simulator/serialize_helpers.vala \
 	qspn.vapi \
@@ -166,10 +163,9 @@ simulator_SOURCES = \
 simulator_VALAFLAGS = \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
-	--pkg ntkd-tasklet-system \
-	--pkg tasklet \
+	--pkg tasklet-system \
+	--pkg pth-tasklet \
 	--pkg ntkdrpc \
-	--pkg zcd-tasklet-system \
 	$(NULL)
 
 simulator_CPPFLAGS = \
@@ -178,7 +174,7 @@ simulator_CPPFLAGS = \
 	$(GEE_CFLAGS) \
 	$(NTKDCOMMON_CFLAGS) \
 	$(TASKLETSYSTEM_CFLAGS) \
-	$(TASKLET_CFLAGS) \
+	$(PTHTASKLET_CFLAGS) \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
@@ -187,7 +183,7 @@ simulator_LDADD = \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
 	$(TASKLETSYSTEM_LIBS) \
-	$(TASKLET_LIBS) \
+	$(PTHTASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
 	$(builddir)/libqspn.la \
 	$(NULL)

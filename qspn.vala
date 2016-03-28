@@ -1,6 +1,6 @@
 /*
  *  This file is part of Netsukuku.
- *  Copyright (C) 2014-2015 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
+ *  Copyright (C) 2014-2016 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
  *
  *  Netsukuku is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,7 @@
  */
 
 using Gee;
-using Netsukuku.ModRpc;
-using zcd.ModRpc;
+using TaskletSystem;
 using LibQspnInternals;
 
 namespace Netsukuku
@@ -130,7 +129,7 @@ namespace Netsukuku
         public abstract IQspnCost i_qspn_get_cost();
         public abstract IQspnNaddr i_qspn_get_naddr();
         public abstract bool i_qspn_equals(IQspnArc other);
-        public abstract bool i_qspn_comes_from(zcd.ModRpc.CallerInfo rpc_caller);
+        public abstract bool i_qspn_comes_from(CallerInfo rpc_caller);
     }
 
     internal ArrayList<HCoord>
@@ -540,10 +539,10 @@ namespace Netsukuku
         GENERIC
     }
 
-    internal INtkdTasklet tasklet;
+    internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
-        public static void init(INtkdTasklet _tasklet)
+        public static void init(ITasklet _tasklet)
         {
             // Register serializable types
             typeof(NullCost).class_peek();
@@ -566,7 +565,7 @@ namespace Netsukuku
         private int levels;
         private int[] gsizes;
         private bool bootstrap_complete;
-        private INtkdTaskletHandle? periodical_update_tasklet = null;
+        private ITaskletHandle? periodical_update_tasklet = null;
         private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
         // This collection can be accessed by index (level) and then by iteration on the
@@ -687,7 +686,7 @@ namespace Netsukuku
                 tasklet.spawn(ts);
             }
         }
-        private class BootstrapCompleteTasklet : Object, INtkdTaskletSpawnable
+        private class BootstrapCompleteTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public void * func()
@@ -697,7 +696,7 @@ namespace Netsukuku
                 return null;
             }
         }
-        private class GetFirstEtpsTasklet : Object, INtkdTaskletSpawnable
+        private class GetFirstEtpsTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public void * func()
@@ -733,7 +732,7 @@ namespace Netsukuku
             ts.t = this;
             periodical_update_tasklet = tasklet.spawn(ts);
         }
-        private class PeriodicalUpdateTasklet : Object, INtkdTaskletSpawnable
+        private class PeriodicalUpdateTasklet : Object, ITaskletSpawnable
         {
             public QspnManager t;
             public void * func()
@@ -797,7 +796,7 @@ namespace Netsukuku
             tasklet.spawn(ts);
         }
 
-        private class ArcAddTasklet : Object, INtkdTaskletSpawnable
+        private class ArcAddTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public IQspnArc arc;
@@ -991,7 +990,7 @@ namespace Netsukuku
             ts.changed_arc = changed_arc;
             tasklet.spawn(ts);
         }
-        private class ArcIsChangedTasklet : Object, INtkdTaskletSpawnable
+        private class ArcIsChangedTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public IQspnArc changed_arc;
@@ -1113,7 +1112,7 @@ namespace Netsukuku
             ts.removed_arc = removed_arc;
             tasklet.spawn(ts);
         }
-        private class ArcRemoveTasklet : Object, INtkdTaskletSpawnable
+        private class ArcRemoveTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public IQspnArc removed_arc;
@@ -1555,7 +1554,7 @@ namespace Netsukuku
         }
         private class GatherEtpSetData : Object
         {
-            public ArrayList<INtkdTaskletHandle> tasks;
+            public ArrayList<ITaskletHandle> tasks;
             public ArrayList<IQspnArc> arcs;
             public ArrayList<IQspnManagerStub> stubs;
             public ArrayList<PairArcEtp> results;
@@ -1569,7 +1568,7 @@ namespace Netsukuku
             // Work in parallel then join
             // Prepare (one instance for this run) an object work for the tasklets
             GatherEtpSetData work = new GatherEtpSetData();
-            work.tasks = new ArrayList<INtkdTaskletHandle>();
+            work.tasks = new ArrayList<ITaskletHandle>();
             work.arcs = new ArrayList<IQspnArc>();
             work.stubs = new ArrayList<IQspnManagerStub>();
             work.results = new ArrayList<PairArcEtp>();
@@ -1585,14 +1584,14 @@ namespace Netsukuku
                 ts.mgr = this;
                 ts.work = work;
                 ts.i = i++;
-                INtkdTaskletHandle t = tasklet.spawn(ts, /*joinable*/ true);
+                ITaskletHandle t = tasklet.spawn(ts, /*joinable*/ true);
                 work.tasks.add(t);
             }
             // join
-            foreach (INtkdTaskletHandle t in work.tasks) t.join();
+            foreach (ITaskletHandle t in work.tasks) t.join();
             return work.results;
         }
-        private class GetFullEtpTasklet : Object, INtkdTaskletSpawnable
+        private class GetFullEtpTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public GatherEtpSetData work;
@@ -2470,7 +2469,7 @@ namespace Netsukuku
         {
             foreach (EtpPath p in all_paths_set) prepare_path_step_2(p);
         }
-        private class SignalSplitTasklet : Object, INtkdTaskletSpawnable
+        private class SignalSplitTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public IQspnFingerprint fp_eldest;
@@ -2544,7 +2543,7 @@ namespace Netsukuku
             ts.b_set = b_set;
             tasklet.spawn(ts);
         }
-        private class FirstDetectionSplitTasklet : Object, INtkdTaskletSpawnable
+        private class FirstDetectionSplitTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public Collection<HCoord> b_set;
@@ -2826,13 +2825,13 @@ namespace Netsukuku
 
         public IQspnEtpMessage
         get_full_etp(IQspnAddress requesting_address,
-                     zcd.ModRpc.CallerInfo? _rpc_caller=null)
+                     CallerInfo? _rpc_caller=null)
         throws QspnNotAcceptedError, QspnBootstrapInProgressError
         {
             if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
 
             assert(_rpc_caller != null);
-            zcd.ModRpc.CallerInfo rpc_caller = (zcd.ModRpc.CallerInfo)_rpc_caller;
+            CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
             // The message comes from this arc.
             IQspnArc? arc = null;
             Timer t = new Timer(arc_timeout);
@@ -2890,7 +2889,7 @@ namespace Netsukuku
             return ret;
         }
 
-        public void send_etp(IQspnEtpMessage m, bool is_full, zcd.ModRpc.CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
+        public void send_etp(IQspnEtpMessage m, bool is_full, CallerInfo? _rpc_caller=null) throws QspnNotAcceptedError
         {
             assert(_rpc_caller != null);
             CallerInfo rpc_caller = (CallerInfo)_rpc_caller;

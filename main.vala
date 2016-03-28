@@ -1,6 +1,6 @@
 /*
  *  This file is part of Netsukuku.
- *  Copyright (C) 2015 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
+ *  Copyright (C) 2015-2016 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
  *
  *  Netsukuku is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,12 +18,11 @@
 
 using Gee;
 using Netsukuku;
-using Netsukuku.ModRpc;
-using Tasklets;
+using TaskletSystem;
 
 const uint16 ntkd_port = 60269;
 
-public class MyNodeID : Object, zcd.ModRpc.ISerializable, INeighborhoodNodeID
+public class MyNodeID : Object, ISerializable
 {
     public int id {get; set;}
     public int netid {get; set;}
@@ -36,18 +35,6 @@ public class MyNodeID : Object, zcd.ModRpc.ISerializable, INeighborhoodNodeID
     public bool check_deserialization()
     {
         return id != 0 && netid != 0;
-    }
-
-    public bool i_neighborhood_equals(INeighborhoodNodeID other)
-    {
-        if (!(other is MyNodeID)) return false;
-        return id == (other as MyNodeID).id;
-    }
-
-    public bool i_neighborhood_is_on_same_network(INeighborhoodNodeID other)
-    {
-        if (!(other is MyNodeID)) return false;
-        return netid == (other as MyNodeID).netid;
     }
 }
 
@@ -87,14 +74,14 @@ class MyStubFactory: Object, IQspnStubFactory
 
 		public IQspnEtpMessage get_full_etp
 		(IQspnAddress requesting_address)
-		throws QspnNotAcceptedError, QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+		throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
 		{
 		    return addr.qspn_manager.get_full_etp(requesting_address);
 		}
 
 		public void send_etp
 		(IQspnEtpMessage etp, bool is_full)
-		throws QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+		throws QspnNotAcceptedError, StubError, DeserializeError
 		{
 		    addr.qspn_manager.send_etp(etp, is_full);
 		}
@@ -116,18 +103,18 @@ class MyStubFactory: Object, IQspnStubFactory
         IAddressManagerStub ret;
         if (missing_handler == null)
         {
-            ret = Netsukuku.ModRpc.get_addr_broadcast(devs, ntkd_port, bcid);
+            ret = get_addr_broadcast(devs, ntkd_port, bcid);
         }
         else
         {
             Gee.List<IQspnArc> lst_expected = current_arcs_for_broadcast(bcid, devs);
             MyAckComm notify_ack = new MyAckComm(bcid, devs, missing_handler, lst_expected);
-            ret = Netsukuku.ModRpc.get_addr_broadcast(devs, ntkd_port, bcid, notify_ack);
+            ret = get_addr_broadcast(devs, ntkd_port, bcid, notify_ack);
         }
         return new QspnManagerStubHolder(ret);
     }
 
-    private class MyAckComm : Object, zcd.ModRpc.IAckCommunicator
+    private class MyAckComm : Object, IAckCommunicator
     {
         public BroadcastID bcid;
         public Gee.List<string> devs;
@@ -172,11 +159,11 @@ class MyStubFactory: Object, IQspnStubFactory
                 ActOnMissingTasklet ts = new ActOnMissingTasklet();
                 ts.missing_handler = missing_handler;
                 ts.missed = missed;
-                ntkd_tasklet.spawn(ts);
+                tasklet.spawn(ts);
             }
         }
 
-        private class ActOnMissingTasklet : Object, INtkdTaskletSpawnable
+        private class ActOnMissingTasklet : Object, ITaskletSpawnable
         {
             public IQspnMissingArcHandler missing_handler;
             public IQspnArc missed;
@@ -194,7 +181,7 @@ class MyStubFactory: Object, IQspnStubFactory
     {
         FakeArc _arc = (FakeArc)arc;
         string addr = _arc.neighbour_nic_addr;
-        IAddressManagerStub ret = Netsukuku.ModRpc.get_addr_tcp_client(addr, ntkd_port);
+        IAddressManagerStub ret = get_addr_tcp_client(addr, ntkd_port);
         return new QspnManagerStubHolder(ret);
     }
 }
@@ -249,14 +236,14 @@ class FakeArc : Object, IQspnArc
         return neighbour_nic_addr == other.neighbour_nic_addr && my_nic_addr == other.my_nic_addr;
     }
 
-    public bool i_qspn_comes_from(zcd.ModRpc.CallerInfo rpc_caller)
+    public bool i_qspn_comes_from(CallerInfo rpc_caller)
     {
-        if (rpc_caller is zcd.ModRpc.TcpCallerInfo)
-            return neighbour_nic_addr == ((zcd.ModRpc.TcpCallerInfo)rpc_caller).peer_address;
-        else if (rpc_caller is Netsukuku.ModRpc.BroadcastCallerInfo)
-            return neighbour_nic_addr == ((Netsukuku.ModRpc.BroadcastCallerInfo)rpc_caller).peer_address;
-        else if (rpc_caller is Netsukuku.ModRpc.UnicastCallerInfo)
-            return neighbour_nic_addr == ((Netsukuku.ModRpc.UnicastCallerInfo)rpc_caller).peer_address;
+        if (rpc_caller is TcpclientCallerInfo)
+            return neighbour_nic_addr == ((TcpclientCallerInfo)rpc_caller).peer_address;
+        else if (rpc_caller is BroadcastCallerInfo)
+            return neighbour_nic_addr == ((BroadcastCallerInfo)rpc_caller).peer_address;
+        else if (rpc_caller is UnicastCallerInfo)
+            return neighbour_nic_addr == ((UnicastCallerInfo)rpc_caller).peer_address;
         else
             assert_not_reached();
     }
@@ -272,7 +259,7 @@ public class AddressManager : FakeAddressManagerSkeleton
 }
 AddressManager? address_manager;
 
-class MyServerDelegate : Object, ModRpc.IRpcDelegate
+class MyServerDelegate : Object, IRpcDelegate
 {
     public MyServerDelegate(INeighborhoodNodeID id)
     {
@@ -280,16 +267,16 @@ class MyServerDelegate : Object, ModRpc.IRpcDelegate
     }
     private INeighborhoodNodeID id;
 
-    public ModRpc.IAddressManagerSkeleton? get_addr(zcd.ModRpc.CallerInfo caller)
+    public IAddressManagerSkeleton? get_addr(CallerInfo caller)
     {
         assert(address_manager != null);
-        if (caller is zcd.ModRpc.TcpCallerInfo)
+        if (caller is TcpclientCallerInfo)
         {
             return address_manager;
         }
-        else if (caller is ModRpc.UnicastCallerInfo)
+        else if (caller is UnicastCallerInfo)
         {
-            ModRpc.UnicastCallerInfo c = (ModRpc.UnicastCallerInfo)caller;
+            UnicastCallerInfo c = (UnicastCallerInfo)caller;
             if (c.unicastid.nodeid.i_neighborhood_equals(id))
             {
                 // got from nic ... which has MAC ...
@@ -301,9 +288,9 @@ class MyServerDelegate : Object, ModRpc.IRpcDelegate
             }
             return null;
         }
-        else if (caller is ModRpc.BroadcastCallerInfo)
+        else if (caller is BroadcastCallerInfo)
         {
-            ModRpc.BroadcastCallerInfo c = (ModRpc.BroadcastCallerInfo)caller;
+            BroadcastCallerInfo c = (BroadcastCallerInfo)caller;
             if (c.broadcastid.ignore_nodeid != null)
                 if (c.broadcastid.ignore_nodeid.i_neighborhood_equals(id))
                     return null;
@@ -316,7 +303,7 @@ class MyServerDelegate : Object, ModRpc.IRpcDelegate
     }
 }
 
-class MyServerErrorHandler : Object, zcd.ModRpc.IRpcErrorHandler
+class MyServerErrorHandler : Object, IRpcErrorHandler
 {
     public void error_handler(Error e)
     {
@@ -324,8 +311,7 @@ class MyServerErrorHandler : Object, zcd.ModRpc.IRpcErrorHandler
     }
 }
 
-zcd.IZcdTasklet zcd_tasklet;
-Netsukuku.INtkdTasklet ntkd_tasklet;
+ITasklet tasklet;
 
 int mynodeid;
 string naddr;
@@ -380,7 +366,7 @@ int main(string[] args)
     my_arcs = new ArrayList<FakeArc>((a, b) => a.i_qspn_equals(b));
     my_routes = new HashMap<string, Route>();
     my_destinations = new ArrayList<string>();
-    my_destinations_dispatchers = new HashMap<string, NtkdDispatchableTasklet>();
+    my_destinations_dispatchers = new HashMap<string, DispatchableTasklet>();
     if (interfaces.length == 0) error("You have to handle some NICs (option -i)");
     nic_addr_map = new HashMap<string, string>();
     foreach (string dev_def in interfaces)
@@ -392,18 +378,15 @@ int main(string[] args)
     }
 
     // Initialize tasklet system
-    MyTaskletSystem.init();
-    zcd_tasklet = MyTaskletSystem.get_zcd();
-    ntkd_tasklet = MyTaskletSystem.get_ntkd();
+    PthTaskletImplementer.init();
+    tasklet = PthTaskletImplementer.get_tasklet_system();
 
     // Initialize known serializable classes
     typeof(MyNodeID).class_peek();
     typeof(UnicastID).class_peek();
     typeof(BroadcastID).class_peek();
-    // Pass tasklet system to ModRpc (and ZCD)
-    zcd.ModRpc.init_tasklet_system(zcd_tasklet);
     // Pass tasklet system to module qspn
-    QspnManager.init(ntkd_tasklet);
+    QspnManager.init(tasklet);
 
     // instantiate delegate in order to be able to listen on the NICs
     my_id = new MyNodeID(mynodeid, 1);
@@ -413,21 +396,21 @@ int main(string[] args)
     err = new MyServerErrorHandler();
 
     // Listen to the NICs and assign nic-address
-    t_udp_map = new HashMap<string, zcd.IZcdTaskletHandle>();
-    t_tcp_map = new HashMap<string, zcd.IZcdTaskletHandle>();
+    t_udp_map = new HashMap<string, ITaskletHandle>();
+    t_tcp_map = new HashMap<string, ITaskletHandle>();
     foreach (string dev in nic_addr_map.keys)
     {
         string nic_addr = nic_addr_map[dev];
         assert(! t_udp_map.has_key(dev));
-        t_udp_map[dev] = Netsukuku.ModRpc.udp_listen(dlg, err, ntkd_port, dev);
+        t_udp_map[dev] = udp_listen(dlg, err, ntkd_port, dev);
         try {
             string cmd = @"ip address add $(nic_addr) dev $(dev)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
-        t_tcp_map[dev] = Netsukuku.ModRpc.tcp_listen(dlg, err, ntkd_port, nic_addr);
+        t_tcp_map[dev] = tcp_listen(dlg, err, ntkd_port, nic_addr);
     }
 
     // Add addresses:
@@ -448,9 +431,9 @@ int main(string[] args)
         try {
             string cmd = @"ip address add $(s) dev $(dev)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
@@ -465,14 +448,14 @@ int main(string[] args)
     try {
         string cmd = @"ip route add unreachable 10.0.0.0/8 table $(maintable)";
         print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
+        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
+            error(@"$(com_ret.stderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
 
     // start a tasklet to get commands from stdin.
     CommandLineInterfaceTasklet ts = new CommandLineInterfaceTasklet();
-    ntkd_tasklet.spawn(ts);
+    tasklet.spawn(ts);
 
     // register handlers for SIGINT and SIGTERM to exit
     Posix.signal(Posix.SIGINT, safe_exit);
@@ -480,7 +463,7 @@ int main(string[] args)
     // Main loop
     while (true)
     {
-        zcd_tasklet.ms_wait(100);
+        tasklet.ms_wait(100);
         if (do_me_exit) break;
     }
 
@@ -490,7 +473,7 @@ int main(string[] args)
     remove_handlers();
     if (! no_anonymize) enable_snat(false); // disable source nat
     remove_addresses();
-    MyTaskletSystem.kill();
+    PthTaskletImplementer.kill();
     print("\nExiting.\n");
     return 0;
 }
@@ -502,7 +485,7 @@ void safe_exit(int sig)
     do_me_exit = true;
 }
 
-class CommandLineInterfaceTasklet : Object, INtkdTaskletSpawnable
+class CommandLineInterfaceTasklet : Object, ITaskletSpawnable
 {
     public void * func()
     {
@@ -620,8 +603,8 @@ Command list:
 MyServerDelegate dlg;
 MyServerErrorHandler err;
 // Handles for UDP and TCP
-HashMap<string, zcd.IZcdTaskletHandle> t_udp_map;
-HashMap<string, zcd.IZcdTaskletHandle> t_tcp_map;
+HashMap<string, ITaskletHandle> t_udp_map;
+HashMap<string, ITaskletHandle> t_tcp_map;
 // My node stuff
 INeighborhoodNodeID my_id;
 HashMap<string, string> nic_addr_map;
@@ -631,7 +614,7 @@ ArrayList<string> my_addresses;
 FakeFingerprint my_fp;
 ArrayList<FakeArc> my_arcs;
 ArrayList<string> my_destinations;
-HashMap<string, NtkdDispatchableTasklet> my_destinations_dispatchers;
+HashMap<string, DispatchableTasklet> my_destinations_dispatchers;
 HashMap<string, Route> my_routes;
 
 class Route : Object
@@ -689,18 +672,18 @@ void add_arc(string dev, string n_nic_addr, string neighbour_mac, int nodeid, in
     try {
         string cmd = @"ip route add $(n_nic_addr) dev $(dev) src $(nic_addr)";
         print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
+        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
+            error(@"$(com_ret.stderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
     LinuxRoute.create_table(@"$(maintable)_from_$(neighbour_mac)");
     LinuxRoute.rule_coming_from_macaddr(neighbour_mac, @"$(maintable)_from_$(neighbour_mac)");
     try {
         string cmd = @"ip route add unreachable 10.0.0.0/8 table $(maintable)_from_$(neighbour_mac)";
         print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
+        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
+            error(@"$(com_ret.stderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
     if (address_manager != null)
     {
@@ -775,9 +758,9 @@ void remove_arc(string n_nic_addr)
     try {
         string cmd = @"ip route del $(found.neighbour_nic_addr) dev $(found.dev) src $(nic_addr_map[found.dev])";
         print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
+        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
+            error(@"$(com_ret.stderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
     // remove table and rule.
     LinuxRoute.remove_rule_coming_from_macaddr(found.neighbour_mac, @"$(maintable)_from_$(found.neighbour_mac)");
@@ -839,9 +822,9 @@ void run_manager()
         try {
             string cmd = @"ip route del $(a.neighbour_nic_addr) dev $(a.dev) src $(nic_addr_map[a.dev])";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         // remove table and rule.
         LinuxRoute.remove_rule_coming_from_macaddr(a.neighbour_mac, @"$(maintable)_from_$(a.neighbour_mac)");
@@ -855,9 +838,9 @@ void run_manager()
         print(@"\nA destination added: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
-            my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
+            my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
         }
-        NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
+        DispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationAddedTasklet ts = new DestinationAddedTasklet();
         ts.dest = dest;
         ts.h = h;
@@ -871,9 +854,9 @@ void run_manager()
         print(@"\nA destination removed: $(dest).\n");
         if (! my_destinations_dispatchers.has_key(dest))
         {
-            my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
+            my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
         }
-        NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
+        DispatchableTasklet dt = my_destinations_dispatchers[dest];
         DestinationRemovedTasklet ts = new DestinationRemovedTasklet();
         ts.dest = dest;
         ts.h = h;
@@ -948,15 +931,15 @@ void update_routes_to_dest(HCoord h)
     string dest = dotted_form_hcoord(h);
     if (! my_destinations_dispatchers.has_key(dest))
     {
-        my_destinations_dispatchers[dest] = ntkd_tasklet.create_dispatchable_tasklet();
+        my_destinations_dispatchers[dest] = tasklet.create_dispatchable_tasklet();
     }
-    NtkdDispatchableTasklet dt = my_destinations_dispatchers[dest];
+    DispatchableTasklet dt = my_destinations_dispatchers[dest];
     UpdateRoutesTasklet ts = new UpdateRoutesTasklet();
     ts.h = h;
     dt.dispatch(ts);
 }
 
-class DestinationAddedTasklet : Object, INtkdTaskletSpawnable
+class DestinationAddedTasklet : Object, ITaskletSpawnable
 {
     public string dest;
     public HCoord h;
@@ -969,7 +952,7 @@ class DestinationAddedTasklet : Object, INtkdTaskletSpawnable
     }
 }
 
-class DestinationRemovedTasklet : Object, INtkdTaskletSpawnable
+class DestinationRemovedTasklet : Object, ITaskletSpawnable
 {
     public string dest;
     public HCoord h;
@@ -988,7 +971,7 @@ class NeighborData : Object
     public HCoord h;
 }
 
-class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
+class UpdateRoutesTasklet : Object, ITaskletSpawnable
 {
     public HCoord h;
     public void * func()
@@ -1088,32 +1071,32 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                         try {
                             string cmd = @"ip route change $(dest_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                         try {
                             string cmd = @"ip route change $(dest_anonymous_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                         if (dest_internal != null)
                         {
                             try {
                                 string cmd = @"ip route change $(dest_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
                                 print(@"$(cmd)\n");
-                                CommandResult com_ret = Tasklet.exec_command(cmd);
+                                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                                 if (com_ret.exit_status != 0)
-                                    error(@"$(com_ret.cmderr)\n");
+                                    error(@"$(com_ret.stderr)\n");
                             } catch (SpawnError e) {error("Unable to spawn a command");}
                             try {
                                 string cmd = @"ip route change $(dest_anonymous_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
                                 print(@"$(cmd)\n");
-                                CommandResult com_ret = Tasklet.exec_command(cmd);
+                                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                                 if (com_ret.exit_status != 0)
-                                    error(@"$(com_ret.cmderr)\n");
+                                    error(@"$(com_ret.stderr)\n");
                             } catch (SpawnError e) {error("Unable to spawn a command");}
                         }
                         my_routes[k] = new_routes[k];
@@ -1131,32 +1114,32 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     try {
                         string cmd = @"ip route add $(dest_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                         print(@"$(cmd)\n");
-                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
-                            error(@"$(com_ret.cmderr)\n");
+                            error(@"$(com_ret.stderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
                     try {
                         string cmd = @"ip route add $(dest_anonymous_global) table $(table) src $(new_r.src_global) via $(new_r.gw) dev $(new_r.dev)";
                         print(@"$(cmd)\n");
-                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
-                            error(@"$(com_ret.cmderr)\n");
+                            error(@"$(com_ret.stderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
                     if (dest_internal != null)
                     {
                         try {
                             string cmd = @"ip route add $(dest_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                         try {
                             string cmd = @"ip route add $(dest_anonymous_internal) table $(table) src $(new_r.src_internal) via $(new_r.gw) dev $(new_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                     }
                     my_routes[k] = new_routes[k];
@@ -1171,32 +1154,32 @@ class UpdateRoutesTasklet : Object, INtkdTaskletSpawnable
                     try {
                         string cmd = @"ip route del $(dest_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
                         print(@"$(cmd)\n");
-                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
-                            error(@"$(com_ret.cmderr)\n");
+                            error(@"$(com_ret.stderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
                     try {
                         string cmd = @"ip route del $(dest_anonymous_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
                         print(@"$(cmd)\n");
-                        CommandResult com_ret = Tasklet.exec_command(cmd);
+                        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                         if (com_ret.exit_status != 0)
-                            error(@"$(com_ret.cmderr)\n");
+                            error(@"$(com_ret.stderr)\n");
                     } catch (SpawnError e) {error("Unable to spawn a command");}
                     if (dest_internal != null)
                     {
                         try {
                             string cmd = @"ip route del $(dest_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                         try {
                             string cmd = @"ip route del $(dest_anonymous_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
                             print(@"$(cmd)\n");
-                            CommandResult com_ret = Tasklet.exec_command(cmd);
+                            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                             if (com_ret.exit_status != 0)
-                                error(@"$(com_ret.cmderr)\n");
+                                error(@"$(com_ret.stderr)\n");
                         } catch (SpawnError e) {error("Unable to spawn a command");}
                     }
                     my_routes.unset(k);
@@ -1352,32 +1335,32 @@ void stop_manager()
         try {
             string cmd = @"ip route del $(old_r.dest_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         try {
             string cmd = @"ip route del $(old_r.dest_anonymous_global) table $(table) src $(old_r.src_global) via $(old_r.gw) dev $(old_r.dev)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         if (old_r.dest_internal != null)
         {
             try {
                 string cmd = @"ip route del $(old_r.dest_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
                 print(@"$(cmd)\n");
-                CommandResult com_ret = Tasklet.exec_command(cmd);
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.cmderr)\n");
+                    error(@"$(com_ret.stderr)\n");
             } catch (SpawnError e) {error("Unable to spawn a command");}
             try {
                 string cmd = @"ip route del $(old_r.dest_anonymous_internal) table $(table) src $(old_r.src_internal) via $(old_r.gw) dev $(old_r.dev)";
                 print(@"$(cmd)\n");
-                CommandResult com_ret = Tasklet.exec_command(cmd);
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.cmderr)\n");
+                    error(@"$(com_ret.stderr)\n");
             } catch (SpawnError e) {error("Unable to spawn a command");}
         }
         my_routes.unset(k);
@@ -1409,9 +1392,9 @@ void remove_neighbors_routes()
         try {
             string cmd = @"ip route del $(arc.neighbour_nic_addr) dev $(dev) src $(nic_addr_map[dev])";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 }
@@ -1437,18 +1420,18 @@ void remove_addresses()
         try {
             string cmd = @"ip address del $(nic_addr_map[dev])/32 dev $(dev)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         foreach (string s in my_addresses)
         {
             try {
                 string cmd = @"ip address del $(s)/32 dev $(dev)";
                 print(@"$(cmd)\n");
-                CommandResult com_ret = Tasklet.exec_command(cmd);
+                TaskletCommandResult com_ret = tasklet.exec_command(cmd);
                 if (com_ret.exit_status != 0)
-                    error(@"$(com_ret.cmderr)\n");
+                    error(@"$(com_ret.stderr)\n");
             } catch (SpawnError e) {error("Unable to spawn a command");}
         }
     }
@@ -1464,9 +1447,9 @@ void enable_snat(bool enable=true)
     try {
         string cmd = @"iptables -t nat -$(command) POSTROUTING -d $(anonymous_global_range) -j SNAT --to $(global_src)";
         print(@"$(cmd)\n");
-        CommandResult com_ret = Tasklet.exec_command(cmd);
+        TaskletCommandResult com_ret = tasklet.exec_command(cmd);
         if (com_ret.exit_status != 0)
-            error(@"$(com_ret.cmderr)\n");
+            error(@"$(com_ret.stderr)\n");
     } catch (SpawnError e) {error("Unable to spawn a command");}
     for (int inside_level = 1; inside_level < my_naddr.i_qspn_get_levels(); inside_level++)
     {
@@ -1476,9 +1459,9 @@ void enable_snat(bool enable=true)
         try {
             string cmd = @"iptables -t nat -$(command) POSTROUTING -d $(anonymous_inside_range) -j SNAT --to $(inside_src)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 }
@@ -1578,9 +1561,9 @@ namespace LinuxRoute
         try {
             string cmd = @"ip route flush table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
@@ -1607,9 +1590,9 @@ namespace LinuxRoute
         try {
             string cmd = @"ip route flush table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         // remove record $(line) from file
         string rt_tables_content;
@@ -1670,25 +1653,25 @@ namespace LinuxRoute
         try {
             string cmd = @"ip rule list";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-            pres = com_ret.cmdout;
+                error(@"$(com_ret.stderr)\n");
+            pres = com_ret.stdout;
         } catch (SpawnError e) {error("Unable to spawn a command");}
         if (@" lookup $(tablename) " in pres) error(@"rule_coming_from_macaddr: rule for $(tablename) was already there");
         try {
             string cmd = @"iptables -t mangle -A PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         try {
             string cmd = @"ip rule add fwmark $(num) table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
@@ -1716,16 +1699,16 @@ namespace LinuxRoute
         try {
             string cmd = @"iptables -t mangle -D PREROUTING -m mac --mac-source $(macaddr) -j MARK --set-mark $(num)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
         try {
             string cmd = @"ip rule del fwmark $(num) table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
@@ -1753,18 +1736,18 @@ namespace LinuxRoute
         try {
             string cmd = @"ip rule list";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
-            pres = com_ret.cmdout;
+                error(@"$(com_ret.stderr)\n");
+            pres = com_ret.stdout;
         } catch (SpawnError e) {error("Unable to spawn a command");}
         if (@" lookup $(tablename) " in pres) error(@"rule_default: rule for $(tablename) was already there");
         try {
             string cmd = @"ip rule add table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 
@@ -1791,9 +1774,9 @@ namespace LinuxRoute
         try {
             string cmd = @"ip rule del table $(tablename)";
             print(@"$(cmd)\n");
-            CommandResult com_ret = Tasklet.exec_command(cmd);
+            TaskletCommandResult com_ret = tasklet.exec_command(cmd);
             if (com_ret.exit_status != 0)
-                error(@"$(com_ret.cmderr)\n");
+                error(@"$(com_ret.stderr)\n");
         } catch (SpawnError e) {error("Unable to spawn a command");}
     }
 }
