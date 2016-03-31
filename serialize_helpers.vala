@@ -161,6 +161,17 @@ namespace LibQspnInternals
         return serialize_object(n);
     }
 
+    internal EtpPath deserialize_etp_path(Json.Node property_node)
+    throws HelperDeserializeError
+    {
+        return (IQspnFingerprint)deserialize_object(typeof(EtpPath), false, property_node);
+    }
+
+    internal Json.Node serialize_etp_path(EtpPath n)
+    {
+        return serialize_object(n);
+    }
+
     internal Gee.List<IQspnFingerprint> deserialize_list_i_qspn_fingerprint(Json.Node property_node)
     throws HelperDeserializeError
     {

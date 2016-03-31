@@ -42,17 +42,6 @@ namespace Netsukuku
         public abstract bool i_qspn_elder_seed(IQspnFingerprint other);
     }
 
-    internal ArrayList<IQspnFingerprint>
-    create_searchable_list_fingerprints()
-    {
-        return new ArrayList<IQspnFingerprint>(
-            /*EqualDataFunc*/
-            (a, b) => {
-                return a.i_qspn_equals(b);
-            }
-        );
-    }
-
     public interface IQspnCost : Object
     {
         public abstract int i_qspn_compare_to(IQspnCost other);
@@ -130,17 +119,6 @@ namespace Netsukuku
         public abstract IQspnNaddr i_qspn_get_naddr();
         public abstract bool i_qspn_equals(IQspnArc other);
         public abstract bool i_qspn_comes_from(CallerInfo rpc_caller);
-    }
-
-    internal ArrayList<HCoord>
-    create_searchable_list_gnodes()
-    {
-        return new ArrayList<HCoord>(
-            /*EqualDataFunc*/
-            (a, b) => {
-                return a.equals(b);
-            }
-        );
     }
 
     internal class EtpMessage : Object, Json.Serializable, IQspnEtpMessage
@@ -370,16 +348,6 @@ namespace Netsukuku
             return true;
         }
     }
-    internal ArrayList<NodePath>
-    create_searchable_list_nodepaths()
-    {
-        return new ArrayList<NodePath>(
-            /*EqualDataFunc*/
-            (a, b) => {
-                return a.hops_arcs_equal(b);
-            }
-        );
-    }
 
     public interface IQspnHop : Object
     {
@@ -450,8 +418,8 @@ namespace Netsukuku
     {
         public abstract IQspnManagerStub
                         i_qspn_get_broadcast(
-                            IQspnMissingArcHandler? missing_handler=null,
-                            IQspnArc? ignore_neighbor=null
+                            Gee.List<IQspnArc> arcs,
+                            IQspnMissingArcHandler? missing_handler=null
                         );
         public abstract IQspnManagerStub
                         i_qspn_get_tcp(
@@ -466,7 +434,7 @@ namespace Netsukuku
         {
             assert(! paths.is_empty);
             this.dest = dest;
-            this.paths = create_searchable_list_nodepaths();
+            this.paths = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             this.paths.add_all(paths);
         }
         public HCoord dest;
@@ -533,6 +501,31 @@ namespace Netsukuku
                 return fpd;
             }
         }
+
+        public Destination copy()
+        {
+            HCoord destination_copy_dest = new HCoord(this.dest.lvl, this.dest.pos);
+            ArrayList<NodePath> destination_copy_paths = new ArrayList<NodePath>();
+            foreach (NodePath np in this.paths)
+            {
+                // np.path is serializable
+                try {
+                    destination_copy_paths.add(
+                        new NodePath(
+                            np.arc,
+                            deserialize_etp_path(serialize_etp_path(np.path))
+                            )
+                        );
+                } catch (HelperDeserializeError e) {
+                    assert_not_reached();
+                }
+            }
+            Destination destination_copy = new Destination(
+                destination_copy_dest,
+                destination_copy_paths
+                );
+            return destination_copy;
+        }
     }
 
     internal errordomain AcyclicError {
@@ -542,7 +535,13 @@ namespace Netsukuku
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
-        public static void init(ITasklet _tasklet)
+        public static void init
+                      (ITasklet _tasklet,
+                       int _max_paths,
+                       double _max_common_hops_ratio,
+                       int _arc_timeout,
+                       IQspnThresholdCalculator _threshold_calculator
+                      )
         {
             // Register serializable types
             typeof(NullCost).class_peek();
@@ -550,21 +549,28 @@ namespace Netsukuku
             typeof(EtpPath).class_peek();
             typeof(EtpMessage).class_peek();
             tasklet = _tasklet;
+            max_paths = _max_paths;
+            max_common_hops_ratio = _max_common_hops_ratio;
+            arc_timeout = _arc_timeout;
+            threshold_calculator = _threshold_calculator;
         }
+        private static int max_paths;
+        private static double max_common_hops_ratio;
+        private static int arc_timeout;
+        private static IQspnThresholdCalculator threshold_calculator;
 
         private IQspnMyNaddr my_naddr;
-        private int max_paths;
-        private double max_common_hops_ratio;
-        private int arc_timeout;
         private ArrayList<IQspnArc> my_arcs;
         private HashMap<int, IQspnArc> id_arc_map;
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private ArrayList<int> my_nodes_inside;
-        private IQspnThresholdCalculator threshold_calculator;
         private IQspnStubFactory stub_factory;
+        private int connectivity_from_level;
+        private int connectivity_to_level;
         private int levels;
         private int[] gsizes;
         private bool bootstrap_complete;
+        private int hooking_gnode_level;
         private ITaskletHandle? periodical_update_tasklet = null;
         private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
@@ -599,6 +605,254 @@ namespace Netsukuku
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
         public signal void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp);
 
+        /* 3 types of constructor */
+        public QspnManager.create_net(IQspnMyNaddr my_naddr,
+                           IQspnFingerprint my_fingerprint,
+                           IQspnStubFactory stub_factory
+                           )
+        {
+            this.my_naddr = my_naddr;
+            // This is a definitive address, not a ''connectivity'' one.
+            connectivity_from_level = 0;
+            connectivity_to_level = 0;
+            this.stub_factory = stub_factory;
+            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            // empty set of arcs
+            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            id_arc_map = new HashMap<int, IQspnArc>();
+            // find parameters of the network
+            levels = my_naddr.i_qspn_get_levels();
+            gsizes = new int[levels];
+            for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
+            // Only the level 0 fingerprint is given. The other ones
+            // will be constructed when the node has completed bootstrap.
+            this.my_fingerprints = new ArrayList<IQspnFingerprint>();
+            this.my_nodes_inside = new ArrayList<int>();
+            // Fingerprint at level 0.
+            my_fingerprints.add(my_fingerprint);
+            // Nodes_inside at level 0.
+            my_nodes_inside.add(1);
+            for (int l = 1; l <= levels; l++)
+            {
+                // At start build fingerprint at level l with fingerprint at
+                // level l-1 and an empty set.
+                my_fingerprints.add(my_fingerprints[l-1]
+                        .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
+                // The same with the number of nodes inside our g-node.
+                my_nodes_inside.add(my_nodes_inside[l-1]);
+            }
+            // prepare empty map
+            destinations = new ArrayList<HashMap<int, Destination>>();
+            for (int l = 0; l < levels; l++) destinations.add(
+                new HashMap<int, Destination>());
+            // register an internal handler of my own signal bootstrap_complete:
+            qspn_bootstrap_complete.connect(on_bootstrap_complete);
+            // With this type of constructor we get immediately bootstrap_complete.
+            bootstrap_complete = true;
+            hooking_gnode_level = levels;
+            // Start a tasklet where we signal we have completed the bootstrap,
+            // after a small wait, so that the signal actually is emitted after the costructor returns.
+            BootstrapCompleteTasklet ts = new BootstrapCompleteTasklet();
+            ts.mgr = this;
+            tasklet.spawn(ts);
+        }
+        private class BootstrapCompleteTasklet : Object, ITaskletSpawnable
+        {
+            public QspnManager mgr;
+            public void * func()
+            {
+                tasklet.ms_wait(1);
+                mgr.qspn_bootstrap_complete();
+                return null;
+            }
+        }
+
+        public QspnManager.enter_net(IQspnMyNaddr my_naddr,
+                           int connectivity_from_level,
+                           int connectivity_to_level,
+                           Gee.List<IQspnArc> my_arcs,
+                           IQspnFingerprint my_fingerprint,
+                           IQspnStubFactory stub_factory,
+                           int hooking_gnode_level,
+                           QspnManager previous_identity
+                           )
+        {
+            this.my_naddr = my_naddr;
+            // This might be a definitive address, or a ''connectivity'' one.
+            this.connectivity_from_level = connectivity_from_level;
+            this.connectivity_to_level = connectivity_to_level;
+            this.stub_factory = stub_factory;
+            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            // all the arcs
+            this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            id_arc_map = new HashMap<int, IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+            {
+                // Check data right away
+                IQspnCost c = arc.i_qspn_get_cost();
+                assert(c != null);
+
+                // generate ID for the arc
+                int arc_id = 0;
+                while (arc_id == 0 || id_arc_map.has_key(arc_id))
+                {
+                    arc_id = Random.int_range(0, int.MAX);
+                }
+                // memorize
+                assert(! (arc in this.my_arcs));
+                this.my_arcs.add(arc);
+                id_arc_map[arc_id] = arc;
+            }
+            // find parameters of the network
+            levels = my_naddr.i_qspn_get_levels();
+            gsizes = new int[levels];
+            for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
+            // Prepare empty map, then import paths from ''previous_identity''.
+            destinations = new ArrayList<HashMap<int, Destination>>();
+            for (int l = 0; l < levels; l++) destinations.add(
+                new HashMap<int, Destination>());
+            for (int l = 0; l < hooking_gnode_level; l++)
+            {
+                foreach (int pos in previous_identity.destinations[l].keys)
+                {
+                    Destination destination = previous_identity.destinations[l][pos];
+                    Destination destination_copy = destination.copy();
+                    destinations[l][pos] = destination_copy;
+                }
+            }
+            // Only the level 0 fingerprint is given.
+            // The lower levels up to 'hooking_gnode_level' are immediately constructed
+            //  from the imported map.
+            // The higher levels will be constructed when the node has completed bootstrap.
+            this.my_fingerprints = new ArrayList<IQspnFingerprint>();
+            this.my_nodes_inside = new ArrayList<int>();
+            // Fingerprint at level 0.
+            my_fingerprints.add(my_fingerprint);
+            // Nodes_inside at level 0. If this is a ''connectivity'' address we say we have 0 ''real'' nodes.
+            if (connectivity_from_level > 0) my_nodes_inside.add(0);
+            else my_nodes_inside.add(1);
+            for (int l = 1; l <= levels; l++)
+            {
+                // At start build fingerprint at level l with fingerprint at
+                // level l-1 and an empty set.
+                my_fingerprints.add(my_fingerprints[l-1]
+                        .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
+                // The same with the number of nodes inside our g-node.
+                my_nodes_inside.add(my_nodes_inside[l-1]);
+            }
+            // The lower levels up to fingerprints are now constructed.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // register an internal handler of my own signal bootstrap_complete:
+            qspn_bootstrap_complete.connect(on_bootstrap_complete);
+            // With this type of constructor we are not bootstrap_complete.
+            bootstrap_complete = false;
+            this.hooking_gnode_level = hooking_gnode_level;
+            BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
+            ts.mgr = this;
+            tasklet.spawn(ts);
+        }
+
+        public QspnManager.migration(IQspnMyNaddr my_naddr,
+                           int connectivity_from_level,
+                           int connectivity_to_level,
+                           Gee.List<IQspnArc> my_arcs,
+                           IQspnFingerprint my_fingerprint,
+                           IQspnStubFactory stub_factory,
+                           int hooking_gnode_level,
+                           QspnManager previous_identity
+                           )
+        {
+            this.my_naddr = my_naddr;
+            // This might be a definitive address, or a ''connectivity'' one.
+            this.connectivity_from_level = connectivity_from_level;
+            this.connectivity_to_level = connectivity_to_level;
+            this.stub_factory = stub_factory;
+            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            // all the arcs
+            this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            id_arc_map = new HashMap<int, IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+            {
+                // Check data right away
+                IQspnCost c = arc.i_qspn_get_cost();
+                assert(c != null);
+
+                // generate ID for the arc
+                int arc_id = 0;
+                while (arc_id == 0 || id_arc_map.has_key(arc_id))
+                {
+                    arc_id = Random.int_range(0, int.MAX);
+                }
+                // memorize
+                assert(! (arc in this.my_arcs));
+                this.my_arcs.add(arc);
+                id_arc_map[arc_id] = arc;
+            }
+            // find parameters of the network
+            levels = my_naddr.i_qspn_get_levels();
+            gsizes = new int[levels];
+            for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
+            // Prepare empty map, then import paths from ''previous_identity''.
+            destinations = new ArrayList<HashMap<int, Destination>>();
+            for (int l = 0; l < levels; l++) destinations.add(
+                new HashMap<int, Destination>());
+            for (int l = 0; l < hooking_gnode_level; l++)
+            {
+                foreach (int pos in previous_identity.destinations[l].keys)
+                {
+                    Destination destination = previous_identity.destinations[l][pos];
+                    Destination destination_copy = destination.copy();
+                    destinations[l][pos] = destination_copy;
+                }
+            }
+            // Only the level 0 fingerprint is given.
+            // The lower levels up to 'hooking_gnode_level' are immediately constructed
+            //  from the imported map.
+            // The higher levels will be constructed when the node has completed bootstrap.
+            this.my_fingerprints = new ArrayList<IQspnFingerprint>();
+            this.my_nodes_inside = new ArrayList<int>();
+            // Fingerprint at level 0.
+            my_fingerprints.add(my_fingerprint);
+            // Nodes_inside at level 0. If this is a ''connectivity'' address we say we have 0 ''real'' nodes.
+            if (connectivity_from_level > 0) my_nodes_inside.add(0);
+            else my_nodes_inside.add(1);
+            for (int l = 1; l <= levels; l++)
+            {
+                // At start build fingerprint at level l with fingerprint at
+                // level l-1 and an empty set.
+                my_fingerprints.add(my_fingerprints[l-1]
+                        .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
+                // The same with the number of nodes inside our g-node.
+                my_nodes_inside.add(my_nodes_inside[l-1]);
+            }
+            // The lower levels up to fingerprints are now constructed.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // register an internal handler of my own signal bootstrap_complete:
+            qspn_bootstrap_complete.connect(on_bootstrap_complete);
+            // With this type of constructor we are not bootstrap_complete.
+            bootstrap_complete = false;
+            this.hooking_gnode_level = hooking_gnode_level;
+            BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
+            ts.mgr = this;
+            tasklet.spawn(ts);
+        }
+
+        private class BootstrapPhaseTasklet : Object, ITaskletSpawnable
+        {
+            public QspnManager mgr;
+            public void * func()
+            {
+                mgr.bootstrap_phase();
+                return null;
+            }
+        }
+        private void bootstrap_phase()
+        {
+            error("not implemented yet");
+        }
+
         public QspnManager(IQspnMyNaddr my_naddr,
                            int max_paths,
                            double max_common_hops_ratio,
@@ -610,12 +864,8 @@ namespace Netsukuku
                            )
         {
             this.my_naddr = my_naddr;
-            this.max_paths = max_paths;
-            this.max_common_hops_ratio = max_common_hops_ratio;
-            this.arc_timeout = arc_timeout;
-            this.threshold_calculator = threshold_calculator;
             this.stub_factory = stub_factory;
-            pending_gnode_split = create_searchable_list_pairfingerprints();
+            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>(
                 /*EqualDataFunc*/
@@ -684,16 +934,6 @@ namespace Netsukuku
                 GetFirstEtpsTasklet ts = new GetFirstEtpsTasklet();
                 ts.mgr = this;
                 tasklet.spawn(ts);
-            }
-        }
-        private class BootstrapCompleteTasklet : Object, ITaskletSpawnable
-        {
-            public QspnManager mgr;
-            public void * func()
-            {
-                tasklet.ms_wait(1);
-                mgr.qspn_bootstrap_complete();
-                return null;
             }
         }
         private class GetFirstEtpsTasklet : Object, ITaskletSpawnable
@@ -1043,7 +1283,7 @@ namespace Netsukuku
                     arc_removed(arc);
                 });
             // Got ETPs. Revise the paths in each of them.
-            Gee.List<NodePath> q = create_searchable_list_nodepaths();
+            Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             foreach (PairArcEtp pair in results)
             {
                 int arc_id = get_arc_id(pair.a);
@@ -1185,7 +1425,7 @@ namespace Netsukuku
                     arc_removed(arc);
                 });
             // Got ETPs. Revise the paths in each of them.
-            Gee.List<NodePath> q = create_searchable_list_nodepaths();
+            Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             foreach (PairArcEtp pair in results)
             {
                 int arc_m_id = get_arc_id(pair.a);
@@ -1271,7 +1511,7 @@ namespace Netsukuku
         private EtpPath prepare_path_step_1(NodePath np)
         {
             EtpPath p = new EtpPath();
-            p.hops = create_searchable_list_gnodes();
+            p.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
             p.hops.add_all(np.path.hops);
             p.arcs = new ArrayList<int>();
             p.arcs.add_all(np.path.arcs);
@@ -1360,7 +1600,7 @@ namespace Netsukuku
         //  The ETP has been already checked with check_incoming_message.
         private Gee.List<NodePath> revise_etp(EtpMessage m, IQspnArc arc, int arc_id, bool is_full) throws AcyclicError
         {
-            ArrayList<NodePath> ret = create_searchable_list_nodepaths();
+            ArrayList<NodePath> ret = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             HCoord v = my_naddr.i_qspn_get_coord_by_address(m.node_address);
             int i = v.lvl + 1;
             // grouping rule on m.hops
@@ -1430,7 +1670,7 @@ namespace Netsukuku
             }
             // intrinsic path to v
             EtpPath v_path = new EtpPath();
-            v_path.hops = create_searchable_list_gnodes();
+            v_path.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
             v_path.hops.add(v);
             v_path.arcs = new ArrayList<int>();
             v_path.arcs.add(arc_id);
@@ -1444,7 +1684,7 @@ namespace Netsukuku
             // if it is a full etp
             if (is_full)
             {
-                ArrayList<NodePath> m_a_set = create_searchable_list_nodepaths();
+                ArrayList<NodePath> m_a_set = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 for (int l = 0; l < levels; l++)
                 {
                     foreach (Destination d in destinations[l].values)
@@ -1470,7 +1710,7 @@ namespace Netsukuku
                     if (!present)
                     {
                         EtpPath p0 = new EtpPath();
-                        p0.hops = create_searchable_list_gnodes();
+                        p0.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
                         p0.hops.add_all(np.path.hops);
                         p0.arcs = new ArrayList<int>();
                         p0.arcs.add_all(np.path.arcs);
@@ -1507,7 +1747,7 @@ namespace Netsukuku
             ret.fingerprints.add_all(my_fingerprints);
             ret.nodes_inside = new ArrayList<int>();
             ret.nodes_inside.add_all(my_nodes_inside);
-            ret.hops = create_searchable_list_gnodes();
+            ret.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
             if (etp_hops != null) ret.hops.add_all(etp_hops);
             return ret;
         }
@@ -1682,7 +1922,7 @@ namespace Netsukuku
             {
                 debug("Processing ETP set");
                 // Got ETPs. Revise the paths in each of them.
-                Gee.List<NodePath> q = create_searchable_list_nodepaths();
+                Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 foreach (PairArcEtp pair in results)
                 {
                     int arc_m_id = get_arc_id(pair.a);
@@ -2013,16 +2253,6 @@ namespace Netsukuku
                        fp2.i_qspn_equals(o.fp2);
             }
         }
-        private ArrayList<PairFingerprints>
-        create_searchable_list_pairfingerprints()
-        {
-            return new ArrayList<PairFingerprints>(
-                /*EqualDataFunc*/
-                (a, b) => {
-                    return a.equals(b);
-                }
-            );
-        }
         // Helper: update my map from a set of paths collected from a set
         // of ETP messages.
         internal void
@@ -2038,7 +2268,7 @@ namespace Netsukuku
             // b_set will be the set of g-nodes for which we have to flood a new
             //  ETP because of the rule of first split detection.
             all_paths_set = new ArrayList<EtpPath>();
-            b_set = create_searchable_list_gnodes();
+            b_set = new ArrayList<HCoord>((a, b) => a.equals(b));
             // Group by destination, order keys by ascending level.
             HashMap<HCoord, ArrayList<NodePath>> q_by_dest = new HashMap<HCoord, ArrayList<NodePath>>(
                 (a) => {return a.lvl*100+a.pos;},  /* hash_func */
@@ -2046,10 +2276,10 @@ namespace Netsukuku
             foreach (NodePath np in q_set)
             {
                 HCoord d = np.path.hops.last();
-                if (! (d in q_by_dest.keys)) q_by_dest[d] = create_searchable_list_nodepaths();
+                if (! (d in q_by_dest.keys)) q_by_dest[d] = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 q_by_dest[d].add(np);
             }
-            ArrayList<HCoord> sorted_keys = create_searchable_list_gnodes();
+            ArrayList<HCoord> sorted_keys = new ArrayList<HCoord>((a, b) => a.equals(b));
             sorted_keys.add_all(q_by_dest.keys);
             sorted_keys.sort((d0, d1) => {
                 /*
@@ -2091,19 +2321,19 @@ namespace Netsukuku
             foreach (HCoord d in sorted_keys)
             {
                 ArrayList<NodePath> qd_set = q_by_dest[d];
-                ArrayList<NodePath> md_set = create_searchable_list_nodepaths();
+                ArrayList<NodePath> md_set = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 if (destinations[d.lvl].has_key(d.pos))
                 {
                     Destination dd = destinations[d.lvl][d.pos];
                     md_set.add_all(dd.paths);
                 }
-                ArrayList<IQspnFingerprint> f1 = create_searchable_list_fingerprints();
+                ArrayList<IQspnFingerprint> f1 = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 if (d.lvl > 0)
                     foreach (NodePath np in md_set)
                         if (! (np.path.fingerprint in f1))
                             f1.add(np.path.fingerprint);
-                ArrayList<NodePath> od_set = create_searchable_list_nodepaths();
-                ArrayList<NodePath> vd_set = create_searchable_list_nodepaths();
+                ArrayList<NodePath> od_set = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
+                ArrayList<NodePath> vd_set = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 ArrayList<SignalToEmit> sd = new ArrayList<SignalToEmit>();
                 foreach (NodePath p1 in md_set)
                 {
@@ -2177,8 +2407,8 @@ namespace Netsukuku
                     else od_i++;
                 }
                 ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => {return a.i_qspn_equals(b);});
-                ArrayList<NodePath> rd = create_searchable_list_nodepaths();
-                ArrayList<HCoord> vnd = create_searchable_list_gnodes();
+                ArrayList<NodePath> rd = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
+                ArrayList<HCoord> vnd = new ArrayList<HCoord>((a, b) => a.equals(b));
                 foreach (IQspnArc a in my_arcs)
                 {
                     HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
@@ -2405,9 +2635,9 @@ namespace Netsukuku
                     if (destinations[d.lvl].has_key(d.pos))
                     {
                         Destination _d = destinations[d.lvl][d.pos];
-                        ArrayList<NodePath> _d_paths = create_searchable_list_nodepaths();
+                        ArrayList<NodePath> _d_paths = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                         _d_paths.add_all(_d.paths);
-                        ArrayList<IQspnFingerprint> f2 = create_searchable_list_fingerprints();
+                        ArrayList<IQspnFingerprint> f2 = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                         foreach (NodePath np in _d_paths)
                             if (! (np.path.fingerprint in f2))
                                 f2.add(np.path.fingerprint);
@@ -2603,7 +2833,7 @@ namespace Netsukuku
             changes_in_my_gnodes = false;
             // for level 1
             {
-                Gee.List<IQspnFingerprint> fp_set = create_searchable_list_fingerprints();
+                Gee.List<IQspnFingerprint> fp_set = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 int nn_tot = 0;
                 foreach (Destination d in destinations[0].values)
                 {
@@ -2644,7 +2874,7 @@ namespace Netsukuku
             // for upper levels
             for (int i = 2; i <= levels; i++)
             {
-                Gee.List<IQspnFingerprint> fp_set = create_searchable_list_fingerprints();
+                Gee.List<IQspnFingerprint> fp_set = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 int nn_tot = 0;
                 foreach (Destination d in destinations[i-1].values)
                 {
@@ -2776,9 +3006,9 @@ namespace Netsukuku
 
         /** Informs whether the node has completed bootstrap
           */
-        public bool is_bootstrap_complete()
+        public int is_bootstrap_complete()
         {
-            return bootstrap_complete;
+            return hooking_gnode_level;
         }
 
         /** Gives the list of current arcs
