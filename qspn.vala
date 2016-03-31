@@ -1175,61 +1175,14 @@ namespace Netsukuku
                 return;
             }
 
-            IQspnManagerStub stub_get_etp =
-                    stub_factory.i_qspn_get_tcp(arc);
-            IQspnEtpMessage? resp = null;
-            try {
-                debug("Requesting ETP from new arc");
-                resp = stub_get_etp.get_full_etp(my_naddr);
-            }
-            catch (QspnBootstrapInProgressError e) {
-                debug("Got QspnBootstrapInProgressError. Give up.");
-                // Give up. The neighbor will start a flood when its bootstrap is complete.
-                return;
-            }
-            catch (StubError e) {
-                debug("Got StubError. Remove new arc.");
-                // remove failed arc and emit signal
-                arc_remove(arc);
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
-            catch (DeserializeError e) {
-                warning(@"tasklet_arc_add calling get_full_etp: Got Deserialize error: $(e.message)");
-                // remove failed arc and emit signal
-                arc_remove(arc);
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
-            catch (QspnNotAcceptedError e) {
-                debug("Got NotAcceptedError. Remove new arc.");
-                // remove failed arc and emit signal
-                arc_remove(arc);
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
-            if (! (resp is EtpMessage))
+            EtpMessage? etp;
+            bool bootstrap_in_progress;
+            bool bad_answer;
+            retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+            if (bootstrap_in_progress) return; // Give up. The neighbor will start a flood when its bootstrap is complete.
+            if (bad_answer)
             {
-                debug("Got wrong class. Remove new arc.");
-                // The module only knows this class that implements IQspnEtpMessage, so this
-                //  should not happen. But the rest of the code, who knows? So to be sure
-                //  we check. If it is the case remove the arc.
                 arc_remove(arc);
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
-            EtpMessage etp = (EtpMessage) resp;
-            if (! check_incoming_message(etp))
-            {
-                debug("Got bad parameters. Remove new arc.");
-                // We check the correctness of a message from another node.
-                // If the message is junk, remove the arc.
-                arc_remove(arc);
-                // emit signal
                 arc_removed(arc);
                 return;
             }
