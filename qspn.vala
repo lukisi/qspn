@@ -747,6 +747,7 @@ namespace Netsukuku
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
+            queued_arcs = new ArrayList<IQspnArc>();
             this.hooking_gnode_level = hooking_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
@@ -833,6 +834,7 @@ namespace Netsukuku
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
+            queued_arcs = new ArrayList<IQspnArc>();
             this.hooking_gnode_level = hooking_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
@@ -850,7 +852,109 @@ namespace Netsukuku
         }
         private void bootstrap_phase()
         {
+            int i = hooking_gnode_level;
+            ArrayList<IQspnArc> current_arcs = new ArrayList<IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+            {
+                IQspnNaddr addr = arc.i_qspn_get_naddr();
+                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
+                if (lvl >= i) current_arcs.add(arc);
+            }
+            while (! current_arcs.is_empty && ! bootstrap_complete)
+            {
+                IQspnArc arc = current_arcs[0];
+                
+            }
+            
             error("not implemented yet");
+        }
+
+        private void exit_bootstrap_phase()
+        {
+            // Exit bootstrap.
+            bootstrap_complete = true;
+            hooking_gnode_level = levels;
+            qspn_bootstrap_complete();
+            // Prepare full ETP and send to all my neighbors.
+            EtpMessage full_etp = prepare_full_etp();
+            IQspnManagerStub stub_send_to_all =
+                    stub_factory.i_qspn_get_broadcast(
+                    // If a neighbor doesnt send its ACK repeat the message via tcp
+                    new MissingArcSendEtp(this, full_etp, true));
+            debug("Sending ETP to all");
+            try {
+                assert(check_outgoing_message(full_etp));
+                stub_send_to_all.send_etp(full_etp, true);
+            }
+            catch (QspnNotAcceptedError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (DeserializeError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (StubError e) {
+                critical(@"QspnManager.exit_bootstrap_phase: StubError in send to broadcast to all: $(e.message)");
+            }
+            // Process queued events if any.
+            foreach (IQspnArc arc in queued_arcs)
+            {
+                EtpMessage? etp;
+                bool bootstrap_in_progress;
+                bool bad_answer;
+                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+                if (bootstrap_in_progress) continue;
+                if (bad_answer)
+                {
+                    arc_remove(arc);
+                    arc_removed(arc);
+                    continue;
+                }
+                // TODO process etp. when needed, forward it.
+                error("not implemented yet");
+            }
+        }
+
+        void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp, out bool bootstrap_in_progress, out bool bad_answer)
+        {
+            bootstrap_in_progress = false;
+            bad_answer = false;
+            etp = null;
+            IQspnManagerStub stub_get_etp =
+                    stub_factory.i_qspn_get_tcp(arc);
+            IQspnEtpMessage? resp = null;
+            try {
+                resp = stub_get_etp.get_full_etp(my_naddr);
+            }
+            catch (QspnBootstrapInProgressError e) {
+                bootstrap_in_progress = true;
+                return;
+            }
+            catch (StubError e) {
+                bad_answer = true;
+                return;
+            }
+            catch (DeserializeError e) {
+                bad_answer = true;
+                return;
+            }
+            catch (QspnNotAcceptedError e) {
+                bad_answer = true;
+                return;
+            }
+            if (! (resp is EtpMessage))
+            {
+                bad_answer = true;
+                return;
+            }
+            etp = (EtpMessage) resp;
+            if (! check_incoming_message(etp))
+            {
+                bad_answer = true;
+                return;
+            }
+            return;
         }
 
         public QspnManager(IQspnMyNaddr my_naddr,
@@ -3142,13 +3246,6 @@ namespace Netsukuku
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
-            // during bootstrap add the arc to queued_arcs and then return
-            if (!bootstrap_complete)
-            {
-                queued_arcs.add(arc);
-                return;
-            }
-
             if (! (arc in my_arcs)) return;
             debug("An incoming ETP is received");
             if (! (m is EtpMessage))
@@ -3172,6 +3269,50 @@ namespace Netsukuku
                 arc_removed(arc);
                 return;
             }
+
+            bool must_exit_bootstrap_phase = false;
+            // If it is during bootstrap:
+            if (!bootstrap_complete)
+            {
+                // Check the sender.
+                IQspnNaddr addr = arc.i_qspn_get_naddr();
+                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
+                if (lvl < hooking_gnode_level)
+                {
+                    // The sender is inside my hooking gnode.
+                    // Check the destinations.
+                    bool has_path_outside = false;
+                    foreach (EtpPath etp_path in etp.p_list)
+                    {
+                        if (etp_path.hops.last().lvl >= hooking_gnode_level)
+                        {
+                            has_path_outside = true;
+                            break;
+                        }
+                    }
+                    if (has_path_outside)
+                    {
+                        // The ETP has a destination outside my hooking gnode.
+                        // We can leave bootstrap phase.
+                        must_exit_bootstrap_phase = true;
+                    }
+                    else
+                    {
+                        // The ETP hasn't any destination outside my hooking gnode.
+                        queued_arcs.add(arc);
+                        return;
+                    }
+                }
+                else
+                {
+                    // The sender is outside my hooking gnode.
+                    queued_arcs.add(arc);
+                    return;
+                }
+                queued_arcs.add(arc);
+                return;
+            }
+
             debug("Processing incoming ETP");
             int arc_id = get_arc_id(arc);
             assert(arc_id >= 0);
@@ -3199,6 +3340,14 @@ namespace Netsukuku
             // Re-evaluate informations on our g-nodes.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
+
+            if (must_exit_bootstrap_phase)
+            {
+                // First ETP has been processed: now exit bootstrap, send full ETP to all, process queued_arcs.
+                exit_bootstrap_phase();
+                return;
+            }
+
             // forward?
             if (((! all_paths_set.is_empty) ||
                 changes_in_my_gnodes) &&
