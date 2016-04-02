@@ -962,6 +962,7 @@ namespace Netsukuku
             EtpMessage full_etp = prepare_full_etp();
             IQspnManagerStub stub_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
+                    get_arcs_broadcast_all(),
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, full_etp, true));
             debug("Sending ETP to all");
@@ -1128,6 +1129,21 @@ namespace Netsukuku
             }
             return -1;
         }
+        // Helper: get arcs for a broadcast message to all.
+        private Gee.List<IQspnArc> get_arcs_broadcast_all()
+        {
+            var ret = new ArrayList<IQspnArc>();
+            ret.add_all(my_arcs);
+            return ret;
+        }
+        // Helper: get arcs for a broadcast message to all but one.
+        private Gee.List<IQspnArc> get_arcs_broadcast_all_but_one(IQspnArc arc)
+        {
+            var ret = new ArrayList<IQspnArc>();
+            foreach (IQspnArc one in my_arcs) if (! arc.i_qspn_equals(one))
+                ret.add(one);
+            return ret;
+        }
 
         public void stop_operations()
         {
@@ -1288,10 +1304,9 @@ namespace Netsukuku
                                                      etp);
                 IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all_but_one(arc),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false),
-                        // All but the new arc
-                        arc);
+                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the new arc");
                 try {
                     assert(check_outgoing_message(new_etp));
@@ -1443,6 +1458,7 @@ namespace Netsukuku
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all(),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
@@ -1587,6 +1603,7 @@ namespace Netsukuku
                 EtpMessage new_etp = prepare_new_etp(all_paths_set);
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all(),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
@@ -2167,6 +2184,7 @@ namespace Netsukuku
                 EtpMessage full_etp = prepare_full_etp();
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all(),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
@@ -2200,6 +2218,7 @@ namespace Netsukuku
                 EtpMessage full_etp = prepare_full_etp();
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all(),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, full_etp, true));
                 debug("Sending ETP to all");
@@ -2927,6 +2946,7 @@ namespace Netsukuku
             EtpMessage new_etp = prepare_new_etp(etp_paths);
             IQspnManagerStub stub_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
+                    get_arcs_broadcast_all(),
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
@@ -3377,10 +3397,9 @@ namespace Netsukuku
                                                      etp);
                 IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
+                        get_arcs_broadcast_all_but_one(arc),
                         // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false),
-                        // All but the sender
-                        arc);
+                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the sender");
                 try {
                     assert(check_outgoing_message(new_etp));
