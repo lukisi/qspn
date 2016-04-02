@@ -164,7 +164,7 @@ namespace LibQspnInternals
     internal EtpPath deserialize_etp_path(Json.Node property_node)
     throws HelperDeserializeError
     {
-        return (IQspnFingerprint)deserialize_object(typeof(EtpPath), false, property_node);
+        return (EtpPath)deserialize_object(typeof(EtpPath), false, property_node);
     }
 
     internal Json.Node serialize_etp_path(EtpPath n)
