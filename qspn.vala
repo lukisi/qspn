@@ -862,11 +862,55 @@ namespace Netsukuku
             }
             while (! current_arcs.is_empty && ! bootstrap_complete)
             {
-                IQspnArc arc = current_arcs[0];
-                
+                IQspnArc arc = current_arcs.remove_at(0);
+                EtpMessage? etp;
+                bool bootstrap_in_progress;
+                bool bad_answer;
+                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+                if (bootstrap_in_progress) continue;
+                if (bad_answer)
+                {
+                    arc_remove(arc);
+                    arc_removed(arc);
+                    continue;
+                }
+                // Process etp. No forward is needed.
+                int arc_id = get_arc_id(arc);
+                assert(arc_id >= 0);
+                // Revise the paths in it.
+                Gee.List<NodePath> q;
+                try
+                {
+                    q = revise_etp(etp, arc, arc_id, true);
+                }
+                catch (AcyclicError e)
+                {
+                    // Ignore this message
+                    continue;
+                }
+                // Update my map. Collect changed paths.
+                Collection<EtpPath> all_paths_set;
+                Collection<HCoord> b_set;
+                update_map(q, null,
+                           out all_paths_set,
+                           out b_set);
+                finalize_paths(all_paths_set);
+                // Re-evaluate informations on our g-nodes.
+                bool changes_in_my_gnodes;
+                update_clusters(out changes_in_my_gnodes);
+                // Then exit bootstrap, process queued_arcs, send full ETP to all.
+                exit_bootstrap_phase();
             }
-            
-            error("not implemented yet");
+            if (! bootstrap_complete)
+            {
+                int max_wait = 10000;
+                // TODO max(10 sec, 1000 * max(bestpath(dst).rtt for dst in known_destinations))
+                tasklet.ms_wait(max_wait);
+                if (! bootstrap_complete)
+                {
+                    exit_bootstrap_phase();
+                }
+            }
         }
 
         private void exit_bootstrap_phase()
@@ -875,6 +919,45 @@ namespace Netsukuku
             bootstrap_complete = true;
             hooking_gnode_level = levels;
             qspn_bootstrap_complete();
+            // Process queued events if any.
+            foreach (IQspnArc arc in queued_arcs)
+            {
+                EtpMessage? etp;
+                bool bootstrap_in_progress;
+                bool bad_answer;
+                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+                if (bootstrap_in_progress) continue;
+                if (bad_answer)
+                {
+                    arc_remove(arc);
+                    arc_removed(arc);
+                    continue;
+                }
+                // Process etp. No forward is needed.
+                int arc_id = get_arc_id(arc);
+                assert(arc_id >= 0);
+                // Revise the paths in it.
+                Gee.List<NodePath> q;
+                try
+                {
+                    q = revise_etp(etp, arc, arc_id, true);
+                }
+                catch (AcyclicError e)
+                {
+                    // Ignore this message
+                    continue;
+                }
+                // Update my map. Collect changed paths.
+                Collection<EtpPath> all_paths_set;
+                Collection<HCoord> b_set;
+                update_map(q, null,
+                           out all_paths_set,
+                           out b_set);
+                finalize_paths(all_paths_set);
+                // Re-evaluate informations on our g-nodes.
+                bool changes_in_my_gnodes;
+                update_clusters(out changes_in_my_gnodes);
+            }
             // Prepare full ETP and send to all my neighbors.
             EtpMessage full_etp = prepare_full_etp();
             IQspnManagerStub stub_send_to_all =
@@ -896,23 +979,6 @@ namespace Netsukuku
             }
             catch (StubError e) {
                 critical(@"QspnManager.exit_bootstrap_phase: StubError in send to broadcast to all: $(e.message)");
-            }
-            // Process queued events if any.
-            foreach (IQspnArc arc in queued_arcs)
-            {
-                EtpMessage? etp;
-                bool bootstrap_in_progress;
-                bool bad_answer;
-                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
-                if (bootstrap_in_progress) continue;
-                if (bad_answer)
-                {
-                    arc_remove(arc);
-                    arc_removed(arc);
-                    continue;
-                }
-                // TODO process etp. when needed, forward it.
-                error("not implemented yet");
             }
         }
 
@@ -3296,8 +3362,9 @@ namespace Netsukuku
 
             if (must_exit_bootstrap_phase)
             {
-                // First ETP has been processed: now exit bootstrap, send full ETP to all, process queued_arcs.
+                // First ETP has been processed: now exit bootstrap, process queued_arcs, send full ETP to all.
                 exit_bootstrap_phase();
+                // No forward is needed.
                 return;
             }
 
