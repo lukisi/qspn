@@ -580,8 +580,6 @@ namespace Netsukuku
         //  position. This is useful when we want to remove one item.
         private ArrayList<HashMap<int, Destination>> destinations;
 
-        // The hook on a particular network has failed.
-        public signal void failed_hook();
         // The hook on a particular network has completed; the module is bootstrap_complete.
         public signal void qspn_bootstrap_complete();
         // An arc (is not working) has been removed from my list.
