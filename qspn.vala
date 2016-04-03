@@ -2871,10 +2871,9 @@ namespace Netsukuku
                                       IQspnFingerprint new_fp)
         {
             assert(migrated_gnode_outer_level > migrated_gnode_inner_level);
-            this.my_naddr = new_naddr;
+            my_naddr = new_naddr;
             connectivity_from_level = migrated_gnode_inner_level + 1;
             connectivity_to_level = migrated_gnode_outer_level;
-            this.my_fingerprints;
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
