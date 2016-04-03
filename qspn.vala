@@ -986,7 +986,7 @@ namespace Netsukuku
             }
         }
 
-        void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp, out bool bootstrap_in_progress, out bool bad_answer)
+        private void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp, out bool bootstrap_in_progress, out bool bad_answer)
         {
             bootstrap_in_progress = false;
             bad_answer = false;
@@ -1055,7 +1055,7 @@ namespace Netsukuku
             return ret;
         }
 
-        public void stop_operations()
+        private void stop_operations()
         {
             if (periodical_update_tasklet != null)
                 periodical_update_tasklet.kill();
@@ -2905,6 +2905,41 @@ namespace Netsukuku
             return ret;
         }
 
+        /** Make this identity a ''connectivity'' one.
+          */
+        public void make_connectivity()
+        {
+            error("not implemented yet");
+        }
+
+        /** Remove outer arcs from this connectivity identity.
+          */
+        public void remove_outer_arcs()
+        {
+            error("not implemented yet");
+        }
+
+        /** Check if this connectivity identity can be removed.
+          */
+        public void check_connectivity()
+        {
+            error("not implemented yet");
+        }
+
+        /** Prepare to remove this connectivity g-node.
+          */
+        public void prepare_destroy()
+        {
+            error("not implemented yet");
+        }
+
+        /** Signal the imminent removal of this connectivity g-node.
+          */
+        public void destroy()
+        {
+            error("not implemented yet");
+        }
+
         /* Remotable methods
          */
         internal class Timer : Object
@@ -3159,6 +3194,22 @@ namespace Netsukuku
                     critical(@"QspnManager.send_etp: StubError in send to broadcast except arc $(arc_id): $(e.message)");
                 }
             }
+        }
+
+        public void got_prepare_destroy(CallerInfo? _rpc_caller=null)
+        {
+            error("not implemented yet");
+        }
+
+        public void got_destroy(CallerInfo? _rpc_caller=null)
+        {
+            error("not implemented yet");
+        }
+
+        ~QspnManager()
+        {
+            print("~QspnManager()\n");
+            stop_operations();
         }
     }
 }
