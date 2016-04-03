@@ -605,6 +605,11 @@ namespace Netsukuku
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
         public signal void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp);
 
+        // No default constructor */
+        private QspnManager() {
+            assert_not_reached();
+        }
+
         /* 3 types of constructor */
         public QspnManager.create_net(IQspnMyNaddr my_naddr,
                            IQspnFingerprint my_fingerprint,
@@ -1062,56 +1067,56 @@ namespace Netsukuku
         {
             // start in a tasklet the periodical send of full updates.
             PeriodicalUpdateTasklet ts = new PeriodicalUpdateTasklet();
-            ts.t = this;
+            ts.mgr = this;
             periodical_update_tasklet = tasklet.spawn(ts);
         }
         private class PeriodicalUpdateTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager t;
+            public QspnManager mgr;
             public void * func()
             {
-                t.periodical_update();
+                mgr.periodical_update();
             }
         }
 
         internal class MissingArcSendEtp : Object, IQspnMissingArcHandler
         {
-            public MissingArcSendEtp(QspnManager qspnman, EtpMessage m, bool is_full)
+            public MissingArcSendEtp(QspnManager mgr, EtpMessage m, bool is_full)
             {
-                this.qspnman = qspnman;
+                this.mgr = mgr;
                 this.m = m;
                 this.is_full = is_full;
             }
-            public QspnManager qspnman;
+            public QspnManager mgr;
             public EtpMessage m;
             public bool is_full;
             public void i_qspn_missing(IQspnArc arc)
             {
                 IQspnManagerStub stub =
-                        qspnman.stub_factory.i_qspn_get_tcp(arc);
+                        mgr.stub_factory.i_qspn_get_tcp(arc);
                 debug("Sending reliable ETP to missing arc");
                 try {
-                    assert(qspnman.check_outgoing_message(m));
+                    assert(mgr.check_outgoing_message(m));
                     stub.send_etp(m, is_full);
                 }
                 catch (QspnNotAcceptedError e) {
                     // we're not in its arcs; remove and emit signal
-                    qspnman.arc_remove(arc);
+                    mgr.arc_remove(arc);
                     // emit signal
-                    qspnman.arc_removed(arc);
+                    mgr.arc_removed(arc);
                 }
                 catch (StubError e) {
                     // remove failed arc and emit signal
-                    qspnman.arc_remove(arc);
+                    mgr.arc_remove(arc);
                     // emit signal
-                    qspnman.arc_removed(arc);
+                    mgr.arc_removed(arc);
                 }
                 catch (DeserializeError e) {
                     warning(@"MissingArcSendEtp: Got Deserialize error: $(e.message)");
                     // remove failed arc and emit signal
-                    qspnman.arc_remove(arc);
+                    mgr.arc_remove(arc);
                     // emit signal
-                    qspnman.arc_removed(arc);
+                    mgr.arc_removed(arc);
                 }
             }
         }
