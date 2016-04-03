@@ -2931,7 +2931,20 @@ namespace Netsukuku
           */
         public void remove_outer_arcs()
         {
-            error("not implemented yet");
+            assert(connectivity_to_level > 0);
+            ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>();
+            arcs.add_all(my_arcs);
+            foreach (IQspnArc arc in arcs)
+            {
+                // Check the neighbor address.
+                IQspnNaddr addr = arc.i_qspn_get_naddr();
+                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
+                if (lvl >= connectivity_to_level)
+                {
+                    arc_remove(arc);
+                    arc_removed(arc);
+                }
+            }
         }
 
         /** Check if this connectivity identity can be removed.
