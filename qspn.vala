@@ -3087,11 +3087,60 @@ namespace Netsukuku
             }
         }
 
-        /** Signal the imminent removal of this connectivity g-node.
+        /** Signal the imminent removal of this identity (connectivity or not).
           */
         public void destroy()
         {
-            error("not implemented yet");
+            // Could be also connectivity_from_level == 0.
+            int i = connectivity_from_level - 1;
+            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+            {
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                if (lvl >= i) outer_arcs.add(arc);
+            }
+            IQspnManagerStub stub_send_to_outer =
+                    stub_factory.i_qspn_get_broadcast(
+                    outer_arcs,
+                    // If a neighbor doesnt send its ACK repeat the message via tcp
+                    new MissingArcDestroy(this));
+            try {
+                stub_send_to_outer.got_destroy();
+            } catch (DeserializeError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            } catch (StubError e) {
+                critical(@"QspnManager.destroy: StubError in broadcast sending to internal_arcs: $(e.message)");
+            }
+        }
+        internal class MissingArcDestroy : Object, IQspnMissingArcHandler
+        {
+            public MissingArcDestroy(QspnManager mgr)
+            {
+                this.mgr = mgr;
+            }
+            public QspnManager mgr;
+            public void i_qspn_missing(IQspnArc arc)
+            {
+                IQspnManagerStub stub =
+                        mgr.stub_factory.i_qspn_get_tcp(arc);
+                try {
+                    stub.got_destroy();
+                }
+                catch (StubError e) {
+                    // remove failed arc and emit signal
+                    mgr.arc_remove(arc);
+                    // emit signal
+                    mgr.arc_removed(arc);
+                }
+                catch (DeserializeError e) {
+                    warning(@"MissingArcDestroy: Got Deserialize error: $(e.message)");
+                    // remove failed arc and emit signal
+                    mgr.arc_remove(arc);
+                    // emit signal
+                    mgr.arc_removed(arc);
+                }
+            }
         }
 
         /* Remotable methods
@@ -3365,7 +3414,30 @@ namespace Netsukuku
 
         public void got_destroy(CallerInfo? _rpc_caller=null)
         {
-            error("not implemented yet");
+            assert(_rpc_caller != null);
+            CallerInfo rpc_caller = (CallerInfo)_rpc_caller;
+            // The message comes from this arc.
+            IQspnArc? arc = null;
+            Timer t = new Timer(arc_timeout);
+            while (true)
+            {
+                foreach (IQspnArc _arc in my_arcs)
+                {
+                    if (_arc.i_qspn_comes_from(rpc_caller))
+                    {
+                        arc = _arc;
+                        break;
+                    }
+                }
+                if (arc != null) break;
+                if (t.is_expired()) break;
+                tasklet.ms_wait(arc_timeout / 10);
+            }
+            if (arc == null) tasklet.exit_tasklet(null);
+
+            // remove the arc
+            arc_remove(arc);
+            arc_removed(arc);
         }
 
         ~QspnManager()
