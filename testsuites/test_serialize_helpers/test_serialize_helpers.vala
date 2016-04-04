@@ -1,5 +1,4 @@
 using Netsukuku;
-using Netsukuku.ModRpc;
 using Gee;
 using TestSerializeInternals;
 
@@ -42,10 +41,7 @@ namespace Netsukuku
 
     public class EtpPath : Object
     {
-    }
-
-    namespace ModRpc
-    {
+        public int p {get; set;}
     }
 }
 
@@ -131,6 +127,12 @@ void main() {
         assert(lh.size == lh2.size);
         for (int j = 0; j < lh.size; j++) assert(lh[j].pos == lh2[j].pos);
         assert(el1 in lh2);
+
+        // etppath
+        EtpPath etpp = new EtpPath();
+        etpp.p = 2;
+        EtpPath etp2 = deserialize_etp_path(serialize_etp_path(etpp));
+        assert(etp2.p == 2);
 
         // list etppath
         Gee.List<EtpPath> le = new ArrayList<EtpPath>();
