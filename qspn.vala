@@ -2780,7 +2780,7 @@ namespace Netsukuku
         public Gee.List<HCoord> get_known_destinations() throws QspnBootstrapInProgressError
         {
             if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
-            var ret = new ArrayList<HCoord>();
+            var ret = new ArrayList<HCoord>((a, b) => a.equals(b));
             for (int l = 0; l < levels; l++)
                 foreach (Destination d in destinations[l].values)
                     ret.add(d.dest);
@@ -2947,11 +2947,86 @@ namespace Netsukuku
             }
         }
 
-        /** Check if this connectivity identity can be removed.
+        /** Check if this connectivity identity can be removed without causing
+          * the split of its g-nodes.
           */
-        public void check_connectivity()
+        public bool check_connectivity()
         {
-            error("not implemented yet");
+            // Requires: a lock has been acquired on all g-nodes this identity
+            //  belongs to at level from connectivity_from_level to connectivity_to_level.
+            assert(connectivity_from_level > 0);
+            assert(connectivity_to_level >= connectivity_from_level);
+            assert(connectivity_to_level < levels);
+            int i = connectivity_from_level - 1;
+            int j = connectivity_to_level;
+            /* Search a level *i* where my g<sub>i</sub>(n) (that is, the g-node of
+             *  level *i* where n belongs) has some neighbor (g-nodes of level *i*)
+             *  inside g<sub>i+1</sub>(n)
+             */
+            while (true)
+            {
+                if (j <= i) return true;
+                // private ArrayList<HashMap<int, Destination>> destinations;
+                HashMap<int, Destination> destinations_i = destinations[i];
+                if (! destinations_i.is_empty) break;
+                i++;
+            }
+            /* Let *x_set* contain each g-node *x* of level from *i* to *j* - 1 that I have as a destination in my map
+             *  (that is, x ∈ g<sub>i+1</sub>(n) ∪ ... ∪ g<sub>j</sub>(n))
+             */
+            ArrayList<Destination> x_set = new ArrayList<Destination>();
+            for (int l = i; l < j; l++)
+            {
+                x_set.add_all(destinations[l].values);
+            }
+            /* Let *y_set* contain each g-node *y* of level *i* neighbor of g<sub>i</sub>(n) that I have as a hop in my map
+             *  (that is, y ∈ 𝛤<sub>i</sub>(g<sub>i</sub>(n)), y ∈ g<sub>i+1</sub>(n))
+             */
+            ArrayList<HCoord> y_set = new ArrayList<HCoord>((a, b) => a.equals(b));
+            foreach (Destination x in x_set)
+            {
+                foreach (NodePath np in x.paths)
+                {
+                    HCoord y = np.path.hops[0];
+                    if (y.lvl == i)
+                    {
+                        if (! (y in y_set)) y_set.add(y);
+                        continue;
+                    }
+                    for (int i_np = 1; i_np < np.path.hops.size; i_np++)
+                    {
+                        HCoord y_prev = np.path.hops[i_np - 1];
+                        y = np.path.hops[i_np];
+                        if (y.lvl == i && y_prev.lvl < i)
+                        {
+                            if (! (y in y_set)) y_set.add(y);
+                            break;
+                        }
+                    }
+                }
+            }
+            // For each destination *x* in *x_set*
+            foreach (Destination x in x_set)
+            {
+                // For each g-gateway *y* in *y_set*
+                foreach (HCoord y in y_set)
+                {
+                    if (! x.dest.equals(y))
+                    {
+                        bool path_found = false;
+                        foreach (NodePath np in x.paths)
+                        {
+                            if (y in np.path.hops)
+                            {
+                                path_found = true;
+                                break;
+                            }
+                        }
+                        if (!path_found) return false;
+                    }
+                }
+            }
+            return true;
         }
 
         /** Prepare to remove this connectivity g-node.
