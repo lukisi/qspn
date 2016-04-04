@@ -3033,7 +3033,56 @@ namespace Netsukuku
           */
         public void prepare_destroy()
         {
-            error("not implemented yet");
+            assert(connectivity_from_level > 0);
+            int i = connectivity_from_level - 1;
+            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+            {
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                if (lvl < i) internal_arcs.add(arc);
+            }
+            IQspnManagerStub stub_send_to_internal =
+                    stub_factory.i_qspn_get_broadcast(
+                    internal_arcs,
+                    // If a neighbor doesnt send its ACK repeat the message via tcp
+                    new MissingArcPrepareDestroy(this));
+            try {
+                stub_send_to_internal.got_prepare_destroy();
+            } catch (DeserializeError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            } catch (StubError e) {
+                critical(@"QspnManager.prepare_destroy: StubError in broadcast sending to internal_arcs: $(e.message)");
+            }
+        }
+        internal class MissingArcPrepareDestroy : Object, IQspnMissingArcHandler
+        {
+            public MissingArcPrepareDestroy(QspnManager mgr)
+            {
+                this.mgr = mgr;
+            }
+            public QspnManager mgr;
+            public void i_qspn_missing(IQspnArc arc)
+            {
+                IQspnManagerStub stub =
+                        mgr.stub_factory.i_qspn_get_tcp(arc);
+                try {
+                    stub.got_prepare_destroy();
+                }
+                catch (StubError e) {
+                    // remove failed arc and emit signal
+                    mgr.arc_remove(arc);
+                    // emit signal
+                    mgr.arc_removed(arc);
+                }
+                catch (DeserializeError e) {
+                    warning(@"MissingArcPrepareDestroy: Got Deserialize error: $(e.message)");
+                    // remove failed arc and emit signal
+                    mgr.arc_remove(arc);
+                    // emit signal
+                    mgr.arc_removed(arc);
+                }
+            }
         }
 
         /** Signal the imminent removal of this connectivity g-node.
