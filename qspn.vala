@@ -602,6 +602,8 @@ namespace Netsukuku
         public signal void changed_nodes_inside(int l);
         // A gnode has splitted and the part which has this fingerprint MUST migrate.
         public signal void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp);
+        // This identity has been dismissed.
+        public signal void remove_identity();
 
         // No default constructor */
         private QspnManager() {
@@ -3350,7 +3352,15 @@ namespace Netsukuku
 
         public void got_prepare_destroy(CallerInfo? _rpc_caller=null)
         {
-            error("not implemented yet");
+            // Verify that I am a ''connectivity'' identity.
+            if (connectivity_from_level == 0) tasklet.exit_tasklet(null);
+            // TODO check that the order came from the Coordinator
+            // Propagate order
+            prepare_destroy();
+            // Wait 10 sec
+            tasklet.ms_wait(10000);
+            // Emit signal to remove this identity.
+            remove_identity();
         }
 
         public void got_destroy(CallerInfo? _rpc_caller=null)
