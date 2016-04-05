@@ -752,7 +752,6 @@ namespace Netsukuku
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
-            queued_arcs = new ArrayList<IQspnArc>();
             this.hooking_gnode_level = hooking_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
@@ -839,7 +838,6 @@ namespace Netsukuku
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
-            queued_arcs = new ArrayList<IQspnArc>();
             this.hooking_gnode_level = hooking_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
@@ -858,16 +856,21 @@ namespace Netsukuku
         private void bootstrap_phase()
         {
             int i = hooking_gnode_level;
-            ArrayList<IQspnArc> current_arcs = new ArrayList<IQspnArc>();
+            queued_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
                 IQspnNaddr addr = arc.i_qspn_get_naddr();
                 int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
-                if (lvl >= i) current_arcs.add(arc);
+                if (lvl >= i) queued_arcs.add(arc);
             }
-            while (! current_arcs.is_empty && ! bootstrap_complete)
+            queued_arcs.sort((a, b) => {
+                int a_lvl = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr()).lvl;
+                int b_lvl = my_naddr.i_qspn_get_coord_by_address(b.i_qspn_get_naddr()).lvl;
+                return a_lvl - b_lvl;
+            });
+            while (! queued_arcs.is_empty && ! bootstrap_complete)
             {
-                IQspnArc arc = current_arcs.remove_at(0);
+                IQspnArc arc = queued_arcs.remove_at(0);
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
                 bool bad_answer;
@@ -903,7 +906,7 @@ namespace Netsukuku
                 // Re-evaluate informations on our g-nodes.
                 bool changes_in_my_gnodes;
                 update_clusters(out changes_in_my_gnodes);
-                // Then exit bootstrap, process queued_arcs, send full ETP to all.
+                // Then exit bootstrap, process rest of queued arcs, send full ETP to all.
                 exit_bootstrap_phase();
             }
             if (! bootstrap_complete)
@@ -924,7 +927,7 @@ namespace Netsukuku
             bootstrap_complete = true;
             hooking_gnode_level = levels;
             qspn_bootstrap_complete();
-            // Process queued events if any.
+            // Process queued arcs if any more.
             foreach (IQspnArc arc in queued_arcs)
             {
                 EtpMessage? etp;
@@ -1023,14 +1026,14 @@ namespace Netsukuku
         // Helper: get arcs for a broadcast message to all.
         private Gee.List<IQspnArc> get_arcs_broadcast_all()
         {
-            var ret = new ArrayList<IQspnArc>();
+            var ret = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             ret.add_all(my_arcs);
             return ret;
         }
         // Helper: get arcs for a broadcast message to all but one.
         private Gee.List<IQspnArc> get_arcs_broadcast_all_but_one(IQspnArc arc)
         {
-            var ret = new ArrayList<IQspnArc>();
+            var ret = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc one in my_arcs) if (! arc.i_qspn_equals(one))
                 ret.add(one);
             return ret;
@@ -1404,10 +1407,10 @@ namespace Netsukuku
                 return;
             }
 
-            // during bootstrap add the arc to queued_arcs and then return
+            // during bootstrap remove the arc from queued_arcs and then return
             if (!bootstrap_complete)
             {
-                queued_arcs.add(removed_arc);
+                if (removed_arc in queued_arcs) queued_arcs.remove(removed_arc);
                 return;
             }
 
@@ -1840,7 +1843,7 @@ namespace Netsukuku
             // Prepare (one instance for this run) an object work for the tasklets
             GatherEtpSetData work = new GatherEtpSetData();
             work.tasks = new ArrayList<ITaskletHandle>();
-            work.arcs = new ArrayList<IQspnArc>();
+            work.arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             work.stubs = new ArrayList<IQspnManagerStub>();
             work.results = new ArrayList<PairArcEtp>();
             work.my_naddr = my_naddr;
@@ -2860,7 +2863,7 @@ namespace Netsukuku
           */
         public Gee.List<IQspnArc> current_arcs()
         {
-            var ret = new ArrayList<IQspnArc>();
+            var ret = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             ret.add_all(my_arcs);
             return ret;
         }
@@ -2934,7 +2937,7 @@ namespace Netsukuku
         public void remove_outer_arcs()
         {
             assert(connectivity_to_level > 0);
-            ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>();
+            ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arcs.add_all(my_arcs);
             foreach (IQspnArc arc in arcs)
             {
@@ -3037,7 +3040,7 @@ namespace Netsukuku
         {
             assert(connectivity_from_level > 0);
             int i = connectivity_from_level - 1;
-            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
+            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
@@ -3093,7 +3096,7 @@ namespace Netsukuku
         {
             // Could be also connectivity_from_level == 0.
             int i = connectivity_from_level - 1;
-            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>();
+            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
@@ -3290,46 +3293,53 @@ namespace Netsukuku
             }
 
             bool must_exit_bootstrap_phase = false;
+            bool must_propagate_etp = true;
             // If it is during bootstrap:
             if (!bootstrap_complete)
             {
                 // Check the sender.
                 IQspnNaddr addr = arc.i_qspn_get_naddr();
                 int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
-                if (lvl < hooking_gnode_level)
+                if (lvl >= hooking_gnode_level)
                 {
-                    // The sender is inside my hooking gnode.
-                    // Check the destinations.
-                    bool has_path_outside = false;
-                    foreach (EtpPath etp_path in etp.p_list)
-                    {
-                        if (etp_path.hops.last().lvl >= hooking_gnode_level)
-                        {
-                            has_path_outside = true;
-                            break;
-                        }
-                    }
-                    if (has_path_outside)
-                    {
-                        // The ETP has a destination outside my hooking gnode.
-                        // We can leave bootstrap phase.
-                        must_exit_bootstrap_phase = true;
-                    }
-                    else
-                    {
-                        // The ETP hasn't any destination outside my hooking gnode.
-                        queued_arcs.add(arc);
-                        return;
-                    }
+                    // The sender is outside my hooking gnode. Ignore it.
+                    return;
                 }
                 else
                 {
-                    // The sender is outside my hooking gnode.
-                    queued_arcs.add(arc);
-                    return;
+                    // The sender is inside my hooking gnode.
+                    // Check the destinations. Find lower_lvl outside. 
+                    bool has_path_outside = false;
+                    int lower_lvl = levels;
+                    foreach (EtpPath etp_path in etp.p_list)
+                    {
+                        int this_lvl = etp_path.hops.last().lvl;
+                        if (this_lvl >= hooking_gnode_level)
+                        {
+                            has_path_outside = true;
+                            if (lower_lvl > this_lvl) lower_lvl = this_lvl;
+                        }
+                    }
+                    if (! has_path_outside)
+                    {
+                        // The ETP hasn't any destination outside my hooking gnode. Ignore it.
+                        return;
+                    }
+                    else
+                    {
+                        // The ETP has a destination outside my hooking gnode.
+                        bool suffice = false;
+                        if (queued_arcs.is_empty) suffice = true;
+                        if (!suffice)
+                        {
+                            IQspnArc q0 = queued_arcs[0];
+                            int q0_lvl = my_naddr.i_qspn_get_coord_by_address(q0.i_qspn_get_naddr()).lvl;
+                            if (q0_lvl >= lower_lvl) suffice = true;
+                        }
+                        if (suffice) must_exit_bootstrap_phase = true;
+                        else must_propagate_etp = false;
+                    }
                 }
-                queued_arcs.add(arc);
-                return;
             }
 
             debug("Processing incoming ETP");
@@ -3362,9 +3372,19 @@ namespace Netsukuku
 
             if (must_exit_bootstrap_phase)
             {
-                // First ETP has been processed: now exit bootstrap, process queued_arcs, send full ETP to all.
+                // We are in bootstrap phase.
+                // An ETP has been processed which suffices to this node:
+                // now exit bootstrap, process rest of queued arcs, send full ETP to all.
                 exit_bootstrap_phase();
                 // No forward is needed.
+                return;
+            }
+
+            if (! must_propagate_etp)
+            {
+                // We are in bootstrap phase.
+                // An ETP has been processed which doesn't suffice to this node:
+                // Do not forward.
                 return;
             }
 
