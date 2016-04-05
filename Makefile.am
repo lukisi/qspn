@@ -19,9 +19,8 @@ TESTS = \
 
 check_PROGRAMS = \
 	test_serialize_helpers \
+	simulator \
 	$(NULL)
-#	simulator \
-#
 
 EXTRA_PROGRAMS = \
 	auto_graph \

@@ -18,7 +18,7 @@
 
 using Gee;
 using Netsukuku;
-using Netsukuku.ModRpc;
+using TaskletSystem;
 
 string json_string_object(Object obj)
 {
@@ -58,6 +58,7 @@ class FakeArc : Object, IQspnArc
     public string neighbour_nic_addr;
     public string my_nic_addr;
     public QspnManager neighbour_qspnmgr;
+    public FakeArc neighbour_arc;
     public FakeArc(QspnManager neighbour_qspnmgr,
                     FakeGenericNaddr naddr,
                     FakeCost cost,
@@ -86,42 +87,39 @@ class FakeArc : Object, IQspnArc
         return this==other;
     }
 
-    public bool i_qspn_comes_from(zcd.ModRpc.CallerInfo rpc_caller)
+    public bool i_qspn_comes_from(CallerInfo rpc_caller)
     {
-        if (rpc_caller is zcd.ModRpc.TcpCallerInfo)
-            return neighbour_nic_addr == ((zcd.ModRpc.TcpCallerInfo)rpc_caller).peer_address;
-        else if (rpc_caller is Netsukuku.ModRpc.BroadcastCallerInfo)
-            return neighbour_nic_addr == ((Netsukuku.ModRpc.BroadcastCallerInfo)rpc_caller).peer_address;
-        else if (rpc_caller is Netsukuku.ModRpc.UnicastCallerInfo)
-            return neighbour_nic_addr == ((Netsukuku.ModRpc.UnicastCallerInfo)rpc_caller).peer_address;
-        else
-            assert_not_reached();
+        if (rpc_caller is FakeCallerInfo)
+        {
+            FakeCallerInfo _rpc_caller = (FakeCallerInfo)rpc_caller;
+            FakeArc dest_arc = _rpc_caller.src_arc.neighbour_arc;
+            return dest_arc == this;
+        }
+        error("not implemented yet");
     }
 }
 
 class FakeBroadcastClient : Object, IQspnManagerStub
 {
     private ArrayList<FakeArc> target_arcs;
-    private BroadcastID bcid;
-    public FakeBroadcastClient(Gee.Collection<FakeArc> target_arcs, BroadcastID bcid)
+    public FakeBroadcastClient(Gee.Collection<FakeArc> target_arcs)
     {
         this.target_arcs = new ArrayList<FakeArc>();
         this.target_arcs.add_all(target_arcs);
-        this.bcid = bcid;
     }
 
     public IQspnEtpMessage get_full_etp
     (Netsukuku.IQspnAddress requesting_address)
-    throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+    throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, StubError, DeserializeError
     {
         error("FakeBroadcastClient: you should not use broadcast for method get_full_etp.");
     }
 
     public void send_etp
     (IQspnEtpMessage _etp, bool is_full)
-    throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+    throws Netsukuku.QspnNotAcceptedError, StubError, DeserializeError
     {
-        //print("broadcast send_etp\n");
+        print("broadcast send_etp\n");
         tasklet.ms_wait(20);
         IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
         //print("now etp =\n");
@@ -132,8 +130,7 @@ class FakeBroadcastClient : Object, IQspnManagerStub
             etp = (IQspnEtpMessage)dup_object(_etp);
             QspnManager target_mgr = target_arc.neighbour_qspnmgr;
             string my_ip = target_arc.my_nic_addr;
-            var caller = new Netsukuku.ModRpc.BroadcastCallerInfo
-                         ("eth0", my_ip, bcid);
+            var caller = new FakeCallerInfo(target_arc);
             SendEtpTasklet ts = new SendEtpTasklet();
             ts.target_mgr = target_mgr;
             ts.etp = etp;
@@ -142,12 +139,12 @@ class FakeBroadcastClient : Object, IQspnManagerStub
             tasklet.spawn(ts);
         }
     }
-    private class SendEtpTasklet : Object, INtkdTaskletSpawnable
+    private class SendEtpTasklet : Object, ITaskletSpawnable
     {
         public QspnManager target_mgr;
         public IQspnEtpMessage etp;
         public bool is_full;
-        public Netsukuku.ModRpc.BroadcastCallerInfo caller;
+        public CallerInfo caller;
         public void * func()
         {
             try {
@@ -158,6 +155,16 @@ class FakeBroadcastClient : Object, IQspnManagerStub
             return null;
         }
     }
+
+	public void got_destroy() throws StubError, DeserializeError
+	{
+	    error("not implemented yet");
+	}
+
+	public void got_prepare_destroy() throws StubError, DeserializeError
+	{
+	    error("not implemented yet");
+	}
 }
 
 class FakeTCPClient : Object, IQspnManagerStub
@@ -170,15 +177,14 @@ class FakeTCPClient : Object, IQspnManagerStub
 
     public IQspnEtpMessage get_full_etp
     (IQspnAddress _my_naddr)
-    throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+    throws Netsukuku.QspnNotAcceptedError, Netsukuku.QspnBootstrapInProgressError, StubError, DeserializeError
     {
-        //print("calling tcp get_full_etp\n");
+        print("calling tcp get_full_etp\n");
         tasklet.ms_wait(20);
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         string neigh_ip = target_arc.neighbour_nic_addr;
-        var caller = new zcd.ModRpc.TcpCallerInfo
-                     (neigh_ip, my_ip);
+        var caller = new FakeCallerInfo(target_arc);
         tasklet.schedule();
         //print("executing get_full_etp\n");
         IQspnAddress my_naddr = (IQspnAddress)dup_object(_my_naddr);
@@ -191,9 +197,9 @@ class FakeTCPClient : Object, IQspnManagerStub
 
     public void send_etp
     (IQspnEtpMessage _etp, bool is_full)
-    throws Netsukuku.QspnNotAcceptedError, zcd.ModRpc.StubError, zcd.ModRpc.DeserializeError
+    throws Netsukuku.QspnNotAcceptedError, StubError, DeserializeError
     {
-        //print("tcp send_etp\n");
+        print("tcp send_etp\n");
         tasklet.ms_wait(20);
         IQspnEtpMessage etp = (IQspnEtpMessage)dup_object(_etp);
         //print("now etp =\n");
@@ -201,11 +207,20 @@ class FakeTCPClient : Object, IQspnManagerStub
         QspnManager target_mgr = target_arc.neighbour_qspnmgr;
         string my_ip = target_arc.my_nic_addr;
         string neigh_ip = target_arc.neighbour_nic_addr;
-        var caller = new zcd.ModRpc.TcpCallerInfo
-                     (neigh_ip, my_ip);
+        var caller = new FakeCallerInfo(target_arc);
         tasklet.schedule();
         target_mgr.send_etp(etp, is_full, caller);
     }
+
+	public void got_destroy() throws StubError, DeserializeError
+	{
+	    error("not implemented yet");
+	}
+
+	public void got_prepare_destroy() throws StubError, DeserializeError
+	{
+	    error("not implemented yet");
+	}
 }
 
 class FakeStubFactory : Object, IQspnStubFactory
@@ -214,24 +229,20 @@ class FakeStubFactory : Object, IQspnStubFactory
 
     public IQspnManagerStub
                     i_qspn_get_broadcast(
-                        IQspnMissingArcHandler? missing_handler=null,
-                        IQspnArc? ignore_neighbor=null
+                            Gee.List<IQspnArc> arcs,
+                            IQspnMissingArcHandler? missing_handler=null
                     )
     {
         //print(@"node ...$(sn.naddr.pos[0]) is sending broadcast to ...\n");
         var target_arcs = new ArrayList<FakeArc>();
-        foreach (IQspnArc _arc in sn.arcs)
+        foreach (IQspnArc _arc in arcs)
         {
             FakeArc arc = (FakeArc) _arc;
-            if (ignore_neighbor != null
-                && arc.i_qspn_equals(ignore_neighbor))
-                continue;
+            assert(arc in sn.arcs);
             target_arcs.add(arc);
             //print(@" ...$(arc.naddr.pos[0])\n");
         }
-        BroadcastID bcid = new BroadcastID();
-        bcid.ignore_nodeid = null; // trick, anyway the arc of 'ignore_neighbor' is already left out.
-        return new FakeBroadcastClient(target_arcs, bcid);
+        return new FakeBroadcastClient(target_arcs);
     }
 
     public IQspnManagerStub
@@ -274,10 +285,6 @@ class SimulatorNode : Object
         FakeArc a = new FakeArc(n0.mgr, n0.naddr, new FakeCost(cost), n0.nic_addr, nic_addr);
         arcs.add(a);
         return a;
-    }
-
-    public void handle_failed_hook()
-    {
     }
 
     private Timer? tm_handle_gnode_splitted;
@@ -336,6 +343,7 @@ class Directive : Object
     public ArrayList<int> positions;
     public ArrayList<int> elderships;
     public ArrayList<ArcData> arcs;
+    public int hooking_gnode_level;
     // Wait
     public bool wait = false;
     public int wait_msec;
@@ -360,6 +368,8 @@ class ArcData : Object
 {
     public string from_name;
     public string to_name;
+    public FakeArc from_arc;
+    public FakeArc to_arc;
     public int cost;
     public int revcost;
 }
@@ -385,28 +395,59 @@ const int max_paths = 5;
 const double max_common_hops_ratio = 0.6;
 const int arc_timeout = 3000;
 
-void activate_node(Directive dd, HashMap<string, SimulatorNode> nodes, ArrayList<int> gsizes)
+SimulatorNode newnode_create_net(Directive dd, ArrayList<int> gsizes)
 {
     SimulatorNode sn = new SimulatorNode("eth0", new FakeGenericNaddr(dd.positions.to_array(), gsizes.to_array()));
     var fp = new FakeFingerprint(dd.elderships.to_array());
     sn.stub_f = new FakeStubFactory(); sn.stub_f.sn = sn;
-    var threshold_c = new FakeThresholdCalculator();
+    sn.mgr = new QspnManager.create_net(sn.naddr, fp, sn.stub_f);
+    sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
+    while (true)
+    {
+        if (sn.mgr.is_bootstrap_complete()) break;
+        tasklet.ms_wait(10);
+    }
+    return sn;
+}
+
+SimulatorNode newnode_enter_net(SimulatorNode prev, HashMap<string, SimulatorNode> nodes, Directive dd, ArrayList<int> gsizes)
+{
+    SimulatorNode sn = new SimulatorNode("eth0", new FakeGenericNaddr(dd.positions.to_array(), gsizes.to_array()));
+    var fp = new FakeFingerprint(dd.elderships.to_array());
+    sn.stub_f = new FakeStubFactory(); sn.stub_f.sn = sn;
     foreach (ArcData ad in dd.arcs)
     {
-        sn.add_arc(nodes[ad.to_name], ad.cost);
+        ad.from_arc = sn.add_arc(nodes[ad.to_name], ad.cost);
     }
-    sn.mgr = new QspnManager(sn.naddr, max_paths, max_common_hops_ratio, arc_timeout, sn.arcs, fp, threshold_c, sn.stub_f);
-    sn.mgr.failed_hook.connect(() => sn.handle_failed_hook());
+    sn.mgr = new QspnManager.enter_net(sn.naddr, 0, 0, sn.arcs, fp, sn.stub_f, dd.hooking_gnode_level, prev.mgr);
     sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
     foreach (ArcData ad in dd.arcs)
     {
         tasklet.ms_wait(1);
-        nodes[ad.to_name].mgr.arc_add(nodes[ad.to_name].add_arc(sn, ad.revcost));
+        ad.to_arc = nodes[ad.to_name].add_arc(sn, ad.revcost);
+        nodes[ad.to_name].mgr.arc_add(ad.to_arc);
+        ad.to_arc.neighbour_arc = ad.from_arc;
+        ad.from_arc.neighbour_arc = ad.to_arc;
     }
     while (true)
     {
         if (sn.mgr.is_bootstrap_complete()) break;
         tasklet.ms_wait(10);
+    }
+    return sn;
+}
+
+void activate_node(Directive dd, HashMap<string, SimulatorNode> nodes, ArrayList<int> gsizes)
+{
+    SimulatorNode sn;
+    if (dd.arcs.size == 0)
+    {
+        sn = newnode_create_net(dd, gsizes);
+    }
+    else
+    {
+        var temp = newnode_create_net(dd, gsizes);
+        sn = newnode_enter_net(temp, nodes, dd, gsizes);
     }
     nodes[dd.name] = sn;
 }
@@ -578,9 +619,8 @@ void test_file(string[] args)
         }
         else if (dd.wait)
         {
-            print(@"waiting $(dd.wait_msec) msec...");
+            print(@"waiting $(dd.wait_msec) msec...\n");
             tasklet.ms_wait(dd.wait_msec);
-            print("\n");
         }
         else if (dd.add_arc)
         {
@@ -619,20 +659,18 @@ void test_file(string[] args)
         else if (dd.check_split_signal)
         {
             SimulatorNode sn_from = nodes[dd.check_split_from_name];
-            print(@"checking split signal from $(dd.check_split_from_name), give it $(dd.check_split_wait_msec) msec...");
+            print(@"checking split signal from $(dd.check_split_from_name), give it $(dd.check_split_wait_msec) msec...\n");
             Timer t_wait = new Timer(dd.check_split_wait_msec);
             while (true)
             {
                 if (t_wait.is_expired())
                 {
-                    print("\n");
                     if (dd.check_split_returns) error("did not signal split, while expected");
                     print("no split: ok\n");
                     break;
                 }
                 if (sn_from.has_handled_gnode_splitted())
                 {
-                    print("\n");
                     if (! dd.check_split_returns) error("handled a signal split, while not expected");
                     print("split: ok\n");
                     break;
@@ -686,18 +724,29 @@ string hcoord_to_string(HCoord h)
     return @"($(h.lvl), $(h.pos))";
 }
 
-INtkdTasklet tasklet;
+class FakeCallerInfo : CallerInfo
+{
+    public FakeCallerInfo(FakeArc src_arc)
+    {
+        base();
+        this.src_arc = src_arc;
+    }
+
+    public FakeArc src_arc;
+}
+
+ITasklet tasklet;
 void main(string[] args)
 {
     // init tasklet
-    MyTaskletSystem.init();
-    tasklet = MyTaskletSystem.get_ntkd();
+    PthTaskletImplementer.init();
+    tasklet = PthTaskletImplementer.get_tasklet_system();
 
     // pass tasklet system to module qspn
-    QspnManager.init(tasklet);
+    QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new FakeThresholdCalculator());
 
     test_file(args);
 
     // end
-    MyTaskletSystem.kill();
+    PthTaskletImplementer.kill();
 }

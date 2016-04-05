@@ -17,7 +17,6 @@
  */
 
 using Netsukuku;
-using Netsukuku.ModRpc;
 using Gee;
 
 namespace SimulatorInternals

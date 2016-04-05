@@ -17,7 +17,6 @@
  */
 
 using Gee;
-using zcd;
 using Netsukuku;
 using SimulatorInternals;
 
