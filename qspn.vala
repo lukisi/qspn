@@ -2851,9 +2851,9 @@ namespace Netsukuku
 
         /** Informs whether the node has completed bootstrap
           */
-        public int is_bootstrap_complete()
+        public bool is_bootstrap_complete()
         {
-            return hooking_gnode_level;
+            return hooking_gnode_level == levels;
         }
 
         /** Gives the list of current arcs
