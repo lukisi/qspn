@@ -2118,6 +2118,9 @@ namespace Netsukuku
                    out Collection<EtpPath> all_paths_set,
                    out Collection<HCoord> b_set)
         {
+            // Let z_set[i] be the list of g-nodes of level *i* neighbors of my g-node of level *i*.
+            ArrayList<ArrayList<HCoord>> z_set = new ArrayList<ArrayList<HCoord>>();
+            for (int i = 0; i < levels; i++) z_set.add(my_gnode_neighbors(i));
             // q_set is the set of new paths that have been detected.
             // all_paths_set will be the set of paths that have been changed in my map
             //  so that we have to send an EtpPath for each of them to our neighbors
@@ -2263,13 +2266,21 @@ namespace Netsukuku
                     if (toremove) od_set.remove_at(od_i);
                     else od_i++;
                 }
-                ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => {return a.i_qspn_equals(b);});
+                ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 ArrayList<NodePath> rd = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 ArrayList<HCoord> vnd = new ArrayList<HCoord>((a, b) => a.equals(b));
                 foreach (IQspnArc a in my_arcs)
                 {
                     HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
                     if (! (v in vnd)) vnd.add(v);
+                }
+                ArrayList<HCoord> z1d = new ArrayList<HCoord>((a, b) => a.equals(b));
+                for (int i = 0; i < d.lvl; i++)
+                {
+                    foreach (HCoord g in z_set[i])
+                    {
+                        z1d.add(g);
+                    }
                 }
                 foreach (NodePath p1 in od_set)
                 {
@@ -2287,6 +2298,20 @@ namespace Netsukuku
                         if (! (g in p1.path.hops))
                         {
                             vnd.remove_at(g_i);
+                            mandatory = true;
+                        }
+                        else
+                        {
+                            g_i++;
+                        }
+                    }
+                    g_i = 0;
+                    while (g_i < z1d.size)
+                    {
+                        HCoord g = z1d[g_i];
+                        if (g in p1.path.hops)
+                        {
+                            z1d.remove_at(g_i);
                             mandatory = true;
                         }
                         else
@@ -2788,6 +2813,47 @@ namespace Netsukuku
                     changed_nodes_inside(i);
                 }
             }
+        }
+
+        // Helper: my g-node neighbors of level i.
+        ArrayList<HCoord> my_gnode_neighbors(int i)
+        {
+            int j = levels;
+            /* Let *x_set* contain each g-node *x* of level from *i* to *j* - 1 that I have as a destination in my map
+             *  (that is, x ∈ g<sub>i+1</sub>(n) ∪ ... ∪ g<sub>j</sub>(n))
+             */
+            ArrayList<Destination> x_set = new ArrayList<Destination>();
+            for (int l = i; l < j; l++)
+            {
+                x_set.add_all(destinations[l].values);
+            }
+            /* Let *y_set* contain each g-node *y* of level *i* neighbor of g<sub>i</sub>(n) that I have as a hop in my map
+             *  (that is, y ∈ 𝛤<sub>i</sub>(g<sub>i</sub>(n)), y ∈ g<sub>i+1</sub>(n))
+             */
+            ArrayList<HCoord> y_set = new ArrayList<HCoord>((a, b) => a.equals(b));
+            foreach (Destination x in x_set)
+            {
+                foreach (NodePath np in x.paths)
+                {
+                    HCoord y = np.path.hops[0];
+                    if (y.lvl == i)
+                    {
+                        if (! (y in y_set)) y_set.add(y);
+                        continue;
+                    }
+                    for (int i_np = 1; i_np < np.path.hops.size; i_np++)
+                    {
+                        HCoord y_prev = np.path.hops[i_np - 1];
+                        y = np.path.hops[i_np];
+                        if (y.lvl == i && y_prev.lvl < i)
+                        {
+                            if (! (y in y_set)) y_set.add(y);
+                            break;
+                        }
+                    }
+                }
+            }
+            return y_set;
         }
 
         /** Provides a collection of known destinations
