@@ -571,6 +571,7 @@ namespace Netsukuku
         private int[] gsizes;
         private bool bootstrap_complete;
         private int hooking_gnode_level;
+        private int into_gnode_level;
         private ITaskletHandle? periodical_update_tasklet = null;
         private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
@@ -679,6 +680,7 @@ namespace Netsukuku
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
+                           int into_gnode_level,
                            QspnManager previous_identity
                            )
         {
@@ -712,6 +714,8 @@ namespace Netsukuku
             levels = my_naddr.i_qspn_get_levels();
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
+            assert(into_gnode_level <= levels);
+            assert(hooking_gnode_level < into_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int l = 0; l < levels; l++) destinations.add(
@@ -726,7 +730,7 @@ namespace Netsukuku
                 }
             }
             // Only the level 0 fingerprint is given.
-            // The lower levels up to 'hooking_gnode_level' are immediately constructed
+            // The lower levels up to 'into_gnode_level' - 1 are immediately constructed
             //  from the imported map.
             // The higher levels will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
@@ -745,7 +749,7 @@ namespace Netsukuku
                 // The same with the number of nodes inside our g-node.
                 my_nodes_inside.add(my_nodes_inside[l-1]);
             }
-            // The lower levels up to fingerprints are now constructed.
+            // The lower levels up to 'into_gnode_level' - 1 are now constructed.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // register an internal handler of my own signal bootstrap_complete:
@@ -753,6 +757,7 @@ namespace Netsukuku
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
             this.hooking_gnode_level = hooking_gnode_level;
+            this.into_gnode_level = into_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
             tasklet.spawn(ts);
@@ -765,6 +770,7 @@ namespace Netsukuku
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
+                           int into_gnode_level,
                            QspnManager previous_identity
                            )
         {
@@ -798,6 +804,8 @@ namespace Netsukuku
             levels = my_naddr.i_qspn_get_levels();
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
+            assert(into_gnode_level <= levels);
+            assert(hooking_gnode_level < into_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int l = 0; l < levels; l++) destinations.add(
@@ -812,7 +820,7 @@ namespace Netsukuku
                 }
             }
             // Only the level 0 fingerprint is given.
-            // The lower levels up to 'hooking_gnode_level' are immediately constructed
+            // The lower levels up to 'into_gnode_level' - 1 are immediately constructed
             //  from the imported map.
             // The higher levels will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
@@ -831,7 +839,7 @@ namespace Netsukuku
                 // The same with the number of nodes inside our g-node.
                 my_nodes_inside.add(my_nodes_inside[l-1]);
             }
-            // The lower levels up to fingerprints are now constructed.
+            // The lower levels up to 'into_gnode_level' - 1 are now constructed.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // register an internal handler of my own signal bootstrap_complete:
@@ -839,6 +847,7 @@ namespace Netsukuku
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
             this.hooking_gnode_level = hooking_gnode_level;
+            this.into_gnode_level = into_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
             tasklet.spawn(ts);
@@ -856,18 +865,14 @@ namespace Netsukuku
         private void bootstrap_phase()
         {
             int i = hooking_gnode_level;
+            int j = into_gnode_level;
             queued_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
                 IQspnNaddr addr = arc.i_qspn_get_naddr();
                 int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
-                if (lvl >= i) queued_arcs.add(arc);
+                if (lvl >= i && lvl < j) queued_arcs.add(arc);
             }
-            queued_arcs.sort((a, b) => {
-                int a_lvl = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr()).lvl;
-                int b_lvl = my_naddr.i_qspn_get_coord_by_address(b.i_qspn_get_naddr()).lvl;
-                return a_lvl - b_lvl;
-            });
             while (! queued_arcs.is_empty && ! bootstrap_complete)
             {
                 IQspnArc arc = queued_arcs.remove_at(0);
@@ -906,7 +911,7 @@ namespace Netsukuku
                 // Re-evaluate informations on our g-nodes.
                 bool changes_in_my_gnodes;
                 update_clusters(out changes_in_my_gnodes);
-                // Then exit bootstrap, process rest of queued arcs, send full ETP to all.
+                // Then exit bootstrap, process all arcs, send full ETP to all.
                 exit_bootstrap_phase();
             }
             if (! bootstrap_complete)
@@ -927,8 +932,9 @@ namespace Netsukuku
             bootstrap_complete = true;
             hooking_gnode_level = levels;
             qspn_bootstrap_complete();
-            // Process queued arcs if any more.
-            foreach (IQspnArc arc in queued_arcs)
+            // Process all arcs.
+            queued_arcs.clear();
+            foreach (IQspnArc arc in my_arcs)
             {
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
@@ -3293,7 +3299,6 @@ namespace Netsukuku
             }
 
             bool must_exit_bootstrap_phase = false;
-            bool must_propagate_etp = true;
             // If it is during bootstrap:
             if (!bootstrap_complete)
             {
@@ -3308,36 +3313,26 @@ namespace Netsukuku
                 else
                 {
                     // The sender is inside my hooking gnode.
-                    // Check the destinations. Find lower_lvl outside. 
-                    bool has_path_outside = false;
-                    int lower_lvl = levels;
+                    // Check the destinations.
+                    bool has_path_to_into_gnode = false;
                     foreach (EtpPath etp_path in etp.p_list)
                     {
                         int this_lvl = etp_path.hops.last().lvl;
-                        if (this_lvl >= hooking_gnode_level)
+                        if (this_lvl == into_gnode_level - 1)
                         {
-                            has_path_outside = true;
-                            if (lower_lvl > this_lvl) lower_lvl = this_lvl;
+                            has_path_to_into_gnode = true;
+                            break;
                         }
                     }
-                    if (! has_path_outside)
+                    if (! has_path_to_into_gnode)
                     {
                         // The ETP hasn't any destination outside my hooking gnode. Ignore it.
                         return;
                     }
                     else
                     {
-                        // The ETP has a destination outside my hooking gnode.
-                        bool suffice = false;
-                        if (queued_arcs.is_empty) suffice = true;
-                        if (!suffice)
-                        {
-                            IQspnArc q0 = queued_arcs[0];
-                            int q0_lvl = my_naddr.i_qspn_get_coord_by_address(q0.i_qspn_get_naddr()).lvl;
-                            if (q0_lvl >= lower_lvl) suffice = true;
-                        }
-                        if (suffice) must_exit_bootstrap_phase = true;
-                        else must_propagate_etp = false;
+                        // The ETP has a destination outside my hooking gnode and inside the gnode we hook into.
+                        must_exit_bootstrap_phase = true;
                     }
                 }
             }
@@ -3372,19 +3367,9 @@ namespace Netsukuku
 
             if (must_exit_bootstrap_phase)
             {
-                // We are in bootstrap phase.
-                // An ETP has been processed which suffices to this node:
-                // now exit bootstrap, process rest of queued arcs, send full ETP to all.
+                // now exit bootstrap, process all arcs, send full ETP to all.
                 exit_bootstrap_phase();
                 // No forward is needed.
-                return;
-            }
-
-            if (! must_propagate_etp)
-            {
-                // We are in bootstrap phase.
-                // An ETP has been processed which doesn't suffice to this node:
-                // Do not forward.
                 return;
             }
 
