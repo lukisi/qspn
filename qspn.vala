@@ -583,6 +583,8 @@ namespace Netsukuku
 
         // The hook on a particular network has completed; the module is bootstrap_complete.
         public signal void qspn_bootstrap_complete();
+        // The first valid ETP from this module should have been processed by our neighbors.
+        public signal void presence_notified();
         // An arc (is not working) has been removed from my list.
         public signal void arc_removed(IQspnArc arc);
         // A gnode (or node) is now known on the network and the first path towards
@@ -974,6 +976,8 @@ namespace Netsukuku
             }
             // Prepare full ETP and send to all my neighbors.
             publish_full_etp();
+            tasklet.ms_wait(1000);
+            presence_notified();
         }
 
         private void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp, out bool bootstrap_in_progress, out bool bad_answer)
