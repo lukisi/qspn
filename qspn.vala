@@ -2880,15 +2880,15 @@ namespace Netsukuku
 
         /** Make this identity a ''connectivity'' one.
           */
-        public void make_connectivity(int migrated_gnode_inner_level,
-                                      int migrated_gnode_outer_level,
+        public void make_connectivity(int connectivity_from_level,
+                                      int connectivity_to_level,
                                       IQspnMyNaddr new_naddr,
                                       IQspnFingerprint new_fp)
         {
-            assert(migrated_gnode_outer_level > migrated_gnode_inner_level);
+            assert(connectivity_from_level <= connectivity_to_level);
             my_naddr = new_naddr;
-            connectivity_from_level = migrated_gnode_inner_level + 1;
-            connectivity_to_level = migrated_gnode_outer_level;
+            this.connectivity_from_level = connectivity_from_level;
+            this.connectivity_to_level = connectivity_to_level;
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
@@ -2901,7 +2901,7 @@ namespace Netsukuku
             // Send a full ETP in few moments to all
             PublishFullTasklet ts = new PublishFullTasklet();
             ts.mgr = this;
-            ts.delay = 50000;
+            ts.delay = 50;
             tasklet.spawn(ts);
         }
         private class PublishFullTasklet : Object, ITaskletSpawnable
@@ -2940,6 +2940,18 @@ namespace Netsukuku
             catch (StubError e) {
                 critical(@"QspnManager.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
             }
+        }
+
+        /** This identity now has a ''real'' position at level 'into_gnode_level' - 1.
+          */
+        public void make_real(IQspnMyNaddr new_naddr)
+        {
+            my_naddr = new_naddr;
+            // Send a full ETP in few moments to all
+            PublishFullTasklet ts = new PublishFullTasklet();
+            ts.mgr = this;
+            ts.delay = 50;
+            tasklet.spawn(ts);
         }
 
         /** Remove outer arcs from this connectivity identity.
