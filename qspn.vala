@@ -2815,6 +2815,34 @@ namespace Netsukuku
             }
         }
 
+        // Helper: publish full ETP to all
+        private void publish_full_etp()
+        {
+            // Prepare full ETP and send to all my neighbors.
+            EtpMessage full_etp = prepare_full_etp();
+            IQspnManagerStub stub_send_to_all =
+                    stub_factory.i_qspn_get_broadcast(
+                    get_arcs_broadcast_all(),
+                    // If a neighbor doesnt send its ACK repeat the message via tcp
+                    new MissingArcSendEtp(this, full_etp, true));
+            debug("Sending ETP to all");
+            try {
+                assert(check_outgoing_message(full_etp));
+                stub_send_to_all.send_etp(full_etp, true);
+            }
+            catch (QspnNotAcceptedError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (DeserializeError e) {
+                // a broadcast will never get a return value nor an error
+                assert_not_reached();
+            }
+            catch (StubError e) {
+                critical(@"QspnManager.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
+            }
+        }
+
         // Helper: my g-node neighbors of level i.
         ArrayList<HCoord> my_gnode_neighbors(int i)
         {
@@ -2952,9 +2980,15 @@ namespace Netsukuku
                                       IQspnFingerprint new_fp)
         {
             assert(connectivity_from_level <= connectivity_to_level);
-            my_naddr = new_naddr;
+            assert(connectivity_to_level < levels);
+            assert(connectivity_from_level > 0);
+            int old_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
+            assert(old_id < gsizes[connectivity_from_level-1]);
             this.connectivity_from_level = connectivity_from_level;
             this.connectivity_to_level = connectivity_to_level;
+            my_naddr = new_naddr;
+            int new_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
+            assert(new_id >= gsizes[connectivity_from_level-1]);
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
@@ -2964,47 +2998,58 @@ namespace Netsukuku
             // Re-evaluate informations on our g-nodes.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
-            // Send a full ETP in few moments to all
-            PublishFullTasklet ts = new PublishFullTasklet();
+            // Send a ETP in few moments to all neighbors outside 'connectivity_from_level' - 1
+            //  in which we say we dont have any more a path to old_id.
+            PublishConnectivityTasklet ts = new PublishConnectivityTasklet();
             ts.mgr = this;
             ts.delay = 50;
+            ts.old_lvl = connectivity_from_level - 1;
+            ts.old_pos = old_id;
             tasklet.spawn(ts);
         }
-        private class PublishFullTasklet : Object, ITaskletSpawnable
+        private class PublishConnectivityTasklet : Object, ITaskletSpawnable
         {
             public QspnManager mgr;
             public int delay;
+            public int old_pos;
+            public int old_lvl;
             public void * func()
             {
                 tasklet.ms_wait(delay);
-                mgr.publish_full_etp();
+                mgr.publish_connectivity(old_pos, old_lvl);
                 return null;
             }
         }
-        private void publish_full_etp()
+        private void publish_connectivity(int old_pos, int old_lvl)
         {
-            // Prepare full ETP and send to all my neighbors.
-            EtpMessage full_etp = prepare_full_etp();
-            IQspnManagerStub stub_send_to_all =
+            // Send a full ETP to all neighbors outside 'old_lvl'.
+            // We should just say that we have no more to old_pos, but it's
+            //  not possible to identify this path in a EtpMessage, since it
+            //  would have no hops.
+            EtpMessage etp = prepare_full_etp();
+            int i = old_lvl;
+            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            foreach (IQspnArc arc in my_arcs)
+            {
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                if (lvl >= i) outer_arcs.add(arc);
+            }
+            IQspnManagerStub stub_send_to_outer =
                     stub_factory.i_qspn_get_broadcast(
-                    get_arcs_broadcast_all(),
+                    outer_arcs,
                     // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, full_etp, true));
-            debug("Sending ETP to all");
+                    new MissingArcSendEtp(this, etp, false));
             try {
-                assert(check_outgoing_message(full_etp));
-                stub_send_to_all.send_etp(full_etp, true);
-            }
-            catch (QspnNotAcceptedError e) {
+                assert(check_outgoing_message(etp));
+                stub_send_to_outer.send_etp(etp, false);
+            } catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
-            }
-            catch (DeserializeError e) {
+            } catch (DeserializeError e) {
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
-            }
-            catch (StubError e) {
-                critical(@"QspnManager.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
+            } catch (StubError e) {
+                critical(@"QspnManager.publish_connectivity: StubError in broadcast sending: $(e.message)");
             }
         }
 
@@ -3013,11 +3058,35 @@ namespace Netsukuku
         public void make_real(IQspnMyNaddr new_naddr)
         {
             my_naddr = new_naddr;
-            // Send a full ETP in few moments to all
-            PublishFullTasklet ts = new PublishFullTasklet();
-            ts.mgr = this;
-            ts.delay = 50;
-            tasklet.spawn(ts);
+            if (bootstrap_complete)
+            {
+                // Send a void ETP to all neighbors outside 'hooking_gnode_level'.
+                EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
+                int i = hooking_gnode_level;
+                ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+                foreach (IQspnArc arc in my_arcs)
+                {
+                    int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                    if (lvl >= i) outer_arcs.add(arc);
+                }
+                IQspnManagerStub stub_send_to_outer =
+                        stub_factory.i_qspn_get_broadcast(
+                        outer_arcs,
+                        // If a neighbor doesnt send its ACK repeat the message via tcp
+                        new MissingArcSendEtp(this, etp, false));
+                try {
+                    assert(check_outgoing_message(etp));
+                    stub_send_to_outer.send_etp(etp, false);
+                } catch (QspnNotAcceptedError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                } catch (DeserializeError e) {
+                    // a broadcast will never get a return value nor an error
+                    assert_not_reached();
+                } catch (StubError e) {
+                    critical(@"QspnManager.make_real: StubError in broadcast sending: $(e.message)");
+                }
+            }
         }
 
         /** Remove outer arcs from this connectivity identity.
@@ -3201,7 +3270,7 @@ namespace Netsukuku
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
             } catch (StubError e) {
-                critical(@"QspnManager.destroy: StubError in broadcast sending to internal_arcs: $(e.message)");
+                critical(@"QspnManager.destroy: StubError in broadcast sending to outer_arcs: $(e.message)");
             }
         }
         internal class MissingArcDestroy : Object, IQspnMissingArcHandler
