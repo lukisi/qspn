@@ -9,6 +9,7 @@ node
 12.1.1.0.0.0
 0 0 1 0 0 0
 arc to 12.1.0.0.1.0 cost 647 revcost 1426
+hook 0 into 4
 
 wait_msec 200
 
@@ -16,11 +17,13 @@ node
 3.1.1.0.0.0
 1 0 0 0 0 0
 arc to 12.1.0.0.1.0 cost 1360 revcost 822
+hook 0 into 6
 
 node
 2.1.0.0.1.0
 2 0 0 0 0 0
 arc to 12.1.1.0.0.0 cost 1238 revcost 664
+hook 0 into 6
 
 wait_msec 200
 

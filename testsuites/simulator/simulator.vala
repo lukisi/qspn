@@ -479,6 +479,8 @@ void test_file(string[] args)
             string[] arcs_addr = {};
             int[] arcs_cost = {};
             int[] arcs_revcost = {};
+            int hooking_gnode_level = -1;
+            int into_gnode_level = -1;
             while (data[data_cur] != "")
             {
                 string line = data[data_cur];
@@ -492,6 +494,12 @@ void test_file(string[] args)
                     assert(line_pieces[5] == "revcost");
                     arcs_revcost += int.parse(line_pieces[6]);
                 }
+                if (line_pieces[0] == "hook")
+                {
+                    hooking_gnode_level += int.parse(line_pieces[1]);
+                    assert(line_pieces[2] == "into");
+                    into_gnode_level += int.parse(line_pieces[3]);
+                }
                 data_cur++;
             }
             // data input done
@@ -501,6 +509,8 @@ void test_file(string[] args)
             dd.positions = new ArrayList<int>();
             dd.elderships = new ArrayList<int>();
             dd.arcs = new ArrayList<ArcData>();
+            dd.hooking_gnode_level = hooking_gnode_level;
+            dd.into_gnode_level = into_gnode_level;
             foreach (string s_piece in s_addr.split(".")) dd.positions.insert(0, int.parse(s_piece));
             foreach (string s_piece in s_elderships.split(" ")) dd.elderships.insert(0, int.parse(s_piece));
             for (int i = 0; i < arcs_addr.length; i++)
