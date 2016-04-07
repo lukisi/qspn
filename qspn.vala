@@ -3038,10 +3038,10 @@ namespace Netsukuku
                     stub_factory.i_qspn_get_broadcast(
                     outer_arcs,
                     // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, etp, false));
+                    new MissingArcSendEtp(this, etp, true));
             try {
                 assert(check_outgoing_message(etp));
-                stub_send_to_outer.send_etp(etp, false);
+                stub_send_to_outer.send_etp(etp, true);
             } catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
