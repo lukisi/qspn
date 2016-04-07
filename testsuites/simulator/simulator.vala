@@ -302,6 +302,55 @@ class SimulatorNode : Object
         if (tm_handle_gnode_splitted.is_expired()) return false;
         return true;
     }
+
+    public void notify_qspn_bootstrap_complete()
+    {
+        print(@"From $(naddr) got signal qspn_bootstrap_complete()\n");
+    }
+    public void notify_presence_notified()
+    {
+        print(@"From $(naddr) got signal presence_notified()\n");
+    }
+    public void notify_arc_removed(IQspnArc arc)
+    {
+        print(@"From $(naddr) got signal arc_removed(???)\n");
+    }
+    public void notify_destination_added(HCoord h)
+    {
+        print(@"From $(naddr) got signal destination_added(($(h.lvl), $(h.pos)))\n");
+    }
+    public void notify_destination_removed(HCoord h)
+    {
+        print(@"From $(naddr) got signal destination_removed(($(h.lvl), $(h.pos)))\n");
+    }
+    public void notify_path_added(IQspnNodePath p)
+    {
+        print(@"From $(naddr) got signal path_added(IQspnNodePath p)\n");
+    }
+    public void notify_path_changed(IQspnNodePath p)
+    {
+        print(@"From $(naddr) got signal path_changed(IQspnNodePath p)\n");
+    }
+    public void notify_path_removed(IQspnNodePath p)
+    {
+        print(@"From $(naddr) got signal path_removed(IQspnNodePath p)\n");
+    }
+    public void notify_changed_fp(int l)
+    {
+        print(@"From $(naddr) got signal changed_fp($(l))\n");
+    }
+    public void notify_changed_nodes_inside(int l)
+    {
+        print(@"From $(naddr) got signal changed_nodes_inside($(l))\n");
+    }
+    public void notify_gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
+    {
+        print(@"From $(naddr) got signal gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)\n");
+    }
+    public void notify_remove_identity()
+    {
+        print(@"From $(naddr) got signal remove_identity()\n");
+    }
 }
 
 internal class Timer : Object
@@ -396,13 +445,33 @@ const int max_paths = 5;
 const double max_common_hops_ratio = 0.6;
 const int arc_timeout = 3000;
 
+bool first_done = false;
+
 SimulatorNode newnode_create_net(Directive dd, ArrayList<int> gsizes)
 {
     SimulatorNode sn = new SimulatorNode("eth0", new FakeGenericNaddr(dd.positions.to_array(), gsizes.to_array()));
     var fp = new FakeFingerprint(dd.elderships.to_array());
     sn.stub_f = new FakeStubFactory(); sn.stub_f.sn = sn;
     sn.mgr = new QspnManager.create_net(sn.naddr, fp, sn.stub_f);
-    sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
+
+    if (!first_done)
+    {
+        first_done = true;
+        sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
+        sn.mgr.qspn_bootstrap_complete.connect(sn.notify_qspn_bootstrap_complete);
+        sn.mgr.presence_notified.connect(sn.notify_presence_notified);
+        sn.mgr.arc_removed.connect(sn.notify_arc_removed);
+        sn.mgr.destination_added.connect(sn.notify_destination_added);
+        sn.mgr.destination_removed.connect(sn.notify_destination_removed);
+        sn.mgr.path_added.connect(sn.notify_path_added);
+        sn.mgr.path_changed.connect(sn.notify_path_changed);
+        sn.mgr.path_removed.connect(sn.notify_path_removed);
+        sn.mgr.changed_fp.connect(sn.notify_changed_fp);
+        sn.mgr.changed_nodes_inside.connect(sn.notify_changed_nodes_inside);
+        sn.mgr.gnode_splitted.connect(sn.notify_gnode_splitted);
+        sn.mgr.remove_identity.connect(sn.notify_remove_identity);
+    }
+
     while (true)
     {
         if (sn.mgr.is_bootstrap_complete()) break;
@@ -421,7 +490,21 @@ SimulatorNode newnode_enter_net(SimulatorNode prev, HashMap<string, SimulatorNod
         ad.from_arc = sn.add_arc(nodes[ad.to_name], ad.cost);
     }
     sn.mgr = new QspnManager.enter_net(sn.naddr, 0, 0, sn.arcs, fp, sn.stub_f, dd.hooking_gnode_level, dd.into_gnode_level, prev.mgr);
+
     sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
+    sn.mgr.qspn_bootstrap_complete.connect(sn.notify_qspn_bootstrap_complete);
+    sn.mgr.presence_notified.connect(sn.notify_presence_notified);
+    sn.mgr.arc_removed.connect(sn.notify_arc_removed);
+    sn.mgr.destination_added.connect(sn.notify_destination_added);
+    sn.mgr.destination_removed.connect(sn.notify_destination_removed);
+    sn.mgr.path_added.connect(sn.notify_path_added);
+    sn.mgr.path_changed.connect(sn.notify_path_changed);
+    sn.mgr.path_removed.connect(sn.notify_path_removed);
+    sn.mgr.changed_fp.connect(sn.notify_changed_fp);
+    sn.mgr.changed_nodes_inside.connect(sn.notify_changed_nodes_inside);
+    sn.mgr.gnode_splitted.connect(sn.notify_gnode_splitted);
+    sn.mgr.remove_identity.connect(sn.notify_remove_identity);
+
     foreach (ArcData ad in dd.arcs)
     {
         tasklet.ms_wait(1);
@@ -496,9 +579,9 @@ void test_file(string[] args)
                 }
                 if (line_pieces[0] == "hook")
                 {
-                    hooking_gnode_level += int.parse(line_pieces[1]);
+                    hooking_gnode_level = int.parse(line_pieces[1]);
                     assert(line_pieces[2] == "into");
-                    into_gnode_level += int.parse(line_pieces[3]);
+                    into_gnode_level = int.parse(line_pieces[3]);
                 }
                 data_cur++;
             }
