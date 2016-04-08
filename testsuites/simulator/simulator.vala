@@ -306,6 +306,12 @@ class SimulatorNode : Object
     public void notify_qspn_bootstrap_complete()
     {
         print(@"From $(naddr) got signal qspn_bootstrap_complete()\n");
+        int l = naddr.pos.size;
+        int count;
+        try {
+            count = mgr.get_nodes_inside(l);
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        print(@"       we are about $(count) on the net\n");
     }
     public void notify_presence_notified()
     {
@@ -325,23 +331,37 @@ class SimulatorNode : Object
     }
     public void notify_path_added(IQspnNodePath p)
     {
-        print(@"From $(naddr) got signal path_added(IQspnNodePath p)\n");
+        int length = p.i_qspn_get_hops().size;
+        IQspnHop last = p.i_qspn_get_hops().last();
+        HCoord h = last.i_qspn_get_hcoord();
+        print(@"From $(naddr) got signal path_added($(length) steps to ($(h.lvl), $(h.pos)))\n");
     }
     public void notify_path_changed(IQspnNodePath p)
     {
-        print(@"From $(naddr) got signal path_changed(IQspnNodePath p)\n");
+        int length = p.i_qspn_get_hops().size;
+        IQspnHop last = p.i_qspn_get_hops().last();
+        HCoord h = last.i_qspn_get_hcoord();
+        print(@"From $(naddr) got signal path_changed($(length) steps to ($(h.lvl), $(h.pos)))\n");
     }
     public void notify_path_removed(IQspnNodePath p)
     {
-        print(@"From $(naddr) got signal path_removed(IQspnNodePath p)\n");
+        int length = p.i_qspn_get_hops().size;
+        IQspnHop last = p.i_qspn_get_hops().last();
+        HCoord h = last.i_qspn_get_hcoord();
+        print(@"From $(naddr) got signal path_removed($(length) steps to ($(h.lvl), $(h.pos)))\n");
     }
     public void notify_changed_fp(int l)
     {
-        print(@"From $(naddr) got signal changed_fp($(l))\n");
+        print(@"From $(naddr) got signal changed_fp(at level $(l))\n");
     }
     public void notify_changed_nodes_inside(int l)
     {
-        print(@"From $(naddr) got signal changed_nodes_inside($(l))\n");
+        if (!mgr.is_bootstrap_complete()) return;
+        int count;
+        try {
+            count = mgr.get_nodes_inside(l);
+        } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+        print(@"From $(naddr) got signal changed_nodes_inside(at level $(l)) now is $(count)\n");
     }
     public void notify_gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
     {
@@ -443,7 +463,7 @@ string[] read_file(string path)
 
 const int max_paths = 5;
 const double max_common_hops_ratio = 0.6;
-const int arc_timeout = 3000;
+const int arc_timeout = 300;
 
 bool first_done = false;
 
@@ -720,9 +740,13 @@ void test_file(string[] args)
         {
             SimulatorNode sn_from = nodes[dd.arc_add.from_name];
             SimulatorNode sn_to = nodes[dd.arc_add.to_name];
-            sn_from.mgr.arc_add(sn_from.add_arc(sn_to, dd.arc_add.cost));
+            FakeArc from_arc = sn_from.add_arc(sn_to, dd.arc_add.cost);
+            FakeArc to_arc = sn_to.add_arc(sn_from, dd.arc_add.revcost);
+            from_arc.neighbour_arc = to_arc;
+            to_arc.neighbour_arc = from_arc;
+            sn_from.mgr.arc_add(from_arc);
             tasklet.ms_wait(10);
-            sn_to.mgr.arc_add(sn_to.add_arc(sn_from, dd.arc_add.revcost));
+            sn_to.mgr.arc_add(to_arc);
             print(@"added arc from $(dd.arc_add.from_name) to $(dd.arc_add.to_name)\n");
         }
         else if (dd.change_arc)
