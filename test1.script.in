@@ -29,9 +29,9 @@ wait_msec 200
 
 add_arc from 2 to 3 cost 1090 revcost 1600
 
-wait_msec 2000
+wait_msec 500
 
 remove_arc from 13 to 12
 
-check_split_signal from 3 to_coord 0,12 wait_msec 5000 returns false
+wait_msec 500
 

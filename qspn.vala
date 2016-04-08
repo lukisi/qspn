@@ -2282,6 +2282,25 @@ namespace Netsukuku
                         z1d.add(g);
                     }
                 }
+                double mch_ratio = max_common_hops_ratio;
+                // find mch_ratio optimized for d, if we already know something about d.
+                if (destinations[d.lvl].has_key(d.pos) && is_bootstrap_complete())
+                {
+                    Destination dd = destinations[d.lvl][d.pos];
+                    int size = dd.best_path.path.nodes_inside;
+                    ArrayList<IQspnArc> avail_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+                    Gee.List<IQspnNodePath> paths;
+                    try {
+                        paths = get_paths_to(d);
+                    } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                    foreach (IQspnNodePath path in paths)
+                    {
+                        IQspnArc arc_path = path.i_qspn_get_arc();
+                        if (! (arc_path in avail_arcs)) avail_arcs.add(arc_path);
+                    }
+                    int numgw = avail_arcs.size;
+                    mch_ratio = get_mch_ratio(size, numgw);
+                }
                 foreach (NodePath p1 in od_set)
                 {
                     if (p1.cost.i_qspn_is_dead()) break;
@@ -2370,7 +2389,7 @@ namespace Netsukuku
                                     }
                                 }
                             }
-                            if (total_hops > 0.0 && common_hops / total_hops > max_common_hops_ratio)
+                            if (total_hops > 0.0 && common_hops / total_hops > mch_ratio)
                             {
                                 insert = false;
                                 break;
@@ -2644,6 +2663,31 @@ namespace Netsukuku
                     }
                 }
             }
+        }
+
+        // Helper: get mch_ratio based on size of destination and
+        //  number of available gateways
+        double get_mch_ratio(int size, int numgw)
+        {
+            double l;
+            if (numgw == 1) l = 0.45;
+            else if (numgw == 2) l = 0.35;
+            else if (numgw == 3) l = 0.27;
+            else if (numgw == 4) l = 0.20;
+            else if (numgw == 5) l = 0.15;
+            else if (numgw == 6) l = 0.12;
+            else if (numgw == 7) l = 0.10;
+            else l = 0.08;
+            double e = max_common_hops_ratio * l;
+            double g;
+            if (size < 10) g = 1.0;
+            else if (size < 25) g = 0.9;
+            else if (size < 75) g = 0.8;
+            else if (size < 250) g = 0.6;
+            else if (size < 750) g = 0.3;
+            else if (size < 3000) g = 0.1;
+            else g = 0.0001;
+            return (max_common_hops_ratio - e) * g + e;
         }
 
         // Helper: Start, in a few seconds, a new flood of ETP because
