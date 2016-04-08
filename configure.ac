@@ -26,6 +26,6 @@ PKG_CHECK_MODULES([NTKDRPC], [ntkdrpc])
 PKG_CHECK_MODULES([PTHTASKLET], [pth-tasklet])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile test_split_signal.script test_not_split_signal.script])
+AC_CONFIG_FILES([Makefile test1.script test_split_signal.script test_not_split_signal.script])
 AC_OUTPUT
 

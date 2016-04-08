@@ -1,0 +1,37 @@
+topology
+16
+
+node
+12
+0
+
+node
+13
+1
+arc to 12 cost 647 revcost 1426
+hook 0 into 1
+
+wait_msec 200
+
+node
+3
+2
+arc to 12 cost 1360 revcost 822
+hook 0 into 1
+
+node
+2
+3
+arc to 13 cost 1238 revcost 664
+hook 0 into 1
+
+wait_msec 200
+
+add_arc from 2 to 3 cost 1090 revcost 1600
+
+wait_msec 2000
+
+remove_arc from 13 to 12
+
+check_split_signal from 3 to_coord 0,12 wait_msec 5000 returns false
+

@@ -12,10 +12,10 @@ noinst_LTLIBRARIES = \
 
 TESTS = \
 	test_serialize_helpers \
+	test_split_signal \
+	test_not_split_signal \
+	test1 \
 	$(NULL)
-#	test_split_signal \
-#	test_not_split_signal \
-#
 
 check_PROGRAMS = \
 	test_serialize_helpers \
