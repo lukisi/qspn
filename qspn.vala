@@ -460,9 +460,9 @@ namespace Netsukuku
                 }
                 else
                 {
-                    if (! fpd.i_qspn_equals(fpdp))
+                    if (dest.lvl == 0)
                     {
-                        if (! fpd.i_qspn_elder_seed(fpdp))
+                        if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
                         {
                             fpd = fpdp;
                             nnd = nndp;
@@ -471,10 +471,22 @@ namespace Netsukuku
                     }
                     else
                     {
-                        if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
+                        if (! fpd.i_qspn_equals(fpdp))
                         {
-                            nnd = nndp;
-                            best_p = p;
+                            if (! fpd.i_qspn_elder_seed(fpdp))
+                            {
+                                fpd = fpdp;
+                                nnd = nndp;
+                                best_p = p;
+                            }
+                        }
+                        else
+                        {
+                            if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
+                            {
+                                nnd = nndp;
+                                best_p = p;
+                            }
                         }
                     }
                 }
@@ -2287,7 +2299,7 @@ namespace Netsukuku
                 if (destinations[d.lvl].has_key(d.pos) && is_bootstrap_complete())
                 {
                     Destination dd = destinations[d.lvl][d.pos];
-                    int size = dd.best_path.path.nodes_inside;
+                    int size = dd.nodes_inside;
                     ArrayList<IQspnArc> avail_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
                     Gee.List<IQspnNodePath> paths;
                     try {
