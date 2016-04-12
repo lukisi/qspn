@@ -688,8 +688,6 @@ namespace Netsukuku
         }
 
         public QspnManager.enter_net(IQspnMyNaddr my_naddr,
-                           int connectivity_from_level,
-                           int connectivity_to_level,
                            Gee.List<IQspnArc> my_arcs,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
@@ -700,8 +698,8 @@ namespace Netsukuku
         {
             this.my_naddr = my_naddr;
             // This might be a definitive address, or a ''connectivity'' one.
-            this.connectivity_from_level = connectivity_from_level;
-            this.connectivity_to_level = connectivity_to_level;
+            connectivity_from_level = previous_identity.connectivity_from_level;
+            connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
@@ -778,8 +776,6 @@ namespace Netsukuku
         }
 
         public QspnManager.migration(IQspnMyNaddr my_naddr,
-                           int connectivity_from_level,
-                           int connectivity_to_level,
                            Gee.List<IQspnArc> my_arcs,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
@@ -790,8 +786,8 @@ namespace Netsukuku
         {
             this.my_naddr = my_naddr;
             // This might be a definitive address, or a ''connectivity'' one.
-            this.connectivity_from_level = connectivity_from_level;
-            this.connectivity_to_level = connectivity_to_level;
+            connectivity_from_level = previous_identity.connectivity_from_level;
+            connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs

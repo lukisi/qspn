@@ -509,7 +509,7 @@ SimulatorNode newnode_enter_net(SimulatorNode prev, HashMap<string, SimulatorNod
     {
         ad.from_arc = sn.add_arc(nodes[ad.to_name], ad.cost);
     }
-    sn.mgr = new QspnManager.enter_net(sn.naddr, 0, 0, sn.arcs, fp, sn.stub_f, dd.hooking_gnode_level, dd.into_gnode_level, prev.mgr);
+    sn.mgr = new QspnManager.enter_net(sn.naddr, sn.arcs, fp, sn.stub_f, dd.hooking_gnode_level, dd.into_gnode_level, prev.mgr);
 
     sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));
     sn.mgr.qspn_bootstrap_complete.connect(sn.notify_qspn_bootstrap_complete);
