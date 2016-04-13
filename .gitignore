@@ -20,6 +20,15 @@ testsuites/discover_paths/discover_paths.c
 testsuites/discover_paths/fake_classes.c
 testsuites/discover_paths/generic_naddr.c
 testsuites/discover_paths/base_dispatcher.c
+simulator
+test1.script
+test_not_split_signal.script
+test_serialize_helpers
+test_split_signal.script
+.dirstamp
+*.log
+*.trs
+*.o
 *.lo
 *.la
 .deps
