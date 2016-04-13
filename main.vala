@@ -18,6 +18,7 @@
 
 using Gee;
 using Netsukuku;
+using Netsukuku.Qspn;
 using TaskletSystem;
 
 const uint16 ntkd_port = 60269;

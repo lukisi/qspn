@@ -17,6 +17,7 @@
  */
 
 using Netsukuku;
+using Netsukuku.Qspn;
 using Gee;
 
 namespace ClientInternals

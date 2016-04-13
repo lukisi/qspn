@@ -18,9 +18,8 @@
 
 using Gee;
 using TaskletSystem;
-using LibQspnInternals;
 
-namespace Netsukuku
+namespace Netsukuku.Qspn
 {
     public interface IQspnNaddr : Object, IQspnAddress
     {

@@ -18,6 +18,7 @@
 
 using Gee;
 using Netsukuku;
+using Netsukuku.Qspn;
 using TaskletSystem;
 
 string json_string_object(Object obj)

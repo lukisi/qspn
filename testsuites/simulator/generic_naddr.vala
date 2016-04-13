@@ -18,6 +18,7 @@
 
 using Gee;
 using Netsukuku;
+using Netsukuku.Qspn;
 using SimulatorInternals;
 
 public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, Json.Serializable

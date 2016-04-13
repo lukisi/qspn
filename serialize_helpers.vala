@@ -17,9 +17,10 @@
  */
 
 using Netsukuku;
+using Netsukuku.Qspn;
 using Gee;
 
-namespace LibQspnInternals
+namespace Netsukuku.Qspn
 {
     internal errordomain HelperDeserializeError {
         GENERIC
