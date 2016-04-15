@@ -187,6 +187,12 @@ simulator_LDADD = \
 	$(builddir)/libqspn.la \
 	$(NULL)
 
+EXTRA_DIST = \
+	test_split_signal \
+	test_not_split_signal \
+	test1 \
+	$(NULL)
+
 MAINTAINERCLEANFILES = \
 	$(srcdir)/qspn.vapi \
 	$(NULL)
