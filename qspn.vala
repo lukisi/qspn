@@ -596,8 +596,9 @@ namespace Netsukuku.Qspn
         public signal void qspn_bootstrap_complete();
         // The first valid ETP from this module should have been processed by our neighbors.
         public signal void presence_notified();
-        // An arc (is not working) has been removed from my list.
-        public signal void arc_removed(IQspnArc arc);
+        // An arc has been removed from my list. May happen because of a bad link or
+        // because of other events.
+        public signal void arc_removed(IQspnArc arc, bool bad_link=false);
         // A gnode (or node) is now known on the network and the first path towards
         //  it is now available to this node.
         public signal void destination_added(HCoord h);
@@ -888,12 +889,13 @@ namespace Netsukuku.Qspn
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
                 bool bad_answer;
-                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+                bool bad_link;
+                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out bad_link);
                 if (bootstrap_in_progress) continue;
                 if (bad_answer)
                 {
                     arc_remove(arc);
-                    arc_removed(arc);
+                    arc_removed(arc, bad_link);
                     continue;
                 }
                 // Process etp. No forward is needed.
@@ -948,12 +950,13 @@ namespace Netsukuku.Qspn
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
                 bool bad_answer;
-                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+                bool bad_link;
+                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out bad_link);
                 if (bootstrap_in_progress) continue;
                 if (bad_answer)
                 {
                     arc_remove(arc);
-                    arc_removed(arc);
+                    arc_removed(arc, bad_link);
                     continue;
                 }
                 // Process etp. No forward is needed.
@@ -987,10 +990,13 @@ namespace Netsukuku.Qspn
             presence_notified();
         }
 
-        private void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp, out bool bootstrap_in_progress, out bool bad_answer)
+        private void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp,
+         out bool bootstrap_in_progress,
+         out bool bad_answer, out bool bad_link)
         {
             bootstrap_in_progress = false;
             bad_answer = false;
+            bad_link = false;
             etp = null;
             IQspnManagerStub stub_get_etp =
                     stub_factory.i_qspn_get_tcp(arc);
@@ -1004,6 +1010,7 @@ namespace Netsukuku.Qspn
             }
             catch (StubError e) {
                 bad_answer = true;
+                bad_link = true;
                 return;
             }
             catch (DeserializeError e) {
@@ -1108,7 +1115,7 @@ namespace Netsukuku.Qspn
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
                     // emit signal
-                    mgr.arc_removed(arc);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     warning(@"MissingArcSendEtp: Got Deserialize error: $(e.message)");
@@ -1171,12 +1178,13 @@ namespace Netsukuku.Qspn
             EtpMessage? etp;
             bool bootstrap_in_progress;
             bool bad_answer;
-            retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer);
+            bool bad_link;
+            retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out bad_link);
             if (bootstrap_in_progress) return; // Give up. The neighbor will start a flood when its bootstrap is complete.
             if (bad_answer)
             {
                 arc_remove(arc);
-                arc_removed(arc);
+                arc_removed(arc, bad_link);
                 return;
             }
 
@@ -1254,7 +1262,7 @@ namespace Netsukuku.Qspn
             catch (StubError e) {
                 arc_remove(arc);
                 // emit signal
-                arc_removed(arc);
+                arc_removed(arc, true);
                 return;
             }
             catch (DeserializeError e) {
@@ -1325,11 +1333,11 @@ namespace Netsukuku.Qspn
 
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
-                gather_full_etp_set(my_arcs, (arc) => {
+                gather_full_etp_set(my_arcs, (arc, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
                     // emit signal
-                    arc_removed(arc);
+                    arc_removed(arc, bad_link);
                 });
             // Got ETPs. Revise the paths in each of them.
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
@@ -1468,11 +1476,11 @@ namespace Netsukuku.Qspn
             // Then do the same as when arc is changed and remember to add paths_to_add_to_all_paths
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
-                gather_full_etp_set(my_arcs, (arc) => {
+                gather_full_etp_set(my_arcs, (arc, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
                     // emit signal
-                    arc_removed(arc);
+                    arc_removed(arc, bad_link);
                 });
             // Got ETPs. Revise the paths in each of them.
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
@@ -1852,7 +1860,7 @@ namespace Netsukuku.Qspn
             public IQspnNaddr my_naddr;
             public unowned FailedArcHandler failed_arc_handler;
         }
-        private delegate void FailedArcHandler(IQspnArc failed_arc);
+        private delegate void FailedArcHandler(IQspnArc failed_arc, bool bad_link);
         private Collection<PairArcEtp>
         gather_full_etp_set(Collection<IQspnArc> arcs, FailedArcHandler failed_arc_handler)
         {
@@ -1910,19 +1918,19 @@ namespace Netsukuku.Qspn
             catch (StubError e) {
                 debug("Got StubError. Remove arc.");
                 // failed arc
-                work.failed_arc_handler(work.arcs[i]);
+                work.failed_arc_handler(work.arcs[i], true);
                 return;
             }
             catch (QspnNotAcceptedError e) {
                 debug("Got NotAcceptedError. Remove arc.");
                 // failed arc
-                work.failed_arc_handler(work.arcs[i]);
+                work.failed_arc_handler(work.arcs[i], false);
                 return;
             }
             catch (DeserializeError e) {
                 debug("Got DeserializeError. Remove arc.");
                 // failed arc
-                work.failed_arc_handler(work.arcs[i]);
+                work.failed_arc_handler(work.arcs[i], false);
                 return;
             }
             if (! (resp is EtpMessage))
@@ -1931,7 +1939,7 @@ namespace Netsukuku.Qspn
                 // The module only knows this class that implements IQspnEtpMessage, so this
                 //  should not happen. But the rest of the code, who knows? So to be sure
                 //  we check. If it is the case, remove the arc.
-                work.failed_arc_handler(work.arcs[i]);
+                work.failed_arc_handler(work.arcs[i], false);
                 return;
             }
             EtpMessage m = (EtpMessage) resp;
@@ -1940,7 +1948,7 @@ namespace Netsukuku.Qspn
                 debug("Got bad parameters. Remove arc.");
                 // We check the correctness of a message from another node.
                 // If the message is junk, remove the arc.
-                work.failed_arc_handler(work.arcs[i]);
+                work.failed_arc_handler(work.arcs[i], false);
                 return;
             }
 
@@ -3286,7 +3294,7 @@ namespace Netsukuku.Qspn
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
                     // emit signal
-                    mgr.arc_removed(arc);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     warning(@"MissingArcPrepareDestroy: Got Deserialize error: $(e.message)");
@@ -3342,7 +3350,7 @@ namespace Netsukuku.Qspn
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
                     // emit signal
-                    mgr.arc_removed(arc);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     warning(@"MissingArcDestroy: Got Deserialize error: $(e.message)");
@@ -3423,7 +3431,7 @@ namespace Netsukuku.Qspn
                 arc_remove(arc);
                 // emit signal
                 arc_removed(arc);
-                throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
+                tasklet.exit_tasklet(null);
             }
             IQspnNaddr requesting_naddr = (IQspnNaddr) requesting_address;
 
