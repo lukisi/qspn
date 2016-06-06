@@ -3039,7 +3039,7 @@ namespace Netsukuku.Qspn
                                       IQspnFingerprint new_fp)
         {
             assert(connectivity_from_level <= connectivity_to_level);
-            assert(connectivity_to_level < levels);
+            assert(connectivity_to_level <= levels);
             assert(connectivity_from_level > 0);
             int old_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
             assert(old_id < gsizes[connectivity_from_level-1]);
@@ -3177,7 +3177,7 @@ namespace Netsukuku.Qspn
             //  belongs to at level from connectivity_from_level to connectivity_to_level.
             assert(connectivity_from_level > 0);
             assert(connectivity_to_level >= connectivity_from_level);
-            assert(connectivity_to_level < levels);
+            assert(connectivity_to_level <= levels);
             int i = connectivity_from_level - 1;
             int j = connectivity_to_level;
             /* Search a level *i* where my g<sub>i</sub>(n) (that is, the g-node of
