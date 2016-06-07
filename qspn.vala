@@ -3037,6 +3037,14 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
+        /** Gives the Netsukuku-address of the peer at one of my arcs
+          */
+        public IQspnNaddr? get_naddr_for_arc(IQspnArc arc)
+        {
+            if (arc in my_arcs) return arc_to_naddr[arc];
+            return null;
+        }
+
         /** Make this identity a ''connectivity'' one.
           */
         public void make_connectivity(int connectivity_from_level,
