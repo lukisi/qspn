@@ -54,20 +54,17 @@ Object dup_object(Object obj)
 
 class FakeArc : Object, IQspnArc
 {
-    public FakeGenericNaddr naddr;
     public FakeCost cost;
     public string neighbour_nic_addr;
     public string my_nic_addr;
     public QspnManager neighbour_qspnmgr;
     public FakeArc neighbour_arc;
     public FakeArc(QspnManager neighbour_qspnmgr,
-                    FakeGenericNaddr naddr,
                     FakeCost cost,
                     string neighbour_nic_addr,
                     string my_nic_addr)
     {
         this.neighbour_qspnmgr = neighbour_qspnmgr;
-        this.naddr = naddr;
         this.cost = cost;
         this.neighbour_nic_addr = neighbour_nic_addr;
         this.my_nic_addr = my_nic_addr;
@@ -76,11 +73,6 @@ class FakeArc : Object, IQspnArc
     public IQspnCost i_qspn_get_cost()
     {
         return cost;
-    }
-
-    public IQspnNaddr i_qspn_get_naddr()
-    {
-        return naddr;
     }
 
     public bool i_qspn_equals(IQspnArc other)
@@ -283,7 +275,7 @@ class SimulatorNode : Object
     public FakeStubFactory stub_f;
     public FakeArc add_arc(SimulatorNode n0, int cost)
     {
-        FakeArc a = new FakeArc(n0.mgr, n0.naddr, new FakeCost(cost), n0.nic_addr, nic_addr);
+        FakeArc a = new FakeArc(n0.mgr, new FakeCost(cost), n0.nic_addr, nic_addr);
         arcs.add(a);
         return a;
     }

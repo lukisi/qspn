@@ -115,7 +115,6 @@ namespace Netsukuku.Qspn
     public interface IQspnArc : Object
     {
         public abstract IQspnCost i_qspn_get_cost();
-        public abstract IQspnNaddr i_qspn_get_naddr();
         public abstract bool i_qspn_equals(IQspnArc other);
         public abstract bool i_qspn_comes_from(CallerInfo rpc_caller);
     }
@@ -572,6 +571,7 @@ namespace Netsukuku.Qspn
 
         private IQspnMyNaddr my_naddr;
         private ArrayList<IQspnArc> my_arcs;
+        private HashMap<IQspnArc,IQspnNaddr?> arc_to_naddr;
         private HashMap<int, IQspnArc> id_arc_map;
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private ArrayList<int> my_nodes_inside;
@@ -639,6 +639,7 @@ namespace Netsukuku.Qspn
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // empty set of arcs
             my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
             id_arc_map = new HashMap<int, IQspnArc>();
             // find parameters of the network
             levels = my_naddr.i_qspn_get_levels();
@@ -704,6 +705,7 @@ namespace Netsukuku.Qspn
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
             id_arc_map = new HashMap<int, IQspnArc>();
             foreach (IQspnArc arc in my_arcs)
             {
@@ -720,6 +722,7 @@ namespace Netsukuku.Qspn
                 // memorize
                 assert(! (arc in this.my_arcs));
                 this.my_arcs.add(arc);
+                arc_to_naddr[arc] = null;
                 id_arc_map[arc_id] = arc;
             }
             // find parameters of the network
@@ -792,6 +795,7 @@ namespace Netsukuku.Qspn
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
             this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
             id_arc_map = new HashMap<int, IQspnArc>();
             foreach (IQspnArc arc in my_arcs)
             {
@@ -808,6 +812,7 @@ namespace Netsukuku.Qspn
                 // memorize
                 assert(! (arc in this.my_arcs));
                 this.my_arcs.add(arc);
+                arc_to_naddr[arc] = null;
                 id_arc_map[arc_id] = arc;
             }
             // find parameters of the network
@@ -877,12 +882,7 @@ namespace Netsukuku.Qspn
             int i = hooking_gnode_level;
             int j = into_gnode_level;
             queued_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs)
-            {
-                IQspnNaddr addr = arc.i_qspn_get_naddr();
-                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
-                if (lvl >= i && lvl < j) queued_arcs.add(arc);
-            }
+            queued_arcs.add_all(my_arcs);
             while (! queued_arcs.is_empty && ! bootstrap_complete)
             {
                 IQspnArc arc = queued_arcs.remove_at(0);
@@ -898,6 +898,8 @@ namespace Netsukuku.Qspn
                     arc_removed(arc, bad_link);
                     continue;
                 }
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
+                if (lvl < i || lvl >= j) continue;
                 // Process etp. No forward is needed.
                 int arc_id = get_arc_id(arc);
                 assert(arc_id >= 0);
@@ -1032,6 +1034,7 @@ namespace Netsukuku.Qspn
                 bad_answer = true;
                 return;
             }
+            arc_to_naddr[arc] = etp.node_address;
             return;
         }
 
@@ -1166,6 +1169,7 @@ namespace Netsukuku.Qspn
             }
             // memorize
             my_arcs.add(arc);
+            arc_to_naddr[arc] = null;
             id_arc_map[arc_id] = arc;
 
             // during bootstrap add the arc to queued_arcs and then return
@@ -1443,6 +1447,7 @@ namespace Netsukuku.Qspn
             int arc_id = get_arc_id(removed_arc);
             assert(arc_id >= 0);
             my_arcs.remove(removed_arc);
+            arc_to_naddr.unset(removed_arc);
             id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
             var dest_to_remove = new ArrayList<Destination>();
@@ -1951,6 +1956,7 @@ namespace Netsukuku.Qspn
                 work.failed_arc_handler(work.arcs[i], false);
                 return;
             }
+            arc_to_naddr[work.arcs[i]] = m.node_address;
 
             debug("Got one.");
             PairArcEtp res = new PairArcEtp(m, work.arcs[i]);
@@ -2284,9 +2290,9 @@ namespace Netsukuku.Qspn
                 ArrayList<IQspnFingerprint> fd = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 ArrayList<NodePath> rd = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
                 ArrayList<HCoord> vnd = new ArrayList<HCoord>((a, b) => a.equals(b));
-                foreach (IQspnArc a in my_arcs)
+                foreach (IQspnArc a in my_arcs) if (arc_to_naddr[a] != null)
                 {
-                    HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
+                    HCoord v = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[a]);
                     if (! (v in vnd)) vnd.add(v);
                 }
                 ArrayList<HCoord> z1d = new ArrayList<HCoord>((a, b) => a.equals(b));
@@ -2660,9 +2666,9 @@ namespace Netsukuku.Qspn
                 }
                 if (present)
                 {
-                    foreach (IQspnArc a in my_arcs)
+                    foreach (IQspnArc a in my_arcs) if (arc_to_naddr[a] != null)
                     {
-                        HCoord v = my_naddr.i_qspn_get_coord_by_address(a.i_qspn_get_naddr());
+                        HCoord v = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[a]);
                         if (v.equals(d))
                         {
                             foreach (NodePath np in _d.paths)
@@ -3088,9 +3094,9 @@ namespace Netsukuku.Qspn
             EtpMessage etp = prepare_full_etp();
             int i = old_lvl;
             ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs)
+            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
             {
-                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl >= i) outer_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_outer =
@@ -3123,9 +3129,9 @@ namespace Netsukuku.Qspn
                 EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
                 int i = hooking_gnode_level;
                 ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-                foreach (IQspnArc arc in my_arcs)
+                foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
                 {
-                    int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                    int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                     if (lvl >= i) outer_arcs.add(arc);
                 }
                 IQspnManagerStub stub_send_to_outer =
@@ -3155,10 +3161,10 @@ namespace Netsukuku.Qspn
             assert(connectivity_to_level > 0);
             ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arcs.add_all(my_arcs);
-            foreach (IQspnArc arc in arcs)
+            foreach (IQspnArc arc in arcs) if (arc_to_naddr[arc] != null)
             {
                 // Check the neighbor address.
-                IQspnNaddr addr = arc.i_qspn_get_naddr();
+                IQspnNaddr addr = arc_to_naddr[arc];
                 int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
                 if (lvl >= connectivity_to_level)
                 {
@@ -3257,9 +3263,9 @@ namespace Netsukuku.Qspn
             assert(connectivity_from_level > 0);
             int i = connectivity_from_level - 1;
             ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs)
+            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
             {
-                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl < i) internal_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_internal =
@@ -3313,9 +3319,9 @@ namespace Netsukuku.Qspn
             // Could be also connectivity_from_level == 0.
             int i = connectivity_from_level - 1;
             ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs)
+            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
             {
-                int lvl = my_naddr.i_qspn_get_coord_by_address(arc.i_qspn_get_naddr()).lvl;
+                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl >= i) outer_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_outer =
@@ -3434,6 +3440,7 @@ namespace Netsukuku.Qspn
                 tasklet.exit_tasklet(null);
             }
             IQspnNaddr requesting_naddr = (IQspnNaddr) requesting_address;
+            arc_to_naddr[arc] = requesting_naddr;
 
             HCoord b = my_naddr.i_qspn_get_coord_by_address(requesting_naddr);
             var etp_paths = new ArrayList<EtpPath>();
@@ -3507,14 +3514,14 @@ namespace Netsukuku.Qspn
                 arc_removed(arc);
                 return;
             }
+            arc_to_naddr[arc] = etp.node_address;
 
             bool must_exit_bootstrap_phase = false;
             // If it is during bootstrap:
             if (!bootstrap_complete)
             {
                 // Check the sender.
-                IQspnNaddr addr = arc.i_qspn_get_naddr();
-                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
+                int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
                 if (lvl >= hooking_gnode_level)
                 {
                     // The sender is outside my hooking gnode. Ignore it.
