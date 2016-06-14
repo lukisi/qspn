@@ -688,8 +688,13 @@ namespace Netsukuku.Qspn
             }
         }
 
+        public delegate IQspnArc? PreviousArcToNewArcDelegate(IQspnArc old);
+
         public QspnManager.enter_net(IQspnMyNaddr my_naddr,
-                           Gee.List<IQspnArc> my_arcs,
+                           Gee.List<IQspnArc> internal_arc_set,
+                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
+                           Gee.List<IQspnArc> external_arc_set,
+                           PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
@@ -704,13 +709,16 @@ namespace Netsukuku.Qspn
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
-            this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
             id_arc_map = new HashMap<int, IQspnArc>();
-            foreach (IQspnArc arc in my_arcs)
+            assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
+            for (int i = 0; i < internal_arc_set.size; i++)
             {
+                IQspnArc internal_arc = internal_arc_set[i];
+                IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
                 // Check data right away
-                IQspnCost c = arc.i_qspn_get_cost();
+                IQspnCost c = internal_arc.i_qspn_get_cost();
                 assert(c != null);
 
                 // generate ID for the arc
@@ -720,10 +728,28 @@ namespace Netsukuku.Qspn
                     arc_id = Random.int_range(0, int.MAX);
                 }
                 // memorize
-                assert(! (arc in this.my_arcs));
-                this.my_arcs.add(arc);
-                arc_to_naddr[arc] = null;
-                id_arc_map[arc_id] = arc;
+                assert(! (internal_arc in my_arcs));
+                my_arcs.add(internal_arc);
+                arc_to_naddr[internal_arc] = internal_arc_peer_naddr;
+                id_arc_map[arc_id] = internal_arc;
+            }
+            foreach (IQspnArc external_arc in external_arc_set)
+            {
+                // Check data right away
+                IQspnCost c = external_arc.i_qspn_get_cost();
+                assert(c != null);
+
+                // generate ID for the arc
+                int arc_id = 0;
+                while (arc_id == 0 || id_arc_map.has_key(arc_id))
+                {
+                    arc_id = Random.int_range(0, int.MAX);
+                }
+                // memorize
+                assert(! (external_arc in my_arcs));
+                my_arcs.add(external_arc);
+                arc_to_naddr[external_arc] = null;
+                id_arc_map[arc_id] = external_arc;
             }
             // find parameters of the network
             levels = my_naddr.i_qspn_get_levels();
@@ -741,6 +767,12 @@ namespace Netsukuku.Qspn
                 {
                     Destination destination = previous_identity.destinations[l][pos];
                     Destination destination_copy = destination.copy();
+                    foreach (NodePath np in destination_copy.paths)
+                    {
+                        IQspnArc? new_arc = old_arc_to_new_arc(np.arc);
+                        assert(new_arc != null);
+                        np.arc = new_arc;
+                    }
                     destinations[l][pos] = destination_copy;
                 }
             }
@@ -779,7 +811,10 @@ namespace Netsukuku.Qspn
         }
 
         public QspnManager.migration(IQspnMyNaddr my_naddr,
-                           Gee.List<IQspnArc> my_arcs,
+                           Gee.List<IQspnArc> internal_arc_set,
+                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
+                           Gee.List<IQspnArc> external_arc_set,
+                           PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
@@ -794,13 +829,16 @@ namespace Netsukuku.Qspn
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
             // all the arcs
-            this.my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
             id_arc_map = new HashMap<int, IQspnArc>();
-            foreach (IQspnArc arc in my_arcs)
+            assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
+            for (int i = 0; i < internal_arc_set.size; i++)
             {
+                IQspnArc internal_arc = internal_arc_set[i];
+                IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
                 // Check data right away
-                IQspnCost c = arc.i_qspn_get_cost();
+                IQspnCost c = internal_arc.i_qspn_get_cost();
                 assert(c != null);
 
                 // generate ID for the arc
@@ -810,10 +848,28 @@ namespace Netsukuku.Qspn
                     arc_id = Random.int_range(0, int.MAX);
                 }
                 // memorize
-                assert(! (arc in this.my_arcs));
-                this.my_arcs.add(arc);
-                arc_to_naddr[arc] = null;
-                id_arc_map[arc_id] = arc;
+                assert(! (internal_arc in my_arcs));
+                my_arcs.add(internal_arc);
+                arc_to_naddr[internal_arc] = internal_arc_peer_naddr;
+                id_arc_map[arc_id] = internal_arc;
+            }
+            foreach (IQspnArc external_arc in external_arc_set)
+            {
+                // Check data right away
+                IQspnCost c = external_arc.i_qspn_get_cost();
+                assert(c != null);
+
+                // generate ID for the arc
+                int arc_id = 0;
+                while (arc_id == 0 || id_arc_map.has_key(arc_id))
+                {
+                    arc_id = Random.int_range(0, int.MAX);
+                }
+                // memorize
+                assert(! (external_arc in my_arcs));
+                my_arcs.add(external_arc);
+                arc_to_naddr[external_arc] = null;
+                id_arc_map[arc_id] = external_arc;
             }
             // find parameters of the network
             levels = my_naddr.i_qspn_get_levels();
@@ -831,6 +887,12 @@ namespace Netsukuku.Qspn
                 {
                     Destination destination = previous_identity.destinations[l][pos];
                     Destination destination_copy = destination.copy();
+                    foreach (NodePath np in destination_copy.paths)
+                    {
+                        IQspnArc? new_arc = old_arc_to_new_arc(np.arc);
+                        assert(new_arc != null);
+                        np.arc = new_arc;
+                    }
                     destinations[l][pos] = destination_copy;
                 }
             }
@@ -882,7 +944,9 @@ namespace Netsukuku.Qspn
             int i = hooking_gnode_level;
             int j = into_gnode_level;
             queued_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            queued_arcs.add_all(my_arcs);
+            // Consider that if (arc_to_naddr[arc] == null) then it was not an internal_arc.
+            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] == null)
+                queued_arcs.add(arc);
             while (! queued_arcs.is_empty && ! bootstrap_complete)
             {
                 IQspnArc arc = queued_arcs.remove_at(0);
@@ -3101,15 +3165,18 @@ namespace Netsukuku.Qspn
             //  would have no hops.
             EtpMessage etp = prepare_full_etp();
             int i = old_lvl;
-            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
+            ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            foreach (IQspnArc arc in my_arcs)
             {
+                // Consider that this is not the identity which is migrating, but the one which is staying.
+                //  We should have the peer_naddr for all the arcs.
+                if (arc_to_naddr[arc] == null) continue;
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
-                if (lvl >= i) outer_arcs.add(arc);
+                if (lvl >= i) outer_w_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_outer =
                     stub_factory.i_qspn_get_broadcast(
-                    outer_arcs,
+                    outer_w_arcs,
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, etp, true));
             try {
@@ -3135,16 +3202,21 @@ namespace Netsukuku.Qspn
             {
                 // Send a void ETP to all neighbors outside 'hooking_gnode_level'.
                 EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
-                int i = hooking_gnode_level;
-                ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-                foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
+                ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+                foreach (IQspnArc arc in my_arcs)
                 {
+                    // Consider that if (arc_to_naddr[arc] == null) then it was not an internal_arc.
+                    if (arc_to_naddr[arc] == null)
+                    {
+                        outer_w_arcs.add(arc);
+                        continue;
+                    }
                     int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
-                    if (lvl >= i) outer_arcs.add(arc);
+                    if (lvl >= hooking_gnode_level) outer_w_arcs.add(arc);
                 }
                 IQspnManagerStub stub_send_to_outer =
                         stub_factory.i_qspn_get_broadcast(
-                        outer_arcs,
+                        outer_w_arcs,
                         // If a neighbor doesnt send its ACK repeat the message via tcp
                         new MissingArcSendEtp(this, etp, false));
                 try {
@@ -3169,8 +3241,11 @@ namespace Netsukuku.Qspn
             assert(connectivity_to_level > 0);
             ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arcs.add_all(my_arcs);
-            foreach (IQspnArc arc in arcs) if (arc_to_naddr[arc] != null)
+            foreach (IQspnArc arc in arcs)
             {
+                // Consider that this is not the identity which is migrating, but the one which is staying.
+                //  We should have the peer_naddr for all the arcs.
+                if (arc_to_naddr[arc] == null) continue;
                 // Check the neighbor address.
                 IQspnNaddr addr = arc_to_naddr[arc];
                 int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
@@ -3271,8 +3346,11 @@ namespace Netsukuku.Qspn
             assert(connectivity_from_level > 0);
             int i = connectivity_from_level - 1;
             ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
+            foreach (IQspnArc arc in my_arcs)
             {
+                // Consider that this is not the identity which is migrating, but the one which is staying.
+                //  We should have the peer_naddr for all the arcs.
+                if (arc_to_naddr[arc] == null) continue;
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl < i) internal_arcs.add(arc);
             }
@@ -3326,15 +3404,18 @@ namespace Netsukuku.Qspn
         {
             // Could be also connectivity_from_level == 0.
             int i = connectivity_from_level - 1;
-            ArrayList<IQspnArc> outer_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] != null)
+            ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            foreach (IQspnArc arc in my_arcs)
             {
+                // Consider that this is not the identity which is migrating, but the one which is staying.
+                //  We should have the peer_naddr for all the arcs.
+                if (arc_to_naddr[arc] == null) continue;
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
-                if (lvl >= i) outer_arcs.add(arc);
+                if (lvl >= i) outer_w_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_outer =
                     stub_factory.i_qspn_get_broadcast(
-                    outer_arcs,
+                    outer_w_arcs,
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcDestroy(this));
             try {
@@ -3343,7 +3424,7 @@ namespace Netsukuku.Qspn
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
             } catch (StubError e) {
-                critical(@"QspnManager.destroy: StubError in broadcast sending to outer_arcs: $(e.message)");
+                critical(@"QspnManager.destroy: StubError in broadcast sending to outer_w_arcs: $(e.message)");
             }
         }
         internal class MissingArcDestroy : Object, IQspnMissingArcHandler
