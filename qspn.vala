@@ -962,7 +962,7 @@ namespace Netsukuku.Qspn
                     arc_removed(arc, bad_link);
                     continue;
                 }
-                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
+                int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
                 if (lvl < i || lvl >= j) continue;
                 // Process etp. No forward is needed.
                 int arc_id = get_arc_id(arc);
@@ -1098,7 +1098,6 @@ namespace Netsukuku.Qspn
                 bad_answer = true;
                 return;
             }
-            arc_to_naddr[arc] = etp.node_address;
             return;
         }
 
@@ -1731,6 +1730,16 @@ namespace Netsukuku.Qspn
             ArrayList<NodePath> ret = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             HCoord v = my_naddr.i_qspn_get_coord_by_address(m.node_address);
             int i = v.lvl + 1;
+            IQspnNaddr? old_peer_naddr = arc_to_naddr[arc];
+            arc_to_naddr[arc] = m.node_address;
+            bool peer_naddr_changed = false;
+            if (old_peer_naddr != null)
+            {
+                if (old_peer_naddr.i_qspn_get_pos(v.lvl) != m.node_address.i_qspn_get_pos(v.lvl))
+                {
+                    peer_naddr_changed = true;
+                }
+            }
             // grouping rule on m.hops
             while ((! m.hops.is_empty) && m.hops[0].lvl < i-1)
             {
@@ -1809,6 +1818,23 @@ namespace Netsukuku.Qspn
             v_path.ignore_outside = new ArrayList<bool>();
             for (j = 0; j < levels; j++) v_path.ignore_outside.add(false);
             m.p_list.add(v_path);
+            if (peer_naddr_changed)
+            {
+                // intrinsic path to old_v
+                HCoord old_v = new HCoord(v.lvl, old_peer_naddr.i_qspn_get_pos(v.lvl));
+                EtpPath old_v_path = new EtpPath();
+                old_v_path.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
+                old_v_path.hops.add(old_v);
+                old_v_path.arcs = new ArrayList<int>();
+                old_v_path.arcs.add(arc_id);
+                old_v_path.cost = new DeadCost();
+                old_v_path.fingerprint = m.fingerprints[i-1];
+                old_v_path.nodes_inside = m.nodes_inside[i-1];
+                // ignore_outside is not important here.
+                old_v_path.ignore_outside = new ArrayList<bool>();
+                for (j = 0; j < levels; j++) old_v_path.ignore_outside.add(false);
+                m.p_list.add(old_v_path);
+            }
             // if it is a full etp
             if (is_full)
             {
@@ -3159,11 +3185,8 @@ namespace Netsukuku.Qspn
         }
         private void publish_connectivity(int old_pos, int old_lvl)
         {
-            // Send a full ETP to all neighbors outside 'old_lvl'.
-            // We should just say that we have no more to old_pos, but it's
-            //  not possible to identify this path in a EtpMessage, since it
-            //  would have no hops.
-            EtpMessage etp = prepare_full_etp();
+            // Send a void ETP to all neighbors outside 'old_lvl'.
+            EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
             int i = old_lvl;
             ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
@@ -3178,10 +3201,10 @@ namespace Netsukuku.Qspn
                     stub_factory.i_qspn_get_broadcast(
                     outer_w_arcs,
                     // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, etp, true));
+                    new MissingArcSendEtp(this, etp, false));
             try {
                 assert(check_outgoing_message(etp));
-                stub_send_to_outer.send_etp(etp, true);
+                stub_send_to_outer.send_etp(etp, false);
             } catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
                 assert_not_reached();
@@ -3603,7 +3626,6 @@ namespace Netsukuku.Qspn
                 arc_removed(arc);
                 return;
             }
-            arc_to_naddr[arc] = etp.node_address;
 
             bool must_exit_bootstrap_phase = false;
             // If it is during bootstrap:
