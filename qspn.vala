@@ -3186,16 +3186,18 @@ namespace Netsukuku.Qspn
         private void publish_connectivity(int old_pos, int old_lvl)
         {
             // Send a void ETP to all neighbors outside 'old_lvl'.
-            EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
-            int i = old_lvl;
+            ArrayList<HCoord> hops = new ArrayList<HCoord>((a, b) => a.equals(b));
+            hops.add(new HCoord(old_lvl, old_pos));
+            EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>(), hops);
             ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
                 // Consider that this is not the identity which is migrating, but the one which is staying.
                 //  We should have the peer_naddr for all the arcs.
                 if (arc_to_naddr[arc] == null) continue;
-                int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
-                if (lvl >= i) outer_w_arcs.add(arc);
+                HCoord arc_h = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]);
+                if (arc_h.lvl == old_lvl && arc_h.pos != old_pos) outer_w_arcs.add(arc);
+                if (arc_h.lvl > old_lvl) outer_w_arcs.add(arc);
             }
             IQspnManagerStub stub_send_to_outer =
                     stub_factory.i_qspn_get_broadcast(
