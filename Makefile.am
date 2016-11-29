@@ -2,13 +2,8 @@ NULL =
 ACLOCAL_AMFLAGS = -I m4
 
 noinst_LTLIBRARIES = \
-	libmacgetter.la \
 	libqspn.la \
 	$(NULL)
-
-#noinst_PROGRAMS =  \
-#	qspnclient \
-#	$(NULL)
 
 TESTS = \
 	test_serialize_helpers \
@@ -24,17 +19,6 @@ check_PROGRAMS = \
 
 EXTRA_PROGRAMS = \
 	auto_graph \
-	$(NULL)
-
-libmacgetter_la_SOURCES = \
-	mac-getter/hw.c \
-	mac-getter/hw.h \
-	$(NULL)
-
-libmacgetter_la_CPPFLAGS = \
-	$(NULL)
-
-libmacgetter_la_LIBADD = \
 	$(NULL)
 
 libqspn_la_SOURCES = \
@@ -70,44 +54,6 @@ libqspn_la_LIBADD = \
 	$(NTKDCOMMON_LIBS) \
 	$(TASKLETSYSTEM_LIBS) \
 	$(NTKDRPC_LIBS) \
-	$(NULL)
-
-qspnclient_SOURCES =  \
-	main.vala \
-	generic_naddr.vala \
-	client_serialize_helpers.vala \
-	mac-getter/hw.vapi \
-	qspn.vapi \
-	$(NULL)
-
-qspnclient_VALAFLAGS = \
-	--pkg gee-0.8 \
-	--pkg ntkd-common \
-	--pkg tasklet-system \
-	--pkg pth-tasklet \
-	--pkg ntkdrpc \
-	$(NULL)
-
-qspnclient_CPPFLAGS = \
-	-w \
-	$(GOBJECT_CFLAGS) \
-	$(GEE_CFLAGS) \
-	$(NTKDCOMMON_CFLAGS) \
-	$(TASKLETSYSTEM_CFLAGS) \
-	$(PTHTASKLET_CFLAGS) \
-	$(NTKDRPC_CFLAGS) \
-	$(NULL)
-
-qspnclient_LDADD = \
-	-lm \
-	$(GOBJECT_LIBS) \
-	$(GEE_LIBS) \
-	$(NTKDCOMMON_LIBS) \
-	$(TASKLETSYSTEM_LIBS) \
-	$(PTHTASKLET_LIBS) \
-	$(NTKDRPC_LIBS) \
-	$(builddir)/libmacgetter.la \
-	$(builddir)/libqspn.la \
 	$(NULL)
 
 test_serialize_helpers_SOURCES =  \
