@@ -632,7 +632,7 @@ namespace Netsukuku.Qspn
                            )
         {
             this.my_naddr = my_naddr;
-            // This is a definitive address, not a ''connectivity'' one.
+            // This is a *main identity*, not a *connectivity* one.
             connectivity_from_level = 0;
             connectivity_to_level = 0;
             this.stub_factory = stub_factory;
@@ -703,7 +703,7 @@ namespace Netsukuku.Qspn
                            )
         {
             this.my_naddr = my_naddr;
-            // This might be a definitive address, or a ''connectivity'' one.
+            // This might be a *main identity*, or a *connectivity* one.
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
@@ -823,7 +823,7 @@ namespace Netsukuku.Qspn
                            )
         {
             this.my_naddr = my_naddr;
-            // This might be a definitive address, or a ''connectivity'' one.
+            // This might be a *main identity*, or a *connectivity* one.
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
@@ -3220,9 +3220,19 @@ namespace Netsukuku.Qspn
 
         /** This identity now has a ''real'' position at level 'into_gnode_level' - 1.
           */
-        public void make_real(IQspnMyNaddr new_naddr)
+        public void make_real(IQspnMyNaddr new_naddr, IQspnFingerprint new_fp)
         {
             my_naddr = new_naddr;
+            // Fingerprint at level 0.
+            my_fingerprints.remove_at(0);
+            my_fingerprints.insert(0, new_fp);
+            // Nodes_inside at level 0. If this is a *connectivity identity* we say we have 0 ''real'' nodes.
+            my_nodes_inside.remove_at(0);
+            if (connectivity_from_level > 0) my_nodes_inside.insert(0, 0);
+            else my_nodes_inside.insert(0, 1);
+            // Re-evaluate informations on our g-nodes.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
             if (bootstrap_complete)
             {
                 // Send a void ETP to all neighbors outside 'hooking_gnode_level'.
