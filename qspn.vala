@@ -21,6 +21,12 @@ using TaskletSystem;
 
 namespace Netsukuku.Qspn
 {
+    internal Gee.EqualDataFunc<IQspnArc> equal_func_iqspnarc;
+    internal void init_equal_func_iqspnarc()
+    {
+        equal_func_iqspnarc = (a, b) => a.i_qspn_equals(b);
+    }
+
     public interface IQspnNaddr : Object, IQspnAddress
     {
         public abstract int i_qspn_get_levels();
@@ -545,6 +551,8 @@ namespace Netsukuku.Qspn
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
+        internal static Gee.EqualDataFunc<PairFingerprints> equal_func_pair_fingerprints = (a, b) => a.equals(b);
+
         public static void init
                       (ITasklet _tasklet,
                        int _max_paths,
@@ -636,10 +644,11 @@ namespace Netsukuku.Qspn
             connectivity_from_level = 0;
             connectivity_to_level = 0;
             this.stub_factory = stub_factory;
-            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // empty set of arcs
-            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
+            init_equal_func_iqspnarc();
+            my_arcs = new ArrayList<IQspnArc>((owned) equal_func_iqspnarc);
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (owned) equal_func_iqspnarc);
             id_arc_map = new HashMap<int, IQspnArc>();
             // find parameters of the network
             levels = my_naddr.i_qspn_get_levels();
@@ -679,7 +688,7 @@ namespace Netsukuku.Qspn
         }
         private class BootstrapCompleteTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public void * func()
             {
                 tasklet.ms_wait(1);
@@ -707,10 +716,11 @@ namespace Netsukuku.Qspn
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
-            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
-            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
+            init_equal_func_iqspnarc();
+            my_arcs = new ArrayList<IQspnArc>((owned) equal_func_iqspnarc);
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (owned) equal_func_iqspnarc);
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
             for (int i = 0; i < internal_arc_set.size; i++)
@@ -827,10 +837,11 @@ namespace Netsukuku.Qspn
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
             this.stub_factory = stub_factory;
-            pending_gnode_split = new ArrayList<PairFingerprints>((a, b) => a.equals(b));
+            pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
-            my_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (a, b) => a.i_qspn_equals(b));
+            init_equal_func_iqspnarc();
+            my_arcs = new ArrayList<IQspnArc>((owned) equal_func_iqspnarc);
+            arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (owned) equal_func_iqspnarc);
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
             for (int i = 0; i < internal_arc_set.size; i++)
@@ -932,7 +943,7 @@ namespace Netsukuku.Qspn
 
         private class BootstrapPhaseTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public void * func()
             {
                 mgr.bootstrap_phase();
@@ -1129,10 +1140,13 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
-        private void stop_operations()
+        public void stop_operations()
         {
             if (periodical_update_tasklet != null)
+            {
                 periodical_update_tasklet.kill();
+                periodical_update_tasklet = null;
+            }
         }
 
         private void on_bootstrap_complete()
@@ -1144,7 +1158,7 @@ namespace Netsukuku.Qspn
         }
         private class PeriodicalUpdateTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public void * func()
             {
                 mgr.periodical_update();
@@ -1208,7 +1222,7 @@ namespace Netsukuku.Qspn
 
         private class ArcAddTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public IQspnArc arc;
             public void * func()
             {
@@ -1356,7 +1370,7 @@ namespace Netsukuku.Qspn
         }
         private class ArcIsChangedTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public IQspnArc changed_arc;
             public void * func()
             {
@@ -1479,7 +1493,7 @@ namespace Netsukuku.Qspn
         }
         private class ArcRemoveTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public IQspnArc removed_arc;
             public void * func()
             {
@@ -1987,7 +2001,7 @@ namespace Netsukuku.Qspn
         }
         private class GetFullEtpTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public GatherEtpSetData work;
             public int i;
             public void * func()
@@ -2713,7 +2727,7 @@ namespace Netsukuku.Qspn
         }
         private class SignalSplitTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public IQspnFingerprint fp_eldest;
             public IQspnFingerprint fp;
             public NodePath bp_eldest;
@@ -2812,7 +2826,7 @@ namespace Netsukuku.Qspn
         }
         private class FirstDetectionSplitTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public Collection<HCoord> b_set;
             public void * func()
             {
@@ -3172,7 +3186,7 @@ namespace Netsukuku.Qspn
         }
         private class PublishConnectivityTasklet : Object, ITaskletSpawnable
         {
-            public QspnManager mgr;
+            public weak QspnManager mgr;
             public int delay;
             public int old_pos;
             public int old_lvl;
