@@ -3055,13 +3055,13 @@ namespace Netsukuku.Qspn
 
         /** Provides a collection of known destinations
           */
-        public Gee.List<HCoord> get_known_destinations() throws QspnBootstrapInProgressError
+        public Gee.List<HCoord> get_known_destinations(int lvl) throws QspnBootstrapInProgressError
         {
-            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
+            if (lvl >= hooking_gnode_level)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
             var ret = new ArrayList<HCoord>((a, b) => a.equals(b));
-            for (int l = 0; l < levels; l++)
-                foreach (Destination d in destinations[l].values)
-                    ret.add(d.dest);
+            foreach (Destination d in destinations[lvl].values)
+                ret.add(d.dest);
             return ret;
         }
 
@@ -3069,7 +3069,8 @@ namespace Netsukuku.Qspn
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
         {
-            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
+            if (d.lvl >= hooking_gnode_level)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
@@ -3113,7 +3114,8 @@ namespace Netsukuku.Qspn
           */
         public int get_nodes_inside(int level) throws QspnBootstrapInProgressError
         {
-            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
+            if (level >= hooking_gnode_level+1)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
             return my_nodes_inside[level];
         }
 
@@ -3121,7 +3123,8 @@ namespace Netsukuku.Qspn
           */
         public IQspnFingerprint get_fingerprint(int level) throws QspnBootstrapInProgressError
         {
-            if (!bootstrap_complete) throw new QspnBootstrapInProgressError.GENERIC("I am still in bootstrap.");
+            if (level >= hooking_gnode_level+1)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
             return my_fingerprints[level];
         }
 
