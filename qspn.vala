@@ -3152,11 +3152,13 @@ namespace Netsukuku.Qspn
             return null;
         }
 
+        public delegate IQspnNaddr ChangeNaddrDelegate(IQspnNaddr old);
+
         /** Make this identity a ''connectivity'' one.
           */
         public void make_connectivity(int connectivity_from_level,
                                       int connectivity_to_level,
-                                      IQspnMyNaddr new_naddr,
+                                      ChangeNaddrDelegate update_naddr,
                                       IQspnFingerprint new_fp)
         {
             assert(connectivity_from_level <= connectivity_to_level);
@@ -3164,9 +3166,19 @@ namespace Netsukuku.Qspn
             assert(connectivity_from_level > 0);
             int old_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
             assert(old_id < gsizes[connectivity_from_level-1]);
+            // Gather arcs that are internal to connectivity_from_level-1. Put in `internal_arcs`.
+            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+             if (arc_to_naddr[arc] != null)
+             if (my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl < connectivity_from_level-1)
+                internal_arcs.add(arc);
+            // Apply `update_naddr` to `my_naddr`.
+            my_naddr = (IQspnMyNaddr)update_naddr(my_naddr);
+            // Apply `update_naddr` to `arc_to_naddr` for each internal arc.
+            foreach (IQspnArc arc in internal_arcs)
+                arc_to_naddr[arc] = update_naddr(arc_to_naddr[arc]);
             this.connectivity_from_level = connectivity_from_level;
             this.connectivity_to_level = connectivity_to_level;
-            my_naddr = new_naddr;
             int new_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
             assert(new_id >= gsizes[connectivity_from_level-1]);
             // Fingerprint at level 0.
@@ -3237,9 +3249,20 @@ namespace Netsukuku.Qspn
 
         /** This identity now has a ''real'' position at level 'into_gnode_level' - 1.
           */
-        public void make_real(IQspnMyNaddr new_naddr, IQspnFingerprint new_fp)
+        public void make_real(ChangeNaddrDelegate update_naddr,
+                              IQspnFingerprint new_fp)
         {
-            my_naddr = new_naddr;
+            // Gather arcs that are internal to connectivity_from_level-1. Put in `internal_arcs`.
+            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
+            foreach (IQspnArc arc in my_arcs)
+             if (arc_to_naddr[arc] != null)
+             if (my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl < connectivity_from_level-1)
+                internal_arcs.add(arc);
+            // Apply `update_naddr` to `my_naddr`.
+            my_naddr = (IQspnMyNaddr)update_naddr(my_naddr);
+            // Apply `update_naddr` to `arc_to_naddr` for each internal arc.
+            foreach (IQspnArc arc in internal_arcs)
+                arc_to_naddr[arc] = update_naddr(arc_to_naddr[arc]);
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
