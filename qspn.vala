@@ -2129,12 +2129,10 @@ namespace Netsukuku.Qspn
         //  . For each HCoord g in p.hops:
         //    . g.lvl has to be between 0 and levels-1
         //    . g.lvl has to grow only
-        //    . g.pos has to be between 0 and gsize(g.lvl)-1
         // With the main hops list of the ETP:
         //  . For each HCoord g in hops:
         //    . g.lvl has to be between 0 and levels-1
         //    . g.lvl has to grow only
-        //    . g.pos has to be between 0 and gsize(g.lvl)-1
         private bool check_any_message(EtpMessage m)
         {
             if (! check_tplist(m.hops)) return false;
@@ -2157,7 +2155,6 @@ namespace Netsukuku.Qspn
                 if (c.lvl >= levels) return false;
                 curlvl = c.lvl;
                 if (c.pos < 0) return false;
-                if (c.pos >= gsizes[c.lvl]) return false;
             }
             return true;
         }
