@@ -702,6 +702,7 @@ namespace Netsukuku.Qspn
         public QspnManager.enter_net(IQspnMyNaddr my_naddr,
                            Gee.List<IQspnArc> internal_arc_set,
                            Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
+                           Gee.List<IQspnArc> internal_arc_prev_arc_set,
                            Gee.List<IQspnArc> external_arc_set,
                            PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
@@ -723,20 +724,18 @@ namespace Netsukuku.Qspn
             arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (owned) equal_func_iqspnarc);
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
+            assert(internal_arc_set.size == internal_arc_prev_arc_set.size);
             for (int i = 0; i < internal_arc_set.size; i++)
             {
                 IQspnArc internal_arc = internal_arc_set[i];
                 IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
+                IQspnArc internal_arc_prev_arc = internal_arc_prev_arc_set[i];
                 // Check data right away
                 IQspnCost c = internal_arc.i_qspn_get_cost();
                 assert(c != null);
 
-                // generate ID for the arc
-                int arc_id = 0;
-                while (arc_id == 0 || id_arc_map.has_key(arc_id))
-                {
-                    arc_id = Random.int_range(0, int.MAX);
-                }
+                // retrieve ID for the arc
+                int arc_id = previous_identity.get_arc_id(internal_arc_prev_arc);
                 // memorize
                 assert(! (internal_arc in my_arcs));
                 my_arcs.add(internal_arc);
@@ -823,6 +822,7 @@ namespace Netsukuku.Qspn
         public QspnManager.migration(IQspnMyNaddr my_naddr,
                            Gee.List<IQspnArc> internal_arc_set,
                            Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
+                           Gee.List<IQspnArc> internal_arc_prev_arc_set,
                            Gee.List<IQspnArc> external_arc_set,
                            PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
@@ -844,20 +844,18 @@ namespace Netsukuku.Qspn
             arc_to_naddr = new HashMap<IQspnArc,IQspnNaddr?>(null, (owned) equal_func_iqspnarc);
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
+            assert(internal_arc_set.size == internal_arc_prev_arc_set.size);
             for (int i = 0; i < internal_arc_set.size; i++)
             {
                 IQspnArc internal_arc = internal_arc_set[i];
                 IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
+                IQspnArc internal_arc_prev_arc = internal_arc_prev_arc_set[i];
                 // Check data right away
                 IQspnCost c = internal_arc.i_qspn_get_cost();
                 assert(c != null);
 
-                // generate ID for the arc
-                int arc_id = 0;
-                while (arc_id == 0 || id_arc_map.has_key(arc_id))
-                {
-                    arc_id = Random.int_range(0, int.MAX);
-                }
+                // retrieve ID for the arc
+                int arc_id = previous_identity.get_arc_id(internal_arc_prev_arc);
                 // memorize
                 assert(! (internal_arc in my_arcs));
                 my_arcs.add(internal_arc);
