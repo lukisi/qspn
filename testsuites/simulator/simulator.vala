@@ -505,10 +505,9 @@ SimulatorNode newnode_enter_net(SimulatorNode prev, HashMap<string, SimulatorNod
     sn.mgr = new QspnManager.enter_net(
                     /*IQspnMyNaddr my_naddr*/ sn.naddr,
                     /*Gee.List<IQspnArc> internal_arc_set*/ new ArrayList<IQspnArc>(),
-                    /*Gee.List<IQspnNaddr> internal_arc_peer_naddr_set*/ new ArrayList<IQspnNaddr>(),
                     /*Gee.List<IQspnArc> internal_arc_prev_arc_set*/ new ArrayList<IQspnArc>(),
+                    /*Gee.List<IQspnNaddr> internal_arc_peer_naddr_set*/ new ArrayList<IQspnNaddr>(),
                     /*Gee.List<IQspnArc> external_arc_set*/ sn.arcs,
-                    /*PreviousArcToNewArcDelegate old_arc_to_new_arc*/ (a) => null,
                     fp, sn.stub_f, dd.hooking_gnode_level, dd.into_gnode_level, prev.mgr);
 
     sn.mgr.gnode_splitted.connect((_a, _hdest, _fp) => sn.handle_gnode_splitted(_a, _hdest, _fp));

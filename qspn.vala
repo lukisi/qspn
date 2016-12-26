@@ -697,14 +697,13 @@ namespace Netsukuku.Qspn
             }
         }
 
-        public delegate IQspnArc? PreviousArcToNewArcDelegate(IQspnArc old);
+        private delegate IQspnArc ArcToArcDelegate(IQspnArc old);
 
         public QspnManager.enter_net(IQspnMyNaddr my_naddr,
                            Gee.List<IQspnArc> internal_arc_set,
-                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> internal_arc_prev_arc_set,
+                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> external_arc_set,
-                           PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
@@ -725,11 +724,19 @@ namespace Netsukuku.Qspn
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
             assert(internal_arc_set.size == internal_arc_prev_arc_set.size);
+            ArcToArcDelegate old_arc_to_new_arc = (old_arc) => {
+                for (int i = 0; i < internal_arc_set.size; i++)
+                {
+                    if (internal_arc_prev_arc_set[i] == old_arc)
+                        return internal_arc_set[i];
+                }
+                assert_not_reached();
+            };
             for (int i = 0; i < internal_arc_set.size; i++)
             {
                 IQspnArc internal_arc = internal_arc_set[i];
-                IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
                 IQspnArc internal_arc_prev_arc = internal_arc_prev_arc_set[i];
+                IQspnNaddr internal_arc_peer_naddr = internal_arc_peer_naddr_set[i];
                 // Check data right away
                 IQspnCost c = internal_arc.i_qspn_get_cost();
                 assert(c != null);
@@ -778,9 +785,7 @@ namespace Netsukuku.Qspn
                     Destination destination_copy = destination.copy();
                     foreach (NodePath np in destination_copy.paths)
                     {
-                        IQspnArc? new_arc = old_arc_to_new_arc(np.arc);
-                        assert(new_arc != null);
-                        np.arc = new_arc;
+                        np.arc = old_arc_to_new_arc(np.arc);
                     }
                     destinations[l][pos] = destination_copy;
                 }
@@ -821,10 +826,9 @@ namespace Netsukuku.Qspn
 
         public QspnManager.migration(IQspnMyNaddr my_naddr,
                            Gee.List<IQspnArc> internal_arc_set,
-                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> internal_arc_prev_arc_set,
+                           Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> external_arc_set,
-                           PreviousArcToNewArcDelegate old_arc_to_new_arc,
                            IQspnFingerprint my_fingerprint,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
@@ -845,6 +849,14 @@ namespace Netsukuku.Qspn
             id_arc_map = new HashMap<int, IQspnArc>();
             assert(internal_arc_set.size == internal_arc_peer_naddr_set.size);
             assert(internal_arc_set.size == internal_arc_prev_arc_set.size);
+            ArcToArcDelegate old_arc_to_new_arc = (old_arc) => {
+                for (int i = 0; i < internal_arc_set.size; i++)
+                {
+                    if (internal_arc_prev_arc_set[i] == old_arc)
+                        return internal_arc_set[i];
+                }
+                assert_not_reached();
+            };
             for (int i = 0; i < internal_arc_set.size; i++)
             {
                 IQspnArc internal_arc = internal_arc_set[i];
@@ -898,9 +910,7 @@ namespace Netsukuku.Qspn
                     Destination destination_copy = destination.copy();
                     foreach (NodePath np in destination_copy.paths)
                     {
-                        IQspnArc? new_arc = old_arc_to_new_arc(np.arc);
-                        assert(new_arc != null);
-                        np.arc = new_arc;
+                        np.arc = old_arc_to_new_arc(np.arc);
                     }
                     destinations[l][pos] = destination_copy;
                 }
