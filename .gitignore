@@ -1,3 +1,4 @@
+*~
 qspn.c
 serialize_helpers.c
 qspn.h
@@ -53,5 +54,6 @@ missing
 test-driver
 compile
 .valencia
+.buildconfig
 debug
 finalbuild
