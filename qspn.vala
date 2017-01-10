@@ -3469,7 +3469,7 @@ namespace Netsukuku.Qspn
             public void i_qspn_missing(IQspnArc arc)
             {
                 IQspnManagerStub stub =
-                        mgr.stub_factory.i_qspn_get_tcp(arc);
+                        mgr.stub_factory.i_qspn_get_tcp(arc, false);
                 try {
                     stub.got_prepare_destroy();
                 }
@@ -3527,7 +3527,7 @@ namespace Netsukuku.Qspn
             public void i_qspn_missing(IQspnArc arc)
             {
                 IQspnManagerStub stub =
-                        mgr.stub_factory.i_qspn_get_tcp(arc);
+                        mgr.stub_factory.i_qspn_get_tcp(arc, false);
                 try {
                     stub.got_destroy();
                 }
@@ -3676,7 +3676,7 @@ namespace Netsukuku.Qspn
                 arc_remove(arc);
                 // emit signal
                 arc_removed(arc, @"Qspn: RPC:send_etp: m is <null>");
-                return;
+                tasklet.exit_tasklet(null);
             }
             if (! (m is EtpMessage))
             {
@@ -3686,7 +3686,7 @@ namespace Netsukuku.Qspn
                 arc_remove(arc);
                 // emit signal
                 arc_removed(arc, @"Qspn: RPC:send_etp: m is not EtpMessage, but $(m.get_type().name())");
-                return;
+                tasklet.exit_tasklet(null);
             }
             EtpMessage etp = (EtpMessage) m;
             if (! check_incoming_message(etp))
@@ -3696,7 +3696,7 @@ namespace Netsukuku.Qspn
                 arc_remove(arc);
                 // emit signal
                 arc_removed(arc, @"Qspn: RPC:send_etp: check_incoming_message not passed");
-                return;
+                tasklet.exit_tasklet(null);
             }
 
             bool must_exit_bootstrap_phase = false;
