@@ -137,7 +137,7 @@ simulator_LDADD = \
 
 testbed_01_SOURCES = \
 	testsuites/testbed_01/testbed_01.vala \
-	testsuites/testbed_01/generic_naddr.vala \
+	testsuites/testbed_01/naddr.vala \
 	testsuites/testbed_01/serialize_helpers.vala \
 	qspn.vapi \
 	$(NULL)

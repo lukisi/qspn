@@ -19,7 +19,7 @@
 using Netsukuku;
 using Gee;
 
-namespace SimulatorInternals
+namespace Testbed01
 {
     internal errordomain HelperDeserializeError {
         GENERIC
