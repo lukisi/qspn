@@ -10,11 +10,13 @@ TESTS = \
 	test_split_signal \
 	test_not_split_signal \
 	test1 \
+	testbed_01 \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_serialize_helpers \
 	simulator \
+	testbed_01 \
 	$(NULL)
 
 EXTRA_PROGRAMS = \
@@ -124,6 +126,41 @@ simulator_CPPFLAGS = \
 	$(NULL)
 
 simulator_LDADD = \
+	$(GOBJECT_LIBS) \
+	$(GEE_LIBS) \
+	$(NTKDCOMMON_LIBS) \
+	$(TASKLETSYSTEM_LIBS) \
+	$(PTHTASKLET_LIBS) \
+	$(NTKDRPC_LIBS) \
+	$(builddir)/libqspn.la \
+	$(NULL)
+
+testbed_01_SOURCES = \
+	testsuites/testbed_01/testbed_01.vala \
+	testsuites/testbed_01/generic_naddr.vala \
+	testsuites/testbed_01/serialize_helpers.vala \
+	qspn.vapi \
+	$(NULL)
+
+testbed_01_VALAFLAGS = \
+	--pkg gee-0.8 \
+	--pkg ntkd-common \
+	--pkg tasklet-system \
+	--pkg pth-tasklet \
+	--pkg ntkdrpc \
+	$(NULL)
+
+testbed_01_CPPFLAGS = \
+	-w \
+	$(GOBJECT_CFLAGS) \
+	$(GEE_CFLAGS) \
+	$(NTKDCOMMON_CFLAGS) \
+	$(TASKLETSYSTEM_CFLAGS) \
+	$(PTHTASKLET_CFLAGS) \
+	$(NTKDRPC_CFLAGS) \
+	$(NULL)
+
+testbed_01_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
