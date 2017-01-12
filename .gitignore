@@ -8,7 +8,7 @@ base_fake_address_manager.c
 tasklet_system_tasklet.c
 client_serialize_helpers.c
 generic_naddr.c
-testbed_01.c
+testbed.c
 naddr.c
 Makefile.in
 Makefile

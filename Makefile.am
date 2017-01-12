@@ -10,13 +10,13 @@ TESTS = \
 	test_split_signal \
 	test_not_split_signal \
 	test1 \
-	testbed_01 \
+	testbed \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_serialize_helpers \
 	simulator \
-	testbed_01 \
+	testbed \
 	$(NULL)
 
 EXTRA_PROGRAMS = \
@@ -135,14 +135,14 @@ simulator_LDADD = \
 	$(builddir)/libqspn.la \
 	$(NULL)
 
-testbed_01_SOURCES = \
-	testsuites/testbed_01/testbed_01.vala \
-	testsuites/testbed_01/naddr.vala \
-	testsuites/testbed_01/serialize_helpers.vala \
+testbed_SOURCES = \
+	testsuites/testbed/testbed.vala \
+	testsuites/testbed/naddr.vala \
+	testsuites/testbed/serialize_helpers.vala \
 	qspn.vapi \
 	$(NULL)
 
-testbed_01_VALAFLAGS = \
+testbed_VALAFLAGS = \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
 	--pkg tasklet-system \
@@ -150,7 +150,7 @@ testbed_01_VALAFLAGS = \
 	--pkg ntkdrpc \
 	$(NULL)
 
-testbed_01_CPPFLAGS = \
+testbed_CPPFLAGS = \
 	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -160,7 +160,7 @@ testbed_01_CPPFLAGS = \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
-testbed_01_LDADD = \
+testbed_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \

@@ -20,7 +20,7 @@ using Gee;
 using Netsukuku;
 using Netsukuku.Qspn;
 
-namespace Testbed01
+namespace Testbed
 {
     public class Naddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, Json.Serializable
     {

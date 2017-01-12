@@ -21,7 +21,7 @@ using Netsukuku;
 using Netsukuku.Qspn;
 using TaskletSystem;
 
-namespace Testbed01
+namespace Testbed
 {
     string type_to_name(Type type)
     {
