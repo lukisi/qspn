@@ -293,5 +293,8 @@ namespace Testbed
         }
     }
 
-    void main() {}
+    void main()
+    {
+        testbed_01();
+    }
 }

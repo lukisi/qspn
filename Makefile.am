@@ -137,6 +137,7 @@ simulator_LDADD = \
 
 testbed_SOURCES = \
 	testsuites/testbed/testbed.vala \
+	testsuites/testbed/testbed_01.vala \
 	testsuites/testbed/naddr.vala \
 	testsuites/testbed/serialize_helpers.vala \
 	qspn.vapi \
