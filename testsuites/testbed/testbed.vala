@@ -293,8 +293,15 @@ namespace Testbed
         }
     }
 
-    void main()
+    void main(string[] args)
     {
-        testbed_01();
+        if (args.length == 2)
+        {
+            if (args[1] == "01") testbed_01();
+            //else if (args[1] == "02") testbed_02();
+            else error(@"testbed: bad number $(args[1])");
+            return; //OK
+        }
+        error("testbed: usage: testbed <number>");
     }
 }

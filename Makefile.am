@@ -10,7 +10,7 @@ TESTS = \
 	test_split_signal \
 	test_not_split_signal \
 	test1 \
-	testbed \
+	testbed01 \
 	$(NULL)
 
 check_PROGRAMS = \
