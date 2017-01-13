@@ -48,19 +48,62 @@ namespace Testbed
             id0.my_fp,
             new QspnStubFactory(id0));
         // soon after creation, connect to signals.
-        id0.qspn_manager.arc_removed.connect(id0.arc_removed);
-        id0.qspn_manager.changed_fp.connect(id0.changed_fp);
-        id0.qspn_manager.changed_nodes_inside.connect(id0.changed_nodes_inside);
-        id0.qspn_manager.destination_added.connect(id0.destination_added);
-        id0.qspn_manager.destination_removed.connect(id0.destination_removed);
-        id0.qspn_manager.gnode_splitted.connect(id0.gnode_splitted);
-        id0.qspn_manager.path_added.connect(id0.path_added);
-        id0.qspn_manager.path_changed.connect(id0.path_changed);
-        id0.qspn_manager.path_removed.connect(id0.path_removed);
-        id0.qspn_manager.presence_notified.connect(id0.presence_notified);
-        id0.qspn_manager.qspn_bootstrap_complete.connect(id0.qspn_bootstrap_complete);
-        id0.qspn_manager.remove_identity.connect(id0.remove_identity);
+        // TODO  id0.qspn_manager.arc_removed.connect(id0.arc_removed);
+        // TODO  id0.qspn_manager.changed_fp.connect(id0.changed_fp);
+        // TODO  id0.qspn_manager.changed_nodes_inside.connect(id0.changed_nodes_inside);
+        // TODO  id0.qspn_manager.destination_added.connect(id0.destination_added);
+        // TODO  id0.qspn_manager.destination_removed.connect(id0.destination_removed);
+        // TODO  id0.qspn_manager.gnode_splitted.connect(id0.gnode_splitted);
+        // TODO  id0.qspn_manager.path_added.connect(id0.path_added);
+        // TODO  id0.qspn_manager.path_changed.connect(id0.path_changed);
+        // TODO  id0.qspn_manager.path_removed.connect(id0.path_removed);
+        // TODO  id0.qspn_manager.presence_notified.connect(id0.presence_notified);
+        id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
+        // TODO  id0.qspn_manager.remove_identity.connect(id0.remove_identity);
+
+        check_id0_qspn_bootstrap_complete = false;
+        // In less than 0.1 seconds we must get signal Qspn.qspn_bootstrap_complete.
+        tasklet.ms_wait(100);
+        assert(check_id0_qspn_bootstrap_complete);
+        try {
+            Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
+            int nodes_inside = id0.qspn_manager.get_nodes_inside(1);
+            string fp_elderships = fp_elderships_repr(fp);
+            assert(fp.id == 97272);
+            assert(fp_elderships == "0:0:0");
+            assert(nodes_inside == 1);
+
+            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(2);
+            nodes_inside = id0.qspn_manager.get_nodes_inside(2);
+            fp_elderships = fp_elderships_repr(fp);
+            assert(fp.id == 97272);
+            assert(fp_elderships == "0:0");
+            assert(nodes_inside == 1);
+
+            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(3);
+            nodes_inside = id0.qspn_manager.get_nodes_inside(3);
+            fp_elderships = fp_elderships_repr(fp);
+            assert(fp.id == 97272);
+            assert(fp_elderships == "0");
+            assert(nodes_inside == 1);
+
+            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(4);
+            nodes_inside = id0.qspn_manager.get_nodes_inside(4);
+            fp_elderships = fp_elderships_repr(fp);
+            assert(fp.id == 97272);
+            assert(fp_elderships == "");
+            assert(nodes_inside == 1);
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();
+        }
 
         // TODO
+    }
+
+    bool check_id0_qspn_bootstrap_complete;
+    void id0_qspn_bootstrap_complete()
+    {
+        check_id0_qspn_bootstrap_complete = true;
+        debug(@"$(get_time_now()) id0_qspn_bootstrap_complete()");
     }
 }

@@ -145,58 +145,6 @@ namespace Testbed
         public Fingerprint my_fp;
         public QspnManager qspn_manager;
         public int local_identity_index;
-
-        // handle signals from qspn_manager
-
-        public bool qspn_handlers_disabled = false;
-
-        public void arc_removed(IQspnArc arc, string message, bool bad_link)
-        {
-        }
-
-        public void changed_fp(int l)
-        {
-        }
-
-        public void changed_nodes_inside(int l)
-        {
-        }
-
-        public void destination_added(HCoord h)
-        {
-        }
-
-        public void destination_removed(HCoord h)
-        {
-        }
-
-        public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
-        {
-        }
-
-        public void path_added(IQspnNodePath p)
-        {
-        }
-
-        public void path_changed(IQspnNodePath p)
-        {
-        }
-
-        public void path_removed(IQspnNodePath p)
-        {
-        }
-
-        public void presence_notified()
-        {
-        }
-
-        public void qspn_bootstrap_complete()
-        {
-        }
-
-        public void remove_identity()
-        {
-        }
     }
 
     class QspnStubFactory : Object, IQspnStubFactory
