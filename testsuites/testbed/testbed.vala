@@ -143,6 +143,7 @@ namespace Testbed
         public NodeID nodeid;
         public Naddr my_naddr;
         public Fingerprint my_fp;
+        public QspnStubFactory stub_factory;
         public QspnManager qspn_manager;
         public int local_identity_index;
     }
@@ -155,18 +156,58 @@ namespace Testbed
         }
         private weak IdentityData identity_data;
 
+        private IChannel? expected_send_etp = null;
+        public void expect_send_etp(int timeout_msec, out IQspnEtpMessage etp, out bool is_full, out ArrayList<NodeID> destid_set)
+        {
+            assert(expected_send_etp == null);
+            expected_send_etp = tasklet.get_channel();
+            try {
+                Value v0 = expected_send_etp.recv_with_timeout(timeout_msec);
+                //assert(v0 is IQspnEtpMessage);
+                etp = (IQspnEtpMessage)v0;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            try {
+                Value v1 = expected_send_etp.recv_with_timeout(2);
+                //assert(v1 is bool);
+                is_full = (bool)v1;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            try {
+                Value v2 = expected_send_etp.recv_with_timeout(2);
+                //assert(v2 is ArrayList<NodeID>);
+                destid_set = (ArrayList<NodeID>)v2;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            expected_send_etp = null;
+        }
+
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
          */
         private class QspnManagerStubHolder : Object, IQspnManagerStub
         {
-            public QspnManagerStubHolder(string msg_hdr, IdentityData identity_data)
+            public QspnManagerStubHolder(QspnStubFactory factory, ArrayList<NodeID> destid_set, IdentityData identity_data)
             {
-                this.msg_hdr = msg_hdr;
+                this.destid_set = destid_set;
+                string to_set = ""; foreach (NodeID i in destid_set) to_set += @"$(i.id) ";
+                msg_hdr = @"RPC from $(factory.identity_data.nodeid.id) to {$(to_set)}";
                 this.identity_data = identity_data;
+                this.factory = factory;
             }
+            private ArrayList<NodeID> destid_set;
             private string msg_hdr;
             private weak IdentityData identity_data;
+            private QspnStubFactory factory;
 
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
@@ -211,11 +252,13 @@ namespace Testbed
          */
         private class QspnManagerStubVoid : Object, IQspnManagerStub
         {
-            public QspnManagerStubVoid(IdentityData identity_data)
+            public QspnManagerStubVoid(QspnStubFactory factory, IdentityData identity_data)
             {
                 this.identity_data = identity_data;
+                this.factory = factory;
             }
             private weak IdentityData identity_data;
+            private QspnStubFactory factory;
 
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
@@ -238,6 +281,13 @@ namespace Testbed
             public void send_etp(IQspnEtpMessage etp, bool is_full)
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
+                if (factory.expected_send_etp != null) {
+                    factory.expected_send_etp.send_async(etp);
+                    factory.expected_send_etp.send_async(is_full);
+                    ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
+                    factory.expected_send_etp.send_async(destid_set);
+                    return;
+                }
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC send_etp, but have no (other) arcs.\n");
                 string typename = type_to_name(etp.get_type());
                 print(@"   $(typename) etp=$(json_string_from_object(etp)).\n");
@@ -246,34 +296,32 @@ namespace Testbed
         }
 
         public IQspnManagerStub
-                        i_qspn_get_broadcast(
-                            Gee.List<IQspnArc> arcs,
-                            IQspnMissingArcHandler? missing_handler=null
-                        )
+        i_qspn_get_broadcast(
+                             Gee.List<IQspnArc> arcs,
+                             IQspnMissingArcHandler? missing_handler=null
+                             )
         {
-            if(arcs.is_empty) return new QspnManagerStubVoid(identity_data);
-            NodeID source_node_id = ((QspnArc)arcs[0]).sourceid;
-            ArrayList<NodeID> broadcast_node_id_set = new ArrayList<NodeID>();
+            if(arcs.is_empty) return new QspnManagerStubVoid(this, identity_data);
+            ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
             foreach (IQspnArc arc in arcs)
             {
                 QspnArc _arc = (QspnArc)arc;
-                broadcast_node_id_set.add(_arc.destid);
+                destid_set.add(_arc.destid);
             }
-            string to_set = ""; foreach (NodeID i in broadcast_node_id_set) to_set += @"$(i.id) ";
-            string msg_hdr = @"RPC from $(source_node_id.id) to {$(to_set)}";
-            QspnManagerStubHolder ret = new QspnManagerStubHolder(msg_hdr, identity_data);
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(this, destid_set, identity_data);
             return ret;
         }
 
         public IQspnManagerStub
-                        i_qspn_get_tcp(
-                            IQspnArc arc,
-                            bool wait_reply=true
-                        )
+        i_qspn_get_tcp(
+                       IQspnArc arc,
+                       bool wait_reply=true
+                       )
         {
             QspnArc _arc = (QspnArc)arc;
-            string msg_hdr = @"RPC from $(_arc.sourceid.id) to $(_arc.destid.id)";
-            QspnManagerStubHolder ret = new QspnManagerStubHolder(msg_hdr, identity_data);
+            ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
+            destid_set.add(_arc.destid);
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(this, destid_set, identity_data);
             return ret;
         }
     }
