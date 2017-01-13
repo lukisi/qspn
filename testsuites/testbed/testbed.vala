@@ -97,6 +97,39 @@ namespace Testbed
         return my_elderships_str;
     }
 
+    void compute_topology(string topology, out ArrayList<int> _gsizes, out int levels)
+    {
+        _gsizes = new ArrayList<int>();
+        foreach (string s_piece in topology.split("."))
+        {
+            int gsize = int.parse(s_piece);
+            if (gsize < 2) error(@"Bad gsize $(gsize).");
+            _gsizes.insert(0, gsize);
+        }
+        levels = _gsizes.size;
+    }
+
+    void compute_naddr(string naddr, ArrayList<int> _gsizes, out Naddr my_naddr)
+    {
+        ArrayList<int> _naddr = new ArrayList<int>();
+        foreach (string s_piece in naddr.split(".")) _naddr.insert(0, int.parse(s_piece));
+        my_naddr = new Naddr(_naddr.to_array(), _gsizes.to_array());
+    }
+
+    void compute_fp0_first_node(int64 id, int levels, out Fingerprint my_fp)
+    {
+        string elderships = "0";
+        for (int i = 1; i < levels; i++) elderships += ".0";
+        compute_fp0(id, elderships, out my_fp);
+    }
+
+    void compute_fp0(int64 id, string elderships, out Fingerprint my_fp)
+    {
+        ArrayList<int> _elderships = new ArrayList<int>();
+        foreach (string s_piece in elderships.split(".")) _elderships.insert(0, int.parse(s_piece));
+        my_fp = new Fingerprint(_elderships.to_array(), id);
+    }
+
     const int max_paths = 5;
     const double max_common_hops_ratio = 0.6;
     const int arc_timeout = 10000;
@@ -104,8 +137,66 @@ namespace Testbed
 
     class IdentityData : Object
     {
-        public weak QspnManager qspn_manager;
+        public IdentityData(int id) {
+            nodeid = new NodeID(id);
+        }
+        public NodeID nodeid;
+        public Naddr my_naddr;
+        public Fingerprint my_fp;
+        public QspnManager qspn_manager;
         public int local_identity_index;
+
+        // handle signals from qspn_manager
+
+        public bool qspn_handlers_disabled = false;
+
+        public void arc_removed(IQspnArc arc, string message, bool bad_link)
+        {
+        }
+
+        public void changed_fp(int l)
+        {
+        }
+
+        public void changed_nodes_inside(int l)
+        {
+        }
+
+        public void destination_added(HCoord h)
+        {
+        }
+
+        public void destination_removed(HCoord h)
+        {
+        }
+
+        public void gnode_splitted(IQspnArc a, HCoord d, IQspnFingerprint fp)
+        {
+        }
+
+        public void path_added(IQspnNodePath p)
+        {
+        }
+
+        public void path_changed(IQspnNodePath p)
+        {
+        }
+
+        public void path_removed(IQspnNodePath p)
+        {
+        }
+
+        public void presence_notified()
+        {
+        }
+
+        public void qspn_bootstrap_complete()
+        {
+        }
+
+        public void remove_identity()
+        {
+        }
     }
 
     class QspnStubFactory : Object, IQspnStubFactory
