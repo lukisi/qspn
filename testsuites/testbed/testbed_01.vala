@@ -139,10 +139,99 @@ namespace Testbed
             Json.Reader r_buf = new Json.Reader(n);
             assert(r_buf.is_object());
             assert(r_buf.read_member("node-address"));
+            {
+                assert(r_buf.is_object());
+                assert(r_buf.read_member("value"));
+                {
+                    assert(r_buf.is_object());
+                    assert(r_buf.read_member("pos"));
+                    {
+                        assert(r_buf.is_array());
+                        assert(r_buf.count_elements() == 4);
+                        assert(r_buf.read_element(0));
+                        {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 2);
+                        }
+                        r_buf.end_element();
+                        assert(r_buf.read_element(1));
+                        {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 1);
+                        }
+                        r_buf.end_element();
+                        assert(r_buf.read_element(2));
+                        {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 0);
+                        }
+                        r_buf.end_element();
+                        assert(r_buf.read_element(3));
+                        {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 1);
+                        }
+                        r_buf.end_element();
+                    }
+                    r_buf.end_member();
+                }
+                r_buf.end_member();
+            }
             r_buf.end_member();
             assert(r_buf.read_member("fingerprints"));
+            {
+
+                assert(r_buf.is_array());
+                assert(r_buf.count_elements() == 5);
+                assert(r_buf.read_element(0));
+                {
+                    assert(r_buf.is_object());
+                    assert(r_buf.read_member("value"));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("id"));
+                        {
+                        }
+                        r_buf.end_member();
+                        assert(r_buf.read_member("level"));
+                        {
+                        }
+                        r_buf.end_member();
+                        assert(r_buf.read_member("elderships"));
+                        {
+                        }
+                        r_buf.end_member();
+                        assert(r_buf.read_member("elderships-seed"));
+                        {
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_member();
+                }
+                r_buf.end_element();
+                assert(r_buf.read_element(1));
+                {
+                }
+                r_buf.end_element();
+                assert(r_buf.read_element(2));
+                {
+                }
+                r_buf.end_element();
+                assert(r_buf.read_element(3));
+                {
+                }
+                r_buf.end_element();
+                assert(r_buf.read_element(4));
+                {
+                }
+                r_buf.end_element();
+
+
+            }
             r_buf.end_member();
             assert(r_buf.read_member("nodes-inside"));
+            {
+            }
             r_buf.end_member();
         }
 
