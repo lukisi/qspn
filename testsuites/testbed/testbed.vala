@@ -33,12 +33,12 @@ namespace Testbed
         return Type.from_name(typename);
     }
 
-    string json_string_from_object(Object obj)
+    string json_string_from_object(Object obj, bool pretty=true)
     {
         Json.Node n = Json.gobject_serialize(obj);
         Json.Generator g = new Json.Generator();
         g.root = n;
-        g.pretty = true;
+        g.pretty = pretty;
         string ret = g.to_data(null);
         return ret;
     }

@@ -135,7 +135,25 @@ namespace Testbed
         assert(! id0_send_is_full);
         assert(destid_set.is_empty);
         {
-            Json.Node n = Json.gobject_serialize(id0_send_etp);
+            /*
+             * If we do just:
+                Json.Node n = Json.gobject_serialize(id0_send_etp);
+               then we get a strange "Critical message" of "json_node_get_node_type: assertion 'JSON_NODE_IS_VALID (node)' failed"
+               when we do a certain sequence of operations with the Json.Reader.
+               That's not the case when we pass through the following:
+             */
+            Json.Node n0 = Json.gobject_serialize(id0_send_etp);
+            Json.Generator g0 = new Json.Generator();
+            g0.root = n0;
+            g0.pretty = false;
+            string s0 = g0.to_data(null);
+            Json.Parser p0 = new Json.Parser();
+            try {
+                assert(p0.load_from_data(s0));
+            } catch (Error e) {assert_not_reached();}
+            Json.Node n = p0.get_root();
+
+
             Json.Reader r_buf = new Json.Reader(n);
             assert(r_buf.is_object());
             assert(r_buf.read_member("node-address"));
@@ -191,18 +209,50 @@ namespace Testbed
                         assert(r_buf.is_object());
                         assert(r_buf.read_member("id"));
                         {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 97272);
                         }
                         r_buf.end_member();
                         assert(r_buf.read_member("level"));
                         {
+                            assert(r_buf.is_value());
+                            assert(r_buf.get_int_value() == 0);
                         }
                         r_buf.end_member();
                         assert(r_buf.read_member("elderships"));
                         {
+                            assert(r_buf.is_array());
+                            assert(r_buf.count_elements() == 4);
+                            assert(r_buf.read_element(0));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(1));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(2));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(3));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_element();
                         }
                         r_buf.end_member();
                         assert(r_buf.read_member("elderships-seed"));
                         {
+                            assert(r_buf.is_array());
+                            assert(r_buf.count_elements() == 0);
                         }
                         r_buf.end_member();
                     }
