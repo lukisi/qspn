@@ -49,18 +49,18 @@ namespace Testbed
             id0.my_fp,
             id0.stub_factory);
         // soon after creation, connect to signals.
-        // TODO  id0.qspn_manager.arc_removed.connect(id0.arc_removed);
-        // TODO  id0.qspn_manager.changed_fp.connect(id0.changed_fp);
+        // TODO  id0.qspn_manager.arc_removed.connect(something);
+        // TODO  id0.qspn_manager.changed_fp.connect(something);
         id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
-        // TODO  id0.qspn_manager.destination_added.connect(id0.destination_added);
-        // TODO  id0.qspn_manager.destination_removed.connect(id0.destination_removed);
-        // TODO  id0.qspn_manager.gnode_splitted.connect(id0.gnode_splitted);
-        // TODO  id0.qspn_manager.path_added.connect(id0.path_added);
-        // TODO  id0.qspn_manager.path_changed.connect(id0.path_changed);
-        // TODO  id0.qspn_manager.path_removed.connect(id0.path_removed);
-        // TODO  id0.qspn_manager.presence_notified.connect(id0.presence_notified);
+        // TODO  id0.qspn_manager.destination_added.connect(something);
+        // TODO  id0.qspn_manager.destination_removed.connect(something);
+        // TODO  id0.qspn_manager.gnode_splitted.connect(something);
+        // TODO  id0.qspn_manager.path_added.connect(something);
+        // TODO  id0.qspn_manager.path_changed.connect(something);
+        // TODO  id0.qspn_manager.path_removed.connect(something);
+        // TODO  id0.qspn_manager.presence_notified.connect(something);
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
-        // TODO  id0.qspn_manager.remove_identity.connect(id0.remove_identity);
+        // TODO  id0.qspn_manager.remove_identity.connect(something);
 
         check_id0_qspn_bootstrap_complete = false;
         // In less than 0.1 seconds we must get signal Qspn.qspn_bootstrap_complete.
@@ -131,7 +131,7 @@ namespace Testbed
                 update_naddr, id0.my_fp);
             assert(test_id0_changed_nodes_inside == -1);
         }
-        // In less than 0.2 seconds we must send an ETP.
+        // In less than 0.2 seconds we must call RPC send_etp.
         IQspnEtpMessage id0_send_etp;
         bool id0_send_is_full;
         ArrayList<NodeID> destid_set;
@@ -536,6 +536,53 @@ namespace Testbed
         }
 
         tasklet.ms_wait(100);
+
+        // Identity #1: construct Qspn.enter_net.
+        /*
+           previous_identity=0.
+           my_naddr=2:1:1:2 elderships=0:0:0:1 fp0=97272 nodeid=2135518399.
+           guest_gnode_level=0, host_gnode_level=1.
+           internal_arcs #: 0.
+           external_arcs #: 1.
+            #0:
+              dev=eth1
+              peer_mac=00:16:3E:EC:A3:E1
+              source-dest=2135518399-1536684510
+         */
+        IdentityData id1 = new IdentityData(2135518399);
+        id1.local_identity_index = 1;
+        id1.stub_factory = new QspnStubFactory(id1);
+        compute_naddr("2.1.1.2", _gsizes, out id1.my_naddr);
+        compute_fp0(97272, "0.0.0.1", out id1.my_fp);
+        ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
+        ArrayList<IQspnArc> internal_arc_prev_arc_set = new ArrayList<IQspnArc>();
+        ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
+        ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
+        external_arc_set.add(new QspnArc(id1.nodeid, new NodeID(1536684510), new Cost(10796), "00:16:3E:EC:A3:E1"));
+        id1.qspn_manager = new QspnManager.enter_net(
+            id1.my_naddr,
+            internal_arc_set,
+            internal_arc_prev_arc_set,
+            internal_arc_peer_naddr_set,
+            external_arc_set,
+            id1.my_fp,
+            id1.stub_factory,
+            0,
+            1,
+            id0.qspn_manager);
+        // soon after creation, connect to signals.
+        // TODO  id1.qspn_manager.arc_removed.connect(something);
+        // TODO  id1.qspn_manager.changed_fp.connect(something);
+        // TODO  id1.qspn_manager.changed_nodes_inside.connect(something);
+        // TODO  id1.qspn_manager.destination_added.connect(something);
+        // TODO  id1.qspn_manager.destination_removed.connect(something);
+        // TODO  id1.qspn_manager.gnode_splitted.connect(something);
+        // TODO  id1.qspn_manager.path_added.connect(something);
+        // TODO  id1.qspn_manager.path_changed.connect(something);
+        // TODO  id1.qspn_manager.path_removed.connect(something);
+        // TODO  id1.qspn_manager.presence_notified.connect(something);
+        // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(something);
+        // TODO  id1.qspn_manager.remove_identity.connect(something);
 
         // TODO
     }
