@@ -51,7 +51,7 @@ namespace Testbed
         // soon after creation, connect to signals.
         // TODO  id0.qspn_manager.arc_removed.connect(id0.arc_removed);
         // TODO  id0.qspn_manager.changed_fp.connect(id0.changed_fp);
-        // TODO  id0.qspn_manager.changed_nodes_inside.connect(id0.changed_nodes_inside);
+        id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
         // TODO  id0.qspn_manager.destination_added.connect(id0.destination_added);
         // TODO  id0.qspn_manager.destination_removed.connect(id0.destination_removed);
         // TODO  id0.qspn_manager.gnode_splitted.connect(id0.gnode_splitted);
@@ -122,10 +122,14 @@ namespace Testbed
 
             id0.my_naddr = (Naddr)update_naddr(id0.my_naddr);
             id0.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+            // check behaviour of changed_nodes_inside
+            test_id0_changed_nodes_inside = 1;
+            test_id0_changed_nodes_inside_qspnmgr = id0.qspn_manager;
             id0.qspn_manager.make_connectivity(
                 1,
                 4,
                 update_naddr, id0.my_fp);
+            assert(test_id0_changed_nodes_inside == -1);
         }
         // In less than 0.2 seconds we must send an ETP.
         IQspnEtpMessage id0_send_etp;
@@ -349,5 +353,54 @@ namespace Testbed
     {
         check_id0_qspn_bootstrap_complete = true;
         debug(@"$(get_time_now()) id0_qspn_bootstrap_complete()");
+    }
+
+    int test_id0_changed_nodes_inside = -1;
+    int test_id0_changed_nodes_inside_step = -1;
+    weak QspnManager? test_id0_changed_nodes_inside_qspnmgr = null;
+    void id0_changed_nodes_inside(int l)
+    {
+        if (test_id0_changed_nodes_inside == 1)
+        {
+            if (test_id0_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside_l = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside_l == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 1;
+            }
+            else if (test_id0_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside_l = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside_l == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 2;
+            }
+            else if (test_id0_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside_l = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside_l == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 3;
+            }
+            else if (test_id0_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside_l = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside_l == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = -1;
+                test_id0_changed_nodes_inside = -1;
+                test_id0_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        // else if (test_id0_changed_nodes_inside == 2)
     }
 }
