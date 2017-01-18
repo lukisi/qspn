@@ -191,6 +191,41 @@ namespace Testbed
             expected_send_etp = null;
         }
 
+        private IChannel? expected_get_full_etp = null;
+        public void expect_get_full_etp(int timeout_msec, out IQspnAddress requesting_address, out IChannel expected_answer, out ArrayList<NodeID> destid_set)
+        {
+            assert(expected_get_full_etp == null);
+            expected_get_full_etp = tasklet.get_channel();
+            try {
+                Value v0 = expected_get_full_etp.recv_with_timeout(timeout_msec);
+                //assert(v0 is IQspnAddress);
+                requesting_address = (IQspnAddress)v0;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            try {
+                Value v1 = expected_get_full_etp.recv_with_timeout(2);
+                //assert(v1 is IChannel);
+                expected_answer = (IChannel)v1;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            try {
+                Value v2 = expected_get_full_etp.recv_with_timeout(2);
+                //assert(v2 is ArrayList<NodeID>);
+                destid_set = (ArrayList<NodeID>)v2;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            expected_get_full_etp = null;
+        }
+
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
          */
@@ -212,6 +247,17 @@ namespace Testbed
             public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
             throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
             {
+                if (factory.expected_get_full_etp != null) {
+                    factory.expected_get_full_etp.send_async(requesting_address);
+                    IChannel expected_answer = tasklet.get_channel();
+                    factory.expected_get_full_etp.send_async(expected_answer);
+                    factory.expected_get_full_etp.send_async(destid_set);
+                    // handle cases of return and of exceptions
+                    string ret_type = (string)expected_answer.recv();
+                    if (ret_type == "OK") return (IQspnEtpMessage)expected_answer.recv();
+                    else if (ret_type == "QspnBootstrapInProgressError") throw new QspnBootstrapInProgressError.GENERIC("");
+                    else assert_not_reached();
+                }
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
                 print(@"   requesting_address=$(naddr_repr((Naddr)requesting_address)).\n");
@@ -355,7 +401,11 @@ namespace Testbed
 
         public bool i_qspn_equals(IQspnArc other)
         {
-            return other == this;
+            if (! (other is QspnArc)) return false;
+            QspnArc _other = (QspnArc)other;
+            return
+                _other.sourceid.equals(sourceid) &&
+                _other.destid.equals(destid);
         }
 
         public bool i_qspn_comes_from(CallerInfo rpc_caller)

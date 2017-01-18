@@ -19,6 +19,7 @@
 using Gee;
 using Netsukuku;
 using Netsukuku.Qspn;
+using TaskletSystem;
 
 namespace Testbed
 {
@@ -134,10 +135,10 @@ namespace Testbed
         // In less than 0.2 seconds we must call RPC send_etp.
         IQspnEtpMessage id0_send_etp;
         bool id0_send_is_full;
-        ArrayList<NodeID> destid_set;
-        id0.stub_factory.expect_send_etp(200, out id0_send_etp, out id0_send_is_full, out destid_set);
+        ArrayList<NodeID> id0_destid_set;
+        id0.stub_factory.expect_send_etp(200, out id0_send_etp, out id0_send_is_full, out id0_destid_set);
         assert(! id0_send_is_full);
-        assert(destid_set.is_empty);
+        assert(id0_destid_set.is_empty);
         {
             /*
              * If we do just:
@@ -202,7 +203,6 @@ namespace Testbed
             r_buf.end_member();
             assert(r_buf.read_member("fingerprints"));
             {
-
                 assert(r_buf.is_array());
                 assert(r_buf.count_elements() == 5);
                 assert(r_buf.read_element(0));
@@ -584,7 +584,29 @@ namespace Testbed
         // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(something);
         // TODO  id1.qspn_manager.remove_identity.connect(something);
 
+        // In less than 0.1 seconds we must call RPC get_full_etp.
+        IQspnAddress id1_requesting_address;
+        IChannel id1_expected_answer;
+        ArrayList<NodeID> id1_destid_set;
+        id1.stub_factory.expect_get_full_etp(100, out id1_requesting_address, out id1_expected_answer, out id1_destid_set);
+        assert(id1_destid_set.size == 1);
+        assert(id1_destid_set[0].id == 1536684510);
+        assert(naddr_repr((Naddr)id1_requesting_address) == "2:1:1:2");
+
+        // TODO other things with both id1 and id0
+
+        // after 2 seconds get answer from id1_expected_answer
+        tasklet.ms_wait(2000);
+        // build an EtpMessage
+        string s_etpmessage = """{"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},"fingerprints":[{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],"nodes-inside":[1,1,1,1,1],"hops":[],"p-list":[]}""";
+        Type type_etpmessage = name_to_type("NetsukukuQspnEtpMessage");
+        IQspnEtpMessage id1_resp = (IQspnEtpMessage)json_object_from_string(s_etpmessage, type_etpmessage);
+        // simulate the response
+        id1_expected_answer.send_async("OK");
+        id1_expected_answer.send_async(id1_resp);
+
         // TODO
+        tasklet.ms_wait(200);
     }
 
     bool check_id0_qspn_bootstrap_complete;
