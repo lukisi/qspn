@@ -410,7 +410,12 @@ namespace Testbed
 
         public bool i_qspn_comes_from(CallerInfo rpc_caller)
         {
-            if (rpc_caller is TcpclientCallerInfo)
+            if (rpc_caller is FakeCallerInfo)
+            {
+                FakeCallerInfo caller = (FakeCallerInfo)rpc_caller;
+                return (this in caller.valid_set);
+            }
+            else if (rpc_caller is TcpclientCallerInfo)
             {
                 error("not implemented yet");
             }
@@ -428,6 +433,11 @@ namespace Testbed
                 assert_not_reached();
             }
         }
+    }
+
+    class FakeCallerInfo : CallerInfo
+    {
+        public ArrayList<QspnArc> valid_set;
     }
 
     void main(string[] args)
