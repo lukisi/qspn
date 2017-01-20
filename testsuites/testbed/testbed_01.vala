@@ -23,6 +23,11 @@ using TaskletSystem;
 
 namespace Testbed
 {
+    QspnArc arc_id1_1536684510;
+    Cost arc_id1_1536684510_cost;
+    IdentityData id0;
+    IdentityData id1;
+
     void testbed_01()
     {
         // Initialize tasklet system
@@ -41,7 +46,7 @@ namespace Testbed
 
         // Identity #0: construct Qspn.create_net.
         //   my_naddr=1:0:1:0 elderships=0:0:0:0 fp0=97272 nodeid=1215615347.
-        IdentityData id0 = new IdentityData(1215615347);
+        id0 = new IdentityData(1215615347);
         id0.local_identity_index = 0;
         id0.stub_factory = new QspnStubFactory(id0);
         compute_naddr("1.0.1.0", _gsizes, out id0.my_naddr);
@@ -64,56 +69,23 @@ namespace Testbed
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
         // TODO  id0.qspn_manager.remove_identity.connect(something);
 
-        check_id0_qspn_bootstrap_complete = false;
+        test_id0_qspn_bootstrap_complete = 1;
         // In less than 0.1 seconds we must get signal Qspn.qspn_bootstrap_complete.
         tasklet.ms_wait(100);
-        assert(check_id0_qspn_bootstrap_complete);
-        try {
-            Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
-            int nodes_inside = id0.qspn_manager.get_nodes_inside(1);
-            string fp_elderships = fp_elderships_repr(fp);
-            assert(fp.id == 97272);
-            assert(fp_elderships == "0:0:0");
-            assert(nodes_inside == 1);
-
-            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(2);
-            nodes_inside = id0.qspn_manager.get_nodes_inside(2);
-            fp_elderships = fp_elderships_repr(fp);
-            assert(fp.id == 97272);
-            assert(fp_elderships == "0:0");
-            assert(nodes_inside == 1);
-
-            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(3);
-            nodes_inside = id0.qspn_manager.get_nodes_inside(3);
-            fp_elderships = fp_elderships_repr(fp);
-            assert(fp.id == 97272);
-            assert(fp_elderships == "0");
-            assert(nodes_inside == 1);
-
-            fp = (Fingerprint)id0.qspn_manager.get_fingerprint(4);
-            nodes_inside = id0.qspn_manager.get_nodes_inside(4);
-            fp_elderships = fp_elderships_repr(fp);
-            assert(fp.id == 97272);
-            assert(fp_elderships == "");
-            assert(nodes_inside == 1);
-        } catch (QspnBootstrapInProgressError e) {
-            assert_not_reached();
-        }
+        assert(test_id0_qspn_bootstrap_complete == -1);
 
         tasklet.ms_wait(100);
 
         // We enter a network. It implies a new identity id1 that duplicates id0.
         //  First id1 is constructed with enter_net, then id0 calls make_connectivity.
-        IdentityData id1 = new IdentityData(2135518399);
+        id1 = new IdentityData(2135518399);
         id1.local_identity_index = 1;
         id1.stub_factory = new QspnStubFactory(id1);
         // Immediately after id1.stub_factory is initialized, we can spawn a tasklet to wait for
         //  a RPC call.
         FollowId0Tasklet ts0 = new FollowId0Tasklet();
-        ts0.id0 = id0;
         ITaskletHandle h_ts0 = tasklet.spawn(ts0, true);
         FollowId1Tasklet ts1 = new FollowId1Tasklet();
-        ts1.id1 = id1;
         ITaskletHandle h_ts1 = tasklet.spawn(ts1, true);
         // Identity #1: construct Qspn.enter_net.
         /*
@@ -134,7 +106,8 @@ namespace Testbed
         ArrayList<IQspnArc> internal_arc_prev_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
         ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
-        QspnArc arc_id1_1536684510 = new QspnArc(id1.nodeid, new NodeID(1536684510), new Cost(10796), "00:16:3E:EC:A3:E1");
+        arc_id1_1536684510_cost = new Cost(10796);
+        arc_id1_1536684510 = new QspnArc(id1.nodeid, new NodeID(1536684510), arc_id1_1536684510_cost, "00:16:3E:EC:A3:E1");
         external_arc_set.add(arc_id1_1536684510);
         id1.qspn_manager = new QspnManager.enter_net(
             id1.my_naddr,
@@ -149,16 +122,16 @@ namespace Testbed
             id0.qspn_manager);
         // soon after creation, connect to signals.
         // TODO  id1.qspn_manager.arc_removed.connect(something);
-        // TODO  id1.qspn_manager.changed_fp.connect(something);
-        // TODO  id1.qspn_manager.changed_nodes_inside.connect(something);
-        // TODO  id1.qspn_manager.destination_added.connect(something);
+        id1.qspn_manager.changed_fp.connect(id1_changed_fp);
+        id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
+        id1.qspn_manager.destination_added.connect(id1_destination_added);
         // TODO  id1.qspn_manager.destination_removed.connect(something);
         // TODO  id1.qspn_manager.gnode_splitted.connect(something);
-        // TODO  id1.qspn_manager.path_added.connect(something);
+        id1.qspn_manager.path_added.connect(id1_path_added);
         // TODO  id1.qspn_manager.path_changed.connect(something);
         // TODO  id1.qspn_manager.path_removed.connect(something);
         // TODO  id1.qspn_manager.presence_notified.connect(something);
-        // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(something);
+        id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
         // TODO  id1.qspn_manager.remove_identity.connect(something);
 
         // Identity #0: call make_connectivity.
@@ -258,15 +231,66 @@ namespace Testbed
         // after .5 seconds id1 get answer from id1_expected_answer
         tasklet.ms_wait(500);
         // build an EtpMessage
-        string s_etpmessage = """{"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},"fingerprints":[{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],"nodes-inside":[1,1,1,1,1],"hops":[],"p-list":[]}""";
+        string s_etpmessage = """{""" +
+            """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
+            """"fingerprints":[""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+            """"nodes-inside":[1,1,1,1,1],""" +
+            """"hops":[],""" +
+            """"p-list":[]}""";
         Type type_etpmessage = name_to_type("NetsukukuQspnEtpMessage");
         IQspnEtpMessage id1_resp = (IQspnEtpMessage)json_object_from_string(s_etpmessage, type_etpmessage);
         // simulate the response
         id1_expected_answer.send_async("OK");
         id1_expected_answer.send_async(id1_resp);
+        // Immediately (send_async will not wait) prepare to verify signals produced by ETP processing.
+        test_id1_destination_added = 1;
+        test_id1_path_added = 1;
+        test_id1_changed_fp = 1;
+        test_id1_changed_fp_qspnmgr = id1.qspn_manager;
+        test_id1_changed_nodes_inside = 1;
+        test_id1_changed_nodes_inside_qspnmgr = id1.qspn_manager;
+        test_id1_qspn_bootstrap_complete = 1;
+        // While we wait for those signals, also expect (in less than 0.5 seconds) a call to RPC get_full_etp from id1 to 1536684510
+        //  (Yes, the QspnManager will ask another time to the same arc.)
+        IQspnAddress id1_requesting_address_2;
+        IChannel id1_expected_answer_2;
+        ArrayList<NodeID> id1_destid_set_2;
+        id1.stub_factory.expect_get_full_etp(500, out id1_requesting_address_2, out id1_expected_answer_2, out id1_destid_set_2);
+        assert(test_id1_destination_added == -1);
+        assert(test_id1_path_added == -1);
+        assert(test_id1_changed_fp == -1);
+        assert(test_id1_changed_nodes_inside == -1);
+        assert(test_id1_qspn_bootstrap_complete == -1);
+        assert(id1_destid_set_2.size == 1);
+        assert(id1_destid_set_2[0].id == 1536684510);
+        assert(naddr_repr((Naddr)id1_requesting_address_2) == "2:1:1:1");
+        // after .05 seconds id1 get the second answer from id1_expected_answer_2
+        tasklet.ms_wait(50);
+        // build an EtpMessage
+        string s_etpmessage_2 = """{""" +
+            """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
+            """"fingerprints":[""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+            """"nodes-inside":[1,1,1,1,1],""" +
+            """"hops":[],""" +
+            """"p-list":[]}""";
+        Type type_etpmessage_2 = name_to_type("NetsukukuQspnEtpMessage");
+        IQspnEtpMessage id1_resp_2 = (IQspnEtpMessage)json_object_from_string(s_etpmessage_2, type_etpmessage_2);
+        // simulate the response
+        id1_expected_answer_2.send_async("OK");
+        id1_expected_answer_2.send_async(id1_resp_2);
 
-
-        // TODO carry on with destination-added, path-added, bootstrap-complete, send get_full_etp, ...
+        print("TODO...\n");
+        // TODO
 
 
         id1.qspn_manager.stop_operations();
@@ -277,8 +301,6 @@ namespace Testbed
 
     class FollowId0Tasklet : Object, ITaskletSpawnable
     {
-        public IdentityData id0;
-
         public void * func()
         {
             // In less than 0.2 seconds we must call RPC send_etp.
@@ -689,7 +711,6 @@ namespace Testbed
 
     class FollowId1Tasklet : Object, ITaskletSpawnable
     {
-        public IdentityData id1;
         public IChannel? id1_expected_answer=null;  
 
         public void * func()
@@ -707,11 +728,49 @@ namespace Testbed
         }
     }
 
-    bool check_id0_qspn_bootstrap_complete;
+    int test_id0_qspn_bootstrap_complete = -1;
     void id0_qspn_bootstrap_complete()
     {
-        check_id0_qspn_bootstrap_complete = true;
-        debug(@"$(get_time_now()) id0_qspn_bootstrap_complete()");
+        if (test_id0_qspn_bootstrap_complete == 1)
+        {
+            try {
+                Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
+                int nodes_inside = id0.qspn_manager.get_nodes_inside(1);
+                string fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 97272);
+                assert(fp_elderships == "0:0:0");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id0.qspn_manager.get_fingerprint(2);
+                nodes_inside = id0.qspn_manager.get_nodes_inside(2);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 97272);
+                assert(fp_elderships == "0:0");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id0.qspn_manager.get_fingerprint(3);
+                nodes_inside = id0.qspn_manager.get_nodes_inside(3);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 97272);
+                assert(fp_elderships == "0");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id0.qspn_manager.get_fingerprint(4);
+                nodes_inside = id0.qspn_manager.get_nodes_inside(4);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 97272);
+                assert(fp_elderships == "");
+                assert(nodes_inside == 1);
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
+            test_id0_qspn_bootstrap_complete = -1;
+        }
+        // else if (test_id0_qspn_bootstrap_complete == 2)
+        else
+        {
+            warning("unpredicted signal id0_qspn_bootstrap_complete");
+        }
     }
 
     int test_id0_changed_nodes_inside = -1;
@@ -761,5 +820,199 @@ namespace Testbed
             }
         }
         // else if (test_id0_changed_nodes_inside == 2)
+        else
+        {
+            warning("unpredicted signal id0_changed_nodes_inside");
+        }
+    }
+
+    int test_id1_destination_added = -1;
+    void id1_destination_added(HCoord h)
+    {
+        if (test_id1_destination_added == 1)
+        {
+            assert(h.lvl == 0);
+            assert(h.pos == 0);
+            test_id1_destination_added = -1;
+        }
+        // else if (test_id1_destination_added == 2)
+        else
+        {
+            warning("unpredicted signal id1_destination_added");
+        }
+    }
+
+    int test_id1_path_added = -1;
+    void id1_path_added(IQspnNodePath p)
+    {
+        if (test_id1_path_added == 1)
+        {
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id1_1536684510));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id1_1536684510_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 1);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 0);
+            assert(h_hop.pos == 0);
+            test_id1_path_added = -1;
+        }
+        // else if (test_id1_path_added == 2)
+        else
+        {
+            warning("unpredicted signal id1_path_added");
+        }
+    }
+
+    int test_id1_changed_fp = -1;
+    int test_id1_changed_fp_step = -1;
+    weak QspnManager? test_id1_changed_fp_qspnmgr = null;
+    void id1_changed_fp(int l)
+    {
+        if (test_id1_changed_fp == 1)
+        {
+            if (test_id1_changed_fp_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp_step = 1;
+            }
+            else if (test_id1_changed_fp_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp_step = 2;
+            }
+            else if (test_id1_changed_fp_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp_step = 3;
+            }
+            else if (test_id1_changed_fp_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp = -1;
+                test_id1_changed_fp_step = -1;
+                test_id1_changed_fp_qspnmgr = null;
+            }
+        }
+        // else if (test_id1_changed_fp == 2)
+        else
+        {
+            warning("unpredicted signal id1_changed_fp");
+        }
+    }
+
+    int test_id1_changed_nodes_inside = -1;
+    int test_id1_changed_nodes_inside_step = -1;
+    weak QspnManager? test_id1_changed_nodes_inside_qspnmgr = null;
+    void id1_changed_nodes_inside(int l)
+    {
+        if (test_id1_changed_nodes_inside == 1)
+        {
+            if (test_id1_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside_step = 1;
+            }
+            else if (test_id1_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside_step = 2;
+            }
+            else if (test_id1_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside_step = 3;
+            }
+            else if (test_id1_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside = -1;
+                test_id1_changed_nodes_inside_step = -1;
+                test_id1_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        // else if (test_id1_changed_nodes_inside == 2)
+        else
+        {
+            warning("unpredicted signal id1_changed_nodes_inside");
+        }
+    }
+
+    int test_id1_qspn_bootstrap_complete = -1;
+    void id1_qspn_bootstrap_complete()
+    {
+        if (test_id1_qspn_bootstrap_complete == 1)
+        {
+            try {
+                Fingerprint fp = (Fingerprint)id1.qspn_manager.get_fingerprint(1);
+                int nodes_inside = id1.qspn_manager.get_nodes_inside(1);
+                string fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 599487);
+                assert(fp_elderships == "0:0:0");
+                assert(nodes_inside == 2);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(2);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(2);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 599487);
+                assert(fp_elderships == "0:0");
+                assert(nodes_inside == 2);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(3);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(3);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 599487);
+                assert(fp_elderships == "0");
+                assert(nodes_inside == 2);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(4);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(4);
+                fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == 599487);
+                assert(fp_elderships == "");
+                assert(nodes_inside == 2);
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
+            test_id1_qspn_bootstrap_complete = -1;
+        }
+        // else if (test_id1_qspn_bootstrap_complete == 2)
+        else
+        {
+            warning("unpredicted signal id1_qspn_bootstrap_complete");
+        }
     }
 }
