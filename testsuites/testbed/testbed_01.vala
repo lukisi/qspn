@@ -23,8 +23,15 @@ using TaskletSystem;
 
 namespace Testbed
 {
-    QspnArc arc_id1_1536684510;
-    Cost arc_id1_1536684510_cost;
+    const int64 alfa_fp0 = 97272;
+    const int64 beta_fp0 = 599487;
+    const int alfa0_id = 1215615347;
+    const int beta0_id = 1536684510;
+    const int alfa1_id = 2135518399;
+    const int64 alfa1_beta0_cost = 10796;
+
+    QspnArc arc_id1_beta0;
+    Cost arc_id1_beta0_cost;
     IdentityData id0;
     IdentityData id1;
 
@@ -46,11 +53,11 @@ namespace Testbed
 
         // Identity #0: construct Qspn.create_net.
         //   my_naddr=1:0:1:0 elderships=0:0:0:0 fp0=97272 nodeid=1215615347.
-        id0 = new IdentityData(1215615347);
+        id0 = new IdentityData(alfa0_id);
         id0.local_identity_index = 0;
         id0.stub_factory = new QspnStubFactory(id0);
         compute_naddr("1.0.1.0", _gsizes, out id0.my_naddr);
-        compute_fp0_first_node(97272, levels, out id0.my_fp);
+        compute_fp0_first_node(alfa_fp0, levels, out id0.my_fp);
         id0.qspn_manager = new QspnManager.create_net(
             id0.my_naddr,
             id0.my_fp,
@@ -78,7 +85,7 @@ namespace Testbed
 
         // We enter a network. It implies a new identity id1 that duplicates id0.
         //  First id1 is constructed with enter_net, then id0 calls make_connectivity.
-        id1 = new IdentityData(2135518399);
+        id1 = new IdentityData(alfa1_id);
         id1.local_identity_index = 1;
         id1.stub_factory = new QspnStubFactory(id1);
         // Immediately after id1.stub_factory is initialized, we can spawn a tasklet to wait for
@@ -101,14 +108,14 @@ namespace Testbed
               cost=10796 usec
          */
         compute_naddr("2.1.1.2", _gsizes, out id1.my_naddr);
-        compute_fp0(97272, "0.0.0.1", out id1.my_fp);
+        compute_fp0(alfa_fp0, "0.0.0.1", out id1.my_fp);
         ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnArc> internal_arc_prev_arc_set = new ArrayList<IQspnArc>();
         ArrayList<IQspnNaddr> internal_arc_peer_naddr_set = new ArrayList<IQspnNaddr>();
         ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
-        arc_id1_1536684510_cost = new Cost(10796);
-        arc_id1_1536684510 = new QspnArc(id1.nodeid, new NodeID(1536684510), arc_id1_1536684510_cost, "00:16:3E:EC:A3:E1");
-        external_arc_set.add(arc_id1_1536684510);
+        arc_id1_beta0_cost = new Cost(alfa1_beta0_cost);
+        arc_id1_beta0 = new QspnArc(id1.nodeid, new NodeID(beta0_id), arc_id1_beta0_cost, "00:16:3E:EC:A3:E1");
+        external_arc_set.add(arc_id1_beta0);
         id1.qspn_manager = new QspnManager.enter_net(
             id1.my_naddr,
             internal_arc_set,
@@ -218,7 +225,7 @@ namespace Testbed
         Naddr requesting_address;
         compute_naddr("2.1.1.0", _gsizes, out requesting_address);
         FakeCallerInfo rpc_caller = new FakeCallerInfo();
-        rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id1_1536684510});
+        rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id1_beta0});
         try {
             id1.qspn_manager.get_full_etp(requesting_address, rpc_caller);
             assert_not_reached();
@@ -234,11 +241,16 @@ namespace Testbed
         string s_etpmessage = """{""" +
             """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
             """"fingerprints":[""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
             """"nodes-inside":[1,1,1,1,1],""" +
             """"hops":[],""" +
             """"p-list":[]}""";
@@ -267,7 +279,7 @@ namespace Testbed
         assert(test_id1_changed_nodes_inside == -1);
         assert(test_id1_qspn_bootstrap_complete == -1);
         assert(id1_destid_set_2.size == 1);
-        assert(id1_destid_set_2[0].id == 1536684510);
+        assert(id1_destid_set_2[0].id == beta0_id);
         assert(naddr_repr((Naddr)id1_requesting_address_2) == "2:1:1:1");
         // after .05 seconds id1 get the second answer from id1_expected_answer_2
         tasklet.ms_wait(50);
@@ -275,11 +287,16 @@ namespace Testbed
         string s_etpmessage_2 = """{""" +
             """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
             """"fingerprints":[""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
-                """{"typename":"TestbedFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(beta_fp0)" +
+                        ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
             """"nodes-inside":[1,1,1,1,1],""" +
             """"hops":[],""" +
             """"p-list":[]}""";
@@ -385,7 +402,7 @@ namespace Testbed
                             assert(r_buf.read_member("id"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 97272);
+                                assert(r_buf.get_int_value() == alfa_fp0);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("level"));
@@ -443,7 +460,7 @@ namespace Testbed
                             assert(r_buf.read_member("id"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 97272);
+                                assert(r_buf.get_int_value() == alfa_fp0);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("level"));
@@ -501,7 +518,7 @@ namespace Testbed
                             assert(r_buf.read_member("id"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 97272);
+                                assert(r_buf.get_int_value() == alfa_fp0);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("level"));
@@ -559,7 +576,7 @@ namespace Testbed
                             assert(r_buf.read_member("id"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 97272);
+                                assert(r_buf.get_int_value() == alfa_fp0);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("level"));
@@ -617,7 +634,7 @@ namespace Testbed
                             assert(r_buf.read_member("id"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 97272);
+                                assert(r_buf.get_int_value() == alfa_fp0);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("level"));
@@ -721,7 +738,7 @@ namespace Testbed
             ArrayList<NodeID> id1_destid_set;
             id1.stub_factory.expect_get_full_etp(100, out id1_requesting_address, out _id1_expected_answer, out id1_destid_set);
             assert(id1_destid_set.size == 1);
-            assert(id1_destid_set[0].id == 1536684510);
+            assert(id1_destid_set[0].id == beta0_id);
             assert(naddr_repr((Naddr)id1_requesting_address) == "2:1:1:2");
             id1_expected_answer = _id1_expected_answer;
             return null;
@@ -737,28 +754,28 @@ namespace Testbed
                 Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
                 int nodes_inside = id0.qspn_manager.get_nodes_inside(1);
                 string fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 97272);
+                assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0:0:0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(2);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(2);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 97272);
+                assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0:0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(3);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(3);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 97272);
+                assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(4);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(4);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 97272);
+                assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "");
                 assert(nodes_inside == 1);
             } catch (QspnBootstrapInProgressError e) {
@@ -847,8 +864,8 @@ namespace Testbed
     {
         if (test_id1_path_added == 1)
         {
-            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id1_1536684510));
-            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id1_1536684510_cost) == 0);
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id1_beta0));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id1_beta0_cost) == 0);
             assert(p.i_qspn_get_nodes_inside() == 1);
             Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
             assert(hops.size == 1);
@@ -980,28 +997,28 @@ namespace Testbed
                 Fingerprint fp = (Fingerprint)id1.qspn_manager.get_fingerprint(1);
                 int nodes_inside = id1.qspn_manager.get_nodes_inside(1);
                 string fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 599487);
+                assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0:0:0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(2);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(2);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 599487);
+                assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0:0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(3);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(3);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 599487);
+                assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(4);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(4);
                 fp_elderships = fp_elderships_repr(fp);
-                assert(fp.id == 599487);
+                assert(fp.id == beta_fp0);
                 assert(fp_elderships == "");
                 assert(nodes_inside == 2);
             } catch (QspnBootstrapInProgressError e) {
