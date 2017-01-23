@@ -751,32 +751,45 @@ namespace Testbed
         if (test_id0_qspn_bootstrap_complete == 1)
         {
             try {
-                Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
-                int nodes_inside = id0.qspn_manager.get_nodes_inside(1);
+                Fingerprint fp = (Fingerprint)id0.qspn_manager.get_fingerprint(0);
+                int nodes_inside = id0.qspn_manager.get_nodes_inside(0);
                 string fp_elderships = fp_elderships_repr(fp);
                 assert(fp.id == alfa_fp0);
+                assert(fp_elderships == "0:0:0:0");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id0.qspn_manager.get_fingerprint(1);
+                nodes_inside = id0.qspn_manager.get_nodes_inside(1);
+                fp_elderships = fp_elderships_repr(fp);
+                string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0:0:0");
+                assert(fp_elderships_seed == "0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(2);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(2);
                 fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0:0");
+                assert(fp_elderships_seed == "0:0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(3);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(3);
                 fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == alfa_fp0);
                 assert(fp_elderships == "0");
+                assert(fp_elderships_seed == "0:0:0");
                 assert(nodes_inside == 1);
 
                 fp = (Fingerprint)id0.qspn_manager.get_fingerprint(4);
                 nodes_inside = id0.qspn_manager.get_nodes_inside(4);
-                fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == alfa_fp0);
-                assert(fp_elderships == "");
+                assert(fp_elderships_seed == "0:0:0:0");
                 assert(nodes_inside == 1);
             } catch (QspnBootstrapInProgressError e) {
                 assert_not_reached();
@@ -994,32 +1007,45 @@ namespace Testbed
         if (test_id1_qspn_bootstrap_complete == 1)
         {
             try {
-                Fingerprint fp = (Fingerprint)id1.qspn_manager.get_fingerprint(1);
-                int nodes_inside = id1.qspn_manager.get_nodes_inside(1);
+                Fingerprint fp = (Fingerprint)id1.qspn_manager.get_fingerprint(0);
+                int nodes_inside = id1.qspn_manager.get_nodes_inside(0);
                 string fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == alfa_fp0);
+                assert(fp_elderships == "0:0:0:2");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(1);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(1);
+                fp_elderships = fp_elderships_repr(fp);
+                string fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0:0:0");
+                assert(fp_elderships_seed == "0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(2);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(2);
                 fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0:0");
+                assert(fp_elderships_seed == "0:0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(3);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(3);
                 fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == beta_fp0);
                 assert(fp_elderships == "0");
+                assert(fp_elderships_seed == "0:0:0");
                 assert(nodes_inside == 2);
 
                 fp = (Fingerprint)id1.qspn_manager.get_fingerprint(4);
                 nodes_inside = id1.qspn_manager.get_nodes_inside(4);
-                fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
                 assert(fp.id == beta_fp0);
-                assert(fp_elderships == "");
+                assert(fp_elderships_seed == "0:0:0:0");
                 assert(nodes_inside == 2);
             } catch (QspnBootstrapInProgressError e) {
                 assert_not_reached();

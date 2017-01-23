@@ -85,16 +85,26 @@ namespace Testbed
 
     string fp_elderships_repr(Fingerprint my_fp)
     {
-        int levels = my_fp.level + my_fp.elderships.size;
-
         string my_elderships_str = "";
         string sep = "";
-        for (int i = 0; i < levels-my_fp.level; i++)
+        for (int i = 0; i < my_fp.elderships.size; i++)
         {
             my_elderships_str = @"$(my_fp.elderships[i])$(sep)$(my_elderships_str)";
             sep = ":";
         }
         return my_elderships_str;
+    }
+
+    string fp_elderships_seed_repr(Fingerprint my_fp)
+    {
+        string my_elderships_seed_str = "";
+        string sep = "";
+        for (int i = 0; i < my_fp.elderships_seed.size; i++)
+        {
+            my_elderships_seed_str = @"$(my_fp.elderships_seed[i])$(sep)$(my_elderships_seed_str)";
+            sep = ":";
+        }
+        return my_elderships_seed_str;
     }
 
     void compute_topology(string topology, out ArrayList<int> _gsizes, out int levels)
