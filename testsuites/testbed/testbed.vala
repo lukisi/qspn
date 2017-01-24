@@ -294,6 +294,12 @@ namespace Testbed
             public void send_etp(IQspnEtpMessage etp, bool is_full)
             throws QspnNotAcceptedError, StubError, DeserializeError
             {
+                if (factory.expected_send_etp != null) {
+                    factory.expected_send_etp.send_async(etp);
+                    factory.expected_send_etp.send_async(is_full);
+                    factory.expected_send_etp.send_async(destid_set);
+                    return;
+                }
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC send_etp: $(msg_hdr).\n");
                 string typename = type_to_name(etp.get_type());
