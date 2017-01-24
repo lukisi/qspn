@@ -137,7 +137,7 @@ namespace Testbed
         id1.qspn_manager.path_added.connect(id1_path_added);
         // TODO  id1.qspn_manager.path_changed.connect(something);
         // TODO  id1.qspn_manager.path_removed.connect(something);
-        // TODO  id1.qspn_manager.presence_notified.connect(something);
+        id1.qspn_manager.presence_notified.connect(id1_presence_notified);
         id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
         // TODO  id1.qspn_manager.remove_identity.connect(something);
 
@@ -821,6 +821,16 @@ namespace Testbed
                 r_buf.end_element();
             }
             r_buf.end_member();
+        }
+
+        // Verify that after some time id1 signals its 'presence_notified'.
+        test_id1_presence_notified = 1;
+        int iterations_before_id1_presence_notified = 0;
+        while (test_id1_presence_notified != -1)
+        {
+            iterations_before_id1_presence_notified++;
+            assert(iterations_before_id1_presence_notified < 10);
+            tasklet.ms_wait(200);
         }
 
         print("TODO...\n");
@@ -1574,6 +1584,21 @@ namespace Testbed
         else
         {
             warning("unpredicted signal id1_qspn_bootstrap_complete");
+        }
+    }
+
+    int test_id1_presence_notified = -1;
+    void id1_presence_notified()
+    {
+        if (test_id1_presence_notified == 1)
+        {
+            // Just the signal is expected.
+            test_id1_presence_notified = -1;
+        }
+        // else if (test_id1_presence_notified == 2)
+        else
+        {
+            warning("unpredicted signal id1_presence_notified");
         }
     }
 }
