@@ -850,11 +850,8 @@ namespace Testbed
         assert(test_id1_changed_fp == -1);
         assert(test_id1_changed_nodes_inside == -1);
 
-        print("TODO...\n");
         tasklet.ms_wait(200);
-        // TODO
-
-
+        // Identity #1: disable and dismiss.
         id1.qspn_manager.stop_operations();
         id1.qspn_manager = null;
 
