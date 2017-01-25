@@ -11,6 +11,7 @@ TESTS = \
 	test_not_split_signal \
 	test1 \
 	testbed01 \
+	testbed02 \
 	$(NULL)
 
 check_PROGRAMS = \
@@ -138,6 +139,7 @@ simulator_LDADD = \
 testbed_SOURCES = \
 	testsuites/testbed/testbed.vala \
 	testsuites/testbed/testbed_01.vala \
+	testsuites/testbed/testbed_02.vala \
 	testsuites/testbed/naddr.vala \
 	testsuites/testbed/serialize_helpers.vala \
 	qspn.vapi \

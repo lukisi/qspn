@@ -10,6 +10,7 @@ client_serialize_helpers.c
 generic_naddr.c
 testbed.c
 testbed_01.c
+testbed_02.c
 naddr.c
 Makefile.in
 Makefile
