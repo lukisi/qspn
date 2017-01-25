@@ -20,8 +20,9 @@ using Gee;
 using Netsukuku;
 using Netsukuku.Qspn;
 using TaskletSystem;
+using Testbed;
 
-namespace Testbed
+namespace Testbed01
 {
     const int64 alfa_fp0 = 97272;
     const int64 beta_fp0 = 599487;

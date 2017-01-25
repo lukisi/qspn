@@ -460,8 +460,8 @@ namespace Testbed
     {
         if (args.length == 2)
         {
-            if (args[1] == "01") testbed_01();
-            else if (args[1] == "02") testbed_02();
+            if (args[1] == "01") Testbed01.testbed_01();
+            else if (args[1] == "02") Testbed02.testbed_02();
             //else if (args[1] == "03") testbed_03();
             else error(@"testbed: bad number $(args[1])");
             return; //OK
