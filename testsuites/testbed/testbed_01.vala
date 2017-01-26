@@ -322,11 +322,7 @@ namespace Testbed01
                when we do a certain sequence of operations with the Json.Reader.
                That's not the case when we pass through the following:
              */
-            Json.Node n0 = Json.gobject_serialize(id1_send_etp);
-            Json.Generator g0 = new Json.Generator();
-            g0.root = n0;
-            g0.pretty = false;
-            string s0 = g0.to_data(null);
+            string s0 = json_string_from_object(id1_send_etp, false);
             Json.Parser p0 = new Json.Parser();
             try {
                 assert(p0.load_from_data(s0));
@@ -878,11 +874,7 @@ namespace Testbed01
                    when we do a certain sequence of operations with the Json.Reader.
                    That's not the case when we pass through the following:
                  */
-                Json.Node n0 = Json.gobject_serialize(id0_send_etp);
-                Json.Generator g0 = new Json.Generator();
-                g0.root = n0;
-                g0.pretty = false;
-                string s0 = g0.to_data(null);
+                string s0 = json_string_from_object(id0_send_etp, false);
                 Json.Parser p0 = new Json.Parser();
                 try {
                     assert(p0.load_from_data(s0));

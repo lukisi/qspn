@@ -81,6 +81,71 @@ namespace Testbed02
         assert(test_id0_qspn_bootstrap_complete == -1);
 
         tasklet.ms_wait(100);
+
+        // id0 receives RPC call to get_full_etp.
+        /*
+           requesting_address=2:1:1:2.
+           Caller is TcpclientCallerInfo
+           my_address = 169.254.7.214
+           peer_address = 169.254.18.75
+           sourceid = 2135518399
+         */
+        Id0GetFullEtpTasklet ts1 = new Id0GetFullEtpTasklet();
+        compute_naddr("2.1.1.2", _gsizes, out ts1.requesting_address);
+        ts1.rpc_caller = new FakeCallerInfo();
+        // The request is coming from a QspnArc that will be added later on.
+        arc_id0_alfa1_cost = new Cost(beta0_alfa1_cost);
+        arc_id0_alfa1 = new QspnArc(id0.nodeid, new NodeID(alfa1_id), arc_id0_alfa1_cost, "00:16:3E:FD:E2:AA");
+        ts1.rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id0_alfa1});
+        // So we must exec this call on a tasklet.
+        ITaskletHandle h_ts1 = tasklet.spawn(ts1, true);
+        tasklet.ms_wait(1);
+
+        /* TODO call arc_add
+         */
+
+        // Wait for the tasklet to verify return value of get_full_etp from alfa1 to id0.
+        h_ts1.join();
+    }
+
+    class Id0GetFullEtpTasklet : Object, ITaskletSpawnable
+    {
+        public Naddr requesting_address;
+        public FakeCallerInfo rpc_caller;
+        public void * func()
+        {
+            try {
+                IQspnEtpMessage resp = id0.qspn_manager.get_full_etp(requesting_address, rpc_caller);
+                string s0 = json_string_from_object(resp, false);
+                Json.Parser p0 = new Json.Parser();
+                try {
+                    assert(p0.load_from_data(s0));
+                } catch (Error e) {assert_not_reached();}
+                Json.Node n = p0.get_root();
+                Json.Reader r_buf = new Json.Reader(n);
+                assert(r_buf.is_object());
+                assert(r_buf.read_member("node-address"));
+                {
+                    //
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("fingerprints"));
+                {
+                    //
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("nodes-inside"));
+                {
+                    //
+                }
+                r_buf.end_member();
+            } catch (QspnNotAcceptedError e) {
+                assert_not_reached();
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
+            return null;
+        }
     }
 
     int test_id0_qspn_bootstrap_complete = -1;
