@@ -80,16 +80,8 @@ namespace Testbed02
         tasklet.ms_wait(100);
         assert(test_id0_qspn_bootstrap_complete == -1);
 
+        // After .1 sec id0 receives call to get_full_etp from alfa1, which is now 2:1:1:2.
         tasklet.ms_wait(100);
-
-        // id0 receives RPC call to get_full_etp.
-        /*
-           requesting_address=2:1:1:2.
-           Caller is TcpclientCallerInfo
-           my_address = 169.254.7.214
-           peer_address = 169.254.18.75
-           sourceid = 2135518399
-         */
         Id0GetFullEtpTasklet ts1 = new Id0GetFullEtpTasklet();
         compute_naddr("2.1.1.2", _gsizes, out ts1.requesting_address);
         ts1.rpc_caller = new FakeCallerInfo();
@@ -101,11 +93,73 @@ namespace Testbed02
         ITaskletHandle h_ts1 = tasklet.spawn(ts1, true);
         tasklet.ms_wait(1);
 
-        /* TODO call arc_add
-         */
+        // call arc_add
+        tasklet.ms_wait(1000);
+        id0.qspn_manager.arc_add(arc_id0_alfa1);
+        // expect in less than .1 seconds call to get_full_etp from id0 to alfa1.
+        //   requesting_address=2:1:1:0.
+        IQspnAddress id0_requesting_address;
+        IChannel id0_expected_answer;
+        ArrayList<NodeID> id0_destid_set;
+        id0.stub_factory.expect_get_full_etp(100, out id0_requesting_address, out id0_expected_answer, out id0_destid_set);
+        assert(id0_destid_set.size == 1);
+        assert(id0_destid_set[0].id == alfa1_id);
+        assert(naddr_repr((Naddr)id0_requesting_address) == "2:1:1:0");
+        // simulate the response: throw QspnBootstrapInProgressError.
+        id0_expected_answer.send_async("QspnBootstrapInProgressError");
 
         // Wait for the tasklet to verify return value of get_full_etp from alfa1 to id0.
         h_ts1.join();
+
+        // After .1 sec id0 receives call to get_full_etp from alfa1, which is now 2:1:1:1.
+        //  Verify that we return NetsukukuQspnEtpMessage:
+        /*
+           {"node-address":{"typename":"ProofOfConceptNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},
+            "fingerprints":[
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],
+            "nodes-inside":[1,1,1,1,1],
+            "hops":[],
+            "p-list":[]}.
+         */
+        tasklet.ms_wait(100);
+        Naddr alfa1_requesting_address;
+        compute_naddr("2.1.1.1", _gsizes, out alfa1_requesting_address);
+        FakeCallerInfo alfa1_rpc_caller = new FakeCallerInfo();
+        alfa1_rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id0_alfa1});
+        try {
+            IQspnEtpMessage resp = id0.qspn_manager.get_full_etp(alfa1_requesting_address, alfa1_rpc_caller);
+            string s0 = json_string_from_object(resp, false);
+            Json.Parser p0 = new Json.Parser();
+            try {
+                assert(p0.load_from_data(s0));
+            } catch (Error e) {assert_not_reached();}
+            Json.Node n = p0.get_root();
+            Json.Reader r_buf = new Json.Reader(n);
+            assert(r_buf.is_object());
+            assert(r_buf.read_member("node-address"));
+            {
+                //
+            }
+            r_buf.end_member();
+            assert(r_buf.read_member("fingerprints"));
+            {
+                //
+            }
+            r_buf.end_member();
+            assert(r_buf.read_member("nodes-inside"));
+            {
+                //
+            }
+            r_buf.end_member();
+        } catch (QspnNotAcceptedError e) {
+            assert_not_reached();
+        } catch (QspnBootstrapInProgressError e) {
+            assert_not_reached();
+        }
     }
 
     class Id0GetFullEtpTasklet : Object, ITaskletSpawnable
@@ -114,6 +168,19 @@ namespace Testbed02
         public FakeCallerInfo rpc_caller;
         public void * func()
         {
+            //  Verify that we return NetsukukuQspnEtpMessage:
+            /*
+           {"node-address":{"typename":"ProofOfConceptNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},
+            "fingerprints":[
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},
+                {"typename":"ProofOfConceptFingerprint","value":{"id":599487,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],
+            "nodes-inside":[1,1,1,1,1],
+            "hops":[],
+            "p-list":[]}.
+             */
             try {
                 IQspnEtpMessage resp = id0.qspn_manager.get_full_etp(requesting_address, rpc_caller);
                 string s0 = json_string_from_object(resp, false);
