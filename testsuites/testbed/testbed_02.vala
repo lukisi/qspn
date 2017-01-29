@@ -64,13 +64,13 @@ namespace Testbed02
         // soon after creation, connect to signals.
         // TODO  id0.qspn_manager.arc_removed.connect(something);
         // TODO  id0.qspn_manager.changed_fp.connect(something);
-        // TODO  id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
-        // TODO  id0.qspn_manager.destination_added.connect(something);
-        // TODO  id0.qspn_manager.destination_removed.connect(something);
+        id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
+        id0.qspn_manager.destination_added.connect(id0_destination_added);
+        id0.qspn_manager.destination_removed.connect(id0_destination_removed);
         // TODO  id0.qspn_manager.gnode_splitted.connect(something);
-        // TODO  id0.qspn_manager.path_added.connect(something);
+        id0.qspn_manager.path_added.connect(id0_path_added);
         // TODO  id0.qspn_manager.path_changed.connect(something);
-        // TODO  id0.qspn_manager.path_removed.connect(something);
+        id0.qspn_manager.path_removed.connect(id0_path_removed);
         // TODO  id0.qspn_manager.presence_notified.connect(something);
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
         // TODO  id0.qspn_manager.remove_identity.connect(something);
@@ -553,10 +553,20 @@ namespace Testbed02
             bool alfa1_is_full = true;
             FakeCallerInfo alfa1_rpc_caller = new FakeCallerInfo();
             alfa1_rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id0_alfa1});
+            // Prepare to expect some signals.
+            test_id0_destination_added = 1;
+            test_id0_path_added = 1;
+            test_id0_changed_nodes_inside = 1;
+            test_id0_changed_nodes_inside_qspnmgr = id0.qspn_manager;
             try {
                 id0.qspn_manager.send_etp(alfa1_etp, alfa1_is_full, alfa1_rpc_caller);
             } catch (QspnNotAcceptedError e) {assert_not_reached();}
         }
+        // Expect some signals in less than .1 sec.
+        tasklet.ms_wait(100);
+        assert(test_id0_destination_added == -1);
+        assert(test_id0_path_added == -1);
+        assert(test_id0_changed_nodes_inside == -1);
     }
 
     class Id0GetFullEtpTasklet : Object, ITaskletSpawnable
@@ -1024,6 +1034,126 @@ namespace Testbed02
         else
         {
             warning("unpredicted signal id0_qspn_bootstrap_complete");
+        }
+    }
+
+    int test_id0_destination_added = -1;
+    void id0_destination_added(HCoord h)
+    {
+        if (test_id0_destination_added == 1)
+        {
+            assert(h.lvl == 0);
+            assert(h.pos == 1);
+            test_id0_destination_added = -1;
+        }
+        // else if (test_id0_destination_added == 2)
+        else
+        {
+            warning("unpredicted signal id0_destination_added");
+        }
+    }
+
+    int test_id0_path_added = -1;
+    void id0_path_added(IQspnNodePath p)
+    {
+        if (test_id0_path_added == 1)
+        {
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id0_alfa1));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id0_alfa1_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 1);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 0);
+            assert(h_hop.pos == 1);
+            test_id0_path_added = -1;
+        }
+        // else if (test_id0_path_added == 2)
+        else
+        {
+            warning("unpredicted signal id0_path_added");
+        }
+    }
+
+    int test_id0_changed_nodes_inside = -1;
+    int test_id0_changed_nodes_inside_step = -1;
+    weak QspnManager? test_id0_changed_nodes_inside_qspnmgr = null;
+    void id0_changed_nodes_inside(int l)
+    {
+        if (test_id0_changed_nodes_inside == 1)
+        {
+            if (test_id0_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 1;
+            }
+            else if (test_id0_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 2;
+            }
+            else if (test_id0_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 3;
+            }
+            else if (test_id0_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = -1;
+                test_id0_changed_nodes_inside = -1;
+                test_id0_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        // else if (test_id0_changed_nodes_inside == 2)
+        else
+        {
+            warning("unpredicted signal id0_changed_nodes_inside");
+        }
+    }
+
+    int test_id0_path_removed = -1;
+    void id0_path_removed(IQspnNodePath p)
+    {
+        if (test_id0_path_removed == 1)
+        {
+            // TODO
+        }
+        // else if (test_id0_path_removed == 2)
+        else
+        {
+            warning("unpredicted signal id0_path_removed");
+        }
+    }
+
+    int test_id0_destination_removed = -1;
+    void id0_destination_removed(HCoord h)
+    {
+        if (test_id0_destination_removed == 1)
+        {
+            // TODO
+        }
+        // else if (test_id0_destination_removed == 2)
+        else
+        {
+            warning("unpredicted signal id0_destination_removed");
         }
     }
 }
