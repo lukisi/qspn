@@ -48,7 +48,7 @@ namespace Testbed
         Json.Parser p = new Json.Parser();
         try {
             assert(p.load_from_data(s));
-        } catch (Error e) {assert_not_reached();}
+        } catch (Error e) {print(@"$(e.message)\n");print(@"$(s)\n");error("");}
         Object ret = Json.gobject_deserialize(type, p.get_root());
         return ret;
     }
