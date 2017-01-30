@@ -42,8 +42,8 @@ namespace Testbed01
         PthTaskletImplementer.init();
         tasklet = PthTaskletImplementer.get_tasklet_system();
 
-        // TODO Pass tasklet system to the RPC library (ntkdrpc) ??
-        //  init_tasklet_system(tasklet);
+        // Pass tasklet system to the RPC library (ntkdrpc)
+        init_tasklet_system(tasklet);
 
         // static Qspn.init.
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -64,18 +64,18 @@ namespace Testbed01
             id0.my_fp,
             id0.stub_factory);
         // soon after creation, connect to signals.
-        // TODO  id0.qspn_manager.arc_removed.connect(something);
-        // TODO  id0.qspn_manager.changed_fp.connect(something);
+        // NOT NEEDED  id0.qspn_manager.arc_removed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.changed_fp.connect(something);
         id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
-        // TODO  id0.qspn_manager.destination_added.connect(something);
-        // TODO  id0.qspn_manager.destination_removed.connect(something);
-        // TODO  id0.qspn_manager.gnode_splitted.connect(something);
-        // TODO  id0.qspn_manager.path_added.connect(something);
-        // TODO  id0.qspn_manager.path_changed.connect(something);
-        // TODO  id0.qspn_manager.path_removed.connect(something);
-        // TODO  id0.qspn_manager.presence_notified.connect(something);
+        // NOT NEEDED  id0.qspn_manager.destination_added.connect(something);
+        // NOT NEEDED  id0.qspn_manager.destination_removed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.gnode_splitted.connect(something);
+        // NOT NEEDED  id0.qspn_manager.path_added.connect(something);
+        // NOT NEEDED  id0.qspn_manager.path_changed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.path_removed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.presence_notified.connect(something);
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
-        // TODO  id0.qspn_manager.remove_identity.connect(something);
+        // NOT NEEDED  id0.qspn_manager.remove_identity.connect(something);
 
         test_id0_qspn_bootstrap_complete = 1;
         // In less than 0.1 seconds we must get signal Qspn.qspn_bootstrap_complete.
@@ -129,18 +129,18 @@ namespace Testbed01
             1,
             id0.qspn_manager);
         // soon after creation, connect to signals.
-        // TODO  id1.qspn_manager.arc_removed.connect(something);
+        // NOT NEEDED  id1.qspn_manager.arc_removed.connect(something);
         id1.qspn_manager.changed_fp.connect(id1_changed_fp);
         id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
         id1.qspn_manager.destination_added.connect(id1_destination_added);
         id1.qspn_manager.destination_removed.connect(id1_destination_removed);
-        // TODO  id1.qspn_manager.gnode_splitted.connect(something);
+        // NOT NEEDED  id1.qspn_manager.gnode_splitted.connect(something);
         id1.qspn_manager.path_added.connect(id1_path_added);
-        // TODO  id1.qspn_manager.path_changed.connect(something);
+        // NOT NEEDED  id1.qspn_manager.path_changed.connect(something);
         id1.qspn_manager.path_removed.connect(id1_path_removed);
         id1.qspn_manager.presence_notified.connect(id1_presence_notified);
         id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
-        // TODO  id1.qspn_manager.remove_identity.connect(something);
+        // NOT NEEDED  id1.qspn_manager.remove_identity.connect(something);
 
         // Identity #0: call make_connectivity.
         //   from_level=1 to_level=4 changing at level 0 pos=2 eldership=1.

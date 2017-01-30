@@ -40,8 +40,8 @@ namespace Testbed02
         PthTaskletImplementer.init();
         tasklet = PthTaskletImplementer.get_tasklet_system();
 
-        // TODO Pass tasklet system to the RPC library (ntkdrpc) ??
-        //  init_tasklet_system(tasklet);
+        // Pass tasklet system to the RPC library (ntkdrpc)
+        init_tasklet_system(tasklet);
 
         // static Qspn.init.
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
@@ -62,18 +62,18 @@ namespace Testbed02
             id0.my_fp,
             id0.stub_factory);
         // soon after creation, connect to signals.
-        // TODO  id0.qspn_manager.arc_removed.connect(something);
-        // TODO  id0.qspn_manager.changed_fp.connect(something);
+        // NOT NEEDED  id0.qspn_manager.arc_removed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.changed_fp.connect(something);
         id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
         id0.qspn_manager.destination_added.connect(id0_destination_added);
         id0.qspn_manager.destination_removed.connect(id0_destination_removed);
-        // TODO  id0.qspn_manager.gnode_splitted.connect(something);
+        // NOT NEEDED  id0.qspn_manager.gnode_splitted.connect(something);
         id0.qspn_manager.path_added.connect(id0_path_added);
-        // TODO  id0.qspn_manager.path_changed.connect(something);
+        // NOT NEEDED  id0.qspn_manager.path_changed.connect(something);
         id0.qspn_manager.path_removed.connect(id0_path_removed);
-        // TODO  id0.qspn_manager.presence_notified.connect(something);
+        // NOT NEEDED  id0.qspn_manager.presence_notified.connect(something);
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
-        // TODO  id0.qspn_manager.remove_identity.connect(something);
+        // NOT NEEDED  id0.qspn_manager.remove_identity.connect(something);
 
         test_id0_qspn_bootstrap_complete = 1;
         // In less than 0.1 seconds we must get signal Qspn.qspn_bootstrap_complete.
@@ -567,6 +567,27 @@ namespace Testbed02
         assert(test_id0_destination_added == -1);
         assert(test_id0_path_added == -1);
         assert(test_id0_changed_nodes_inside == -1);
+
+        // After some time, remove arc.
+        tasklet.ms_wait(1600);
+        // Prepare to verify signals produced by arc removal.
+        // Expect signals `path_removed`, `destination_removed`, `changed_nodes_inside`.
+        test_id0_path_removed = 1;
+        test_id0_destination_removed = 1;
+        test_id0_changed_nodes_inside = 2;
+        test_id0_changed_nodes_inside_qspnmgr = id0.qspn_manager;
+        id0.qspn_manager.arc_remove(arc_id0_alfa1);
+        tasklet.ms_wait(10);
+        assert(test_id0_path_removed == -1);
+        assert(test_id0_destination_removed == -1);
+        assert(test_id0_changed_nodes_inside == -1);
+
+        tasklet.ms_wait(200);
+        // Identity #0: disable and dismiss.
+        id0.qspn_manager.stop_operations();
+        id0.qspn_manager = null;
+
+        PthTaskletImplementer.kill();
     }
 
     class Id0GetFullEtpTasklet : Object, ITaskletSpawnable
@@ -1122,7 +1143,47 @@ namespace Testbed02
                 test_id0_changed_nodes_inside_qspnmgr = null;
             }
         }
-        // else if (test_id0_changed_nodes_inside == 2)
+        else if (test_id0_changed_nodes_inside == 2)
+        {
+            if (test_id0_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 1;
+            }
+            else if (test_id0_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 2;
+            }
+            else if (test_id0_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 3;
+            }
+            else if (test_id0_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = -1;
+                test_id0_changed_nodes_inside = -1;
+                test_id0_changed_nodes_inside_qspnmgr = null;
+            }
+        }
         else
         {
             warning("unpredicted signal id0_changed_nodes_inside");
@@ -1134,7 +1195,16 @@ namespace Testbed02
     {
         if (test_id0_path_removed == 1)
         {
-            // TODO
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id0_alfa1));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id0_alfa1_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 1);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 0);
+            assert(h_hop.pos == 1);
+            test_id0_path_removed = -1;
         }
         // else if (test_id0_path_removed == 2)
         else
@@ -1148,7 +1218,9 @@ namespace Testbed02
     {
         if (test_id0_destination_removed == 1)
         {
-            // TODO
+            assert(h.lvl == 0);
+            assert(h.pos == 1);
+            test_id0_destination_removed = -1;
         }
         // else if (test_id0_destination_removed == 2)
         else
