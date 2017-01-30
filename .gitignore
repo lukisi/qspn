@@ -11,6 +11,7 @@ generic_naddr.c
 testbed.c
 testbed_01.c
 testbed_02.c
+testbed_03.c
 naddr.c
 Makefile.in
 Makefile
