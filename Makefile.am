@@ -33,6 +33,11 @@ libqspn_la_SOURCES = \
 libqspn_la_VALAFLAGS = \
 	-H qspn.h \
 	--library qspn \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(JSON_PREFIX)/share/vala-0.32/vapi \
+	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
+	--vapidir $(NTKDCOMMON_VAPIDIR) \
+	--vapidir $(NTKDRPC_VAPIDIR) \
 	--pkg gee-0.8 \
 	--pkg json-glib-1.0 \
 	--pkg tasklet-system \
@@ -66,6 +71,8 @@ test_serialize_helpers_SOURCES =  \
 	$(NULL)
 
 test_serialize_helpers_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(JSON_PREFIX)/share/vala-0.32/vapi \
 	--pkg gee-0.8 \
 	--pkg json-glib-1.0 \
 	$(NULL)
@@ -88,6 +95,7 @@ auto_graph_SOURCES = \
 	$(NULL)
 
 auto_graph_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
 	--pkg gee-0.8 \
 	$(NULL)
 
@@ -110,6 +118,11 @@ simulator_SOURCES = \
 	$(NULL)
 
 simulator_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
+	--vapidir $(PTHTASKLET_VAPIDIR) \
+	--vapidir $(NTKDCOMMON_VAPIDIR) \
+	--vapidir $(NTKDRPC_VAPIDIR) \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
 	--pkg tasklet-system \
@@ -148,6 +161,11 @@ testbed_SOURCES = \
 	$(NULL)
 
 testbed_VALAFLAGS = \
+	--vapidir $(GEE_PREFIX)/share/vala/vapi \
+	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
+	--vapidir $(PTHTASKLET_VAPIDIR) \
+	--vapidir $(NTKDCOMMON_VAPIDIR) \
+	--vapidir $(NTKDRPC_VAPIDIR) \
 	--pkg gee-0.8 \
 	--pkg ntkd-common \
 	--pkg tasklet-system \
