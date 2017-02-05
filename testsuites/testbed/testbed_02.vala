@@ -24,6 +24,7 @@ using Testbed;
 
 namespace Testbed02
 {
+    // impersonate beta
     const int64 alfa_fp0 = 97272;
     const int64 beta_fp0 = 599487;
     const int beta0_id = 1536684510;

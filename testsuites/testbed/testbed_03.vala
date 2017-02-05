@@ -24,15 +24,30 @@ using Testbed;
 
 namespace Testbed03
 {
+    // impersonate delta
     const int64 delta_fp0 = 154713;
     const int64 mu_fp0 = 823055;
     const int delta0_id = 1003440501;
     const int mu1_id = 868709693;
     const int64 delta0_mu1_cost = 11777;
+    const int delta1_id = 330512932;
+    const int mu2_id = 1389185884;
+    const int64 delta1_mu2_cost = 11309;
+    const int gamma0_id = 713199376;
+    const int64 delta1_gamma0_cost = 10101;
 
     QspnArc arc_id0_mu1;
     Cost arc_id0_mu1_cost;
     IdentityData id0;
+
+    QspnArc arc_id1_mu2;
+    Cost arc_id1_mu2_cost;
+    QspnArc arc_id1_gamma0;
+    Cost arc_id1_gamma0_cost;
+    IdentityData id1;
+
+    ArrayList<int> _gsizes;
+    int levels;
 
     void testbed_03()
     {
@@ -46,8 +61,6 @@ namespace Testbed03
         // static Qspn.init.
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
 
-        ArrayList<int> _gsizes;
-        int levels;
         compute_topology("4.2.2.2", out _gsizes, out levels);
 
         // Identity #0: construct Qspn.create_net.
@@ -567,6 +580,83 @@ namespace Testbed03
         assert(test_id0_destination_added == -1);
         assert(test_id0_path_added == -1);
         assert(test_id0_changed_nodes_inside == -1);
+
+        // No news for some time, then we prepare to enter a new network as a gnode
+        //  of level 1. id1 and mu2 will bootstrap in a new network through the
+        //  arc id1_gamma0.
+        tasklet.ms_wait(1000);
+        {
+            // Our current address is 3:1:0:1. The first part will become 2:1:2.
+            int guest_gnode_level = 1;
+            int host_gnode_level = 2;
+            ArrayList<int> _guest_gnode_naddr = new ArrayList<int>.wrap({2, 1, 2});
+
+            // We have internal arc id0_mu1 that will define new arc id1_mu2. Compute m2_naddr.
+            Naddr mu1_naddr = (Naddr)id0.qspn_manager.get_naddr_for_arc(arc_id0_mu1);
+            ArrayList<int> _mu2_naddr = new ArrayList<int>();
+            _mu2_naddr.add_all(mu1_naddr.pos.slice(0, guest_gnode_level));
+            _mu2_naddr.add_all(_guest_gnode_naddr);
+            Naddr mu2_naddr = new Naddr(_mu2_naddr.to_array(), _gsizes.to_array());
+
+            // Identity #1: construct Qspn.enter_net.
+            /*
+               previous_identity=0.
+               my_naddr=2:1:2:1 elderships=0:0:1:0 fp0=154713 nodeid=330512932.
+               guest_gnode_level=1, host_gnode_level=2.
+               internal_arcs #: 1.
+                #0:
+                  dev=eth1
+                  peer_mac=00:16:3E:2D:8D:DE
+                  source-dest=330512932-1389185884
+                  peer_naddr=2:1:2:0
+                  previous arc source-dest=1003440501-868709693
+                  cost=11309 usec
+               external_arcs #: 1.
+                #0:
+                  dev=eth1
+                  peer_mac=00:16:3E:5B:78:D5
+                  source-dest=330512932-713199376
+                  cost=10101 usec
+             */
+            id1 = new IdentityData(delta1_id);
+            id1.local_identity_index = 1;
+            id1.stub_factory = new QspnStubFactory(id1);
+            ArrayList<int> _id1_naddr = new ArrayList<int>();
+            _id1_naddr.add_all(id0.my_naddr.pos.slice(0, guest_gnode_level));
+            _id1_naddr.add_all(_guest_gnode_naddr);
+            id1.my_naddr = new Naddr(_id1_naddr.to_array(), _gsizes.to_array());
+            compute_fp0(delta_fp0, "0.0.1.0", out id1.my_fp);
+
+            arc_id1_mu2_cost = new Cost(delta1_mu2_cost);
+            arc_id1_mu2 = new QspnArc(id1.nodeid, new NodeID(mu2_id), arc_id1_mu2_cost, "00:16:3E:2D:8D:DE");
+
+            arc_id1_gamma0_cost = new Cost(delta1_gamma0_cost);
+            arc_id1_gamma0 = new QspnArc(id1.nodeid, new NodeID(gamma0_id), arc_id1_gamma0_cost, "00:16:3E:5B:78:D5");
+
+            id1.qspn_manager = new QspnManager.enter_net(
+                id1.my_naddr,
+                new ArrayList<IQspnArc>.wrap({arc_id1_mu2}),  /*internal_arc_set*/
+                new ArrayList<IQspnArc>.wrap({arc_id0_mu1}),  /*internal_arc_prev_arc_set*/
+                new ArrayList<IQspnNaddr>.wrap({mu2_naddr}),  /*internal_arc_peer_naddr_set*/
+                new ArrayList<IQspnArc>.wrap({arc_id1_gamma0}),  /*external_arc_set*/
+                id1.my_fp,
+                id1.stub_factory,
+                guest_gnode_level, host_gnode_level, id0.qspn_manager);
+            // soon after creation, connect to signals.
+            // TODO  id1.qspn_manager.arc_removed.connect(id1_arc_removed);
+            // TODO  id1.qspn_manager.changed_fp.connect(id1_changed_fp);
+            // TODO  id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
+            // TODO  id1.qspn_manager.destination_added.connect(id1_destination_added);
+            // TODO  id1.qspn_manager.destination_removed.connect(id1_destination_removed);
+            // TODO  id1.qspn_manager.gnode_splitted.connect(id1_gnode_splitted);
+            // TODO  id1.qspn_manager.path_added.connect(id1_path_added);
+            // TODO  id1.qspn_manager.path_changed.connect(id1_path_changed);
+            // TODO  id1.qspn_manager.path_removed.connect(id1_path_removed);
+            // TODO  id1.qspn_manager.presence_notified.connect(id1_presence_notified);
+            // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
+            // TODO  id1.qspn_manager.remove_identity.connect(id1_remove_identity);
+
+        }
 
         PthTaskletImplementer.kill();
     }
