@@ -111,15 +111,17 @@ namespace Testbed03
         id0.qspn_manager.arc_add(arc_id0_mu1);
         // expect in less than .1 seconds call to get_full_etp from id0 to mu1.
         //   requesting_address=3:1:0:1.
-        IQspnAddress id0_requesting_address;
-        IChannel id0_expected_answer;
-        ArrayList<NodeID> id0_destid_set;
-        id0.stub_factory.expect_get_full_etp(100, out id0_requesting_address, out id0_expected_answer, out id0_destid_set);
-        assert(id0_destid_set.size == 1);
-        assert(id0_destid_set[0].id == mu1_id);
-        assert(naddr_repr((Naddr)id0_requesting_address) == "3:1:0:1");
-        // simulate the response: throw QspnBootstrapInProgressError.
-        id0_expected_answer.send_async("QspnBootstrapInProgressError");
+        {
+            IQspnAddress id0_requesting_address;
+            IChannel id0_expected_answer;
+            ArrayList<NodeID> id0_destid_set;
+            id0.stub_factory.expect_get_full_etp(100, out id0_requesting_address, out id0_expected_answer, out id0_destid_set);
+            assert(id0_destid_set.size == 1);
+            assert(id0_destid_set[0].id == mu1_id);
+            assert(naddr_repr((Naddr)id0_requesting_address) == "3:1:0:1");
+            // simulate the response: throw QspnBootstrapInProgressError.
+            id0_expected_answer.send_async("QspnBootstrapInProgressError");
+        }
 
         // Wait for the tasklet to verify return value of get_full_etp from mu1 to id0.
         h_ts1.join();
@@ -656,6 +658,155 @@ namespace Testbed03
             // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
             // TODO  id1.qspn_manager.remove_identity.connect(id1_remove_identity);
 
+            // Then id0 becomes a connectivity.
+            // Identity #0: call make_connectivity.
+            //   from_level=2 to_level=4 changing at level 1 pos=2 eldership=1.
+            {
+                int ch_level = 1;
+                int ch_pos = 2;
+                int ch_eldership = 1;
+                int64 fp_id = id0.my_fp.id;
+
+                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                    Naddr a = (Naddr)_a;
+                    ArrayList<int> _naddr_temp = new ArrayList<int>();
+                    _naddr_temp.add_all(a.pos);
+                    _naddr_temp[ch_level] = ch_pos;
+                    return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                };
+
+                ArrayList<int> _elderships_temp = new ArrayList<int>();
+                _elderships_temp.add_all(id0.my_fp.elderships);
+                _elderships_temp[ch_level] = ch_eldership;
+
+                id0.my_naddr = (Naddr)update_naddr(id0.my_naddr);
+                id0.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+                // check behaviour of changed_nodes_inside
+                test_id0_changed_nodes_inside = 2;
+                test_id0_changed_nodes_inside_qspnmgr = id0.qspn_manager;
+                id0.qspn_manager.make_connectivity(
+                    2,
+                    4,
+                    update_naddr, id0.my_fp);
+                assert(test_id0_changed_nodes_inside == -1);
+            }
+
+            // TODO to be more robust, the testbed should check the following 2 events in 2 tasklets and then join.
+            //  At the moment though we can expect that the first event is the call to get_full_etp
+            //  from id1 to gamma0; the second is the call to send_etp from id0 to nobody.
+
+            // Expect in less than .1 seconds call to get_full_etp from id1 to gamma0.
+            //   requesting_address=2:1:2:1.
+            IQspnAddress id1_requesting_address;
+            IChannel id1_expected_answer;
+            ArrayList<NodeID> id1_destid_set;
+            id1.stub_factory.expect_get_full_etp(100, out id1_requesting_address, out id1_expected_answer, out id1_destid_set);
+            assert(id1_destid_set.size == 1);
+            assert(id1_destid_set[0].id == gamma0_id);
+            assert(naddr_repr((Naddr)id1_requesting_address) == "2:1:2:1");
+            // Answer will come after a while.
+
+            // Expect in less than .1 seconds call to send_etp from id0 to nobody. This is because
+            //  when the node (identity) executes make_connectivity, after a few millisec (in a tasklet)
+            //  it will publish its new data to the nodes (if any) outside the g-node that is becoming of
+            //  connectivity.
+            IQspnEtpMessage id0_send_etp;
+            bool id0_send_is_full;
+            ArrayList<NodeID> id0_destid_set;
+            id0.stub_factory.expect_send_etp(100, out id0_send_etp, out id0_send_is_full, out id0_destid_set);
+            assert(! id0_send_is_full);
+            assert(id0_destid_set.is_empty);
+            {
+                /*
+                 * If we do just:
+                    Json.Node n = Json.gobject_serialize(id0_send_etp);
+                   then we get a strange "Critical message" of "json_node_get_node_type: assertion 'JSON_NODE_IS_VALID (node)' failed"
+                   when we do a certain sequence of operations with the Json.Reader.
+                   That's not the case when we pass through the following:
+                 */
+                string s0 = json_string_from_object(id0_send_etp, false);
+                Json.Parser p0 = new Json.Parser();
+                try {
+                    assert(p0.load_from_data(s0));
+                } catch (Error e) {assert_not_reached();}
+                Json.Node n = p0.get_root();
+
+
+                Json.Reader r_buf = new Json.Reader(n);
+                assert(r_buf.is_object());
+                // This ETP declares that it is coming from 3:1:2:1. Since it doesn't have to come back
+                //  inside this g-node of level 1, which previously had address 3:1:0, we have a "hops"
+                //  list that already includes HCoord (1,0).
+                assert(r_buf.read_member("node-address"));
+                {
+                    assert(r_buf.is_object());
+                    assert(r_buf.read_member("value"));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("pos"));
+                        {
+                            assert(r_buf.is_array());
+                            assert(r_buf.count_elements() == 4);
+                            assert(r_buf.read_element(0));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(1));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 2);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(2));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(3));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 3);
+                            }
+                            r_buf.end_element();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_member();
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("hops"));
+                {
+                    assert(r_buf.is_array());
+                    assert(r_buf.count_elements() == 1);
+                    assert(r_buf.read_element(0));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("lvl"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_member();
+                            // pos = 0 might be included or not in json, because it is default value for int.
+                            if (r_buf.read_member("pos"))
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                }
+                r_buf.end_member();
+            }
         }
 
         PthTaskletImplementer.kill();
@@ -1214,7 +1365,48 @@ namespace Testbed03
                 test_id0_changed_nodes_inside_qspnmgr = null;
             }
         }
-        //else if (test_id0_changed_nodes_inside == 2)
+        else if (test_id0_changed_nodes_inside == 2)
+        {
+            if (test_id0_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 1;
+            }
+            else if (test_id0_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 2;
+            }
+            else if (test_id0_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 3;
+            }
+            else if (test_id0_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = -1;
+                test_id0_changed_nodes_inside = -1;
+                test_id0_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        //else if (test_id0_changed_nodes_inside == 3)
         else
         {
             warning("unpredicted signal id0_changed_nodes_inside");
