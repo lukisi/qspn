@@ -27,6 +27,7 @@ namespace Testbed03
     // impersonate delta
     const int64 delta_fp0 = 154713;
     const int64 mu_fp0 = 823055;
+    const int64 gamma_fp0 = 901335;
     const int delta0_id = 1003440501;
     const int mu1_id = 868709693;
     const int64 delta0_mu1_cost = 11777;
@@ -79,11 +80,11 @@ namespace Testbed03
         // TODO  id0.qspn_manager.changed_fp.connect(id0_changed_fp);
         id0.qspn_manager.changed_nodes_inside.connect(id0_changed_nodes_inside);
         id0.qspn_manager.destination_added.connect(id0_destination_added);
-        // TODO  id0.qspn_manager.destination_removed.connect(id0_destination_removed);
+        id0.qspn_manager.destination_removed.connect(id0_destination_removed);
         // TODO  id0.qspn_manager.gnode_splitted.connect(id0_gnode_splitted);
         id0.qspn_manager.path_added.connect(id0_path_added);
         // TODO  id0.qspn_manager.path_changed.connect(id0_path_changed);
-        // TODO  id0.qspn_manager.path_removed.connect(id0_path_removed);
+        id0.qspn_manager.path_removed.connect(id0_path_removed);
         // TODO  id0.qspn_manager.presence_notified.connect(id0_presence_notified);
         id0.qspn_manager.qspn_bootstrap_complete.connect(id0_qspn_bootstrap_complete);
         // TODO  id0.qspn_manager.remove_identity.connect(id0_remove_identity);
@@ -586,7 +587,7 @@ namespace Testbed03
         // No news for some time, then we prepare to enter a new network as a gnode
         //  of level 1. id1 and mu2 will bootstrap in a new network through the
         //  arc id1_gamma0.
-        tasklet.ms_wait(1000);
+        tasklet.ms_wait(300);
         {
             // Our current address is 3:1:0:1. The first part will become 2:1:2.
             int guest_gnode_level = 1;
@@ -646,16 +647,16 @@ namespace Testbed03
                 guest_gnode_level, host_gnode_level, id0.qspn_manager);
             // soon after creation, connect to signals.
             // TODO  id1.qspn_manager.arc_removed.connect(id1_arc_removed);
-            // TODO  id1.qspn_manager.changed_fp.connect(id1_changed_fp);
-            // TODO  id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
-            // TODO  id1.qspn_manager.destination_added.connect(id1_destination_added);
+            id1.qspn_manager.changed_fp.connect(id1_changed_fp);
+            id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
+            id1.qspn_manager.destination_added.connect(id1_destination_added);
             // TODO  id1.qspn_manager.destination_removed.connect(id1_destination_removed);
             // TODO  id1.qspn_manager.gnode_splitted.connect(id1_gnode_splitted);
-            // TODO  id1.qspn_manager.path_added.connect(id1_path_added);
+            id1.qspn_manager.path_added.connect(id1_path_added);
             // TODO  id1.qspn_manager.path_changed.connect(id1_path_changed);
             // TODO  id1.qspn_manager.path_removed.connect(id1_path_removed);
             // TODO  id1.qspn_manager.presence_notified.connect(id1_presence_notified);
-            // TODO  id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
+            id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
             // TODO  id1.qspn_manager.remove_identity.connect(id1_remove_identity);
 
             // Then id0 becomes a connectivity.
@@ -807,6 +808,174 @@ namespace Testbed03
                 }
                 r_buf.end_member();
             }
+
+            // now we make real the new identity
+            // Identity #1: call make_real.
+            //    At level 1 with pos 0 and eldership 2.
+            //    Will have naddr 2:1:0:1 and elderships 0:0:2:0 and fp0 154713.
+            tasklet.ms_wait(1);
+            {
+                int ch_level = 1;
+                int ch_pos = 0;
+                int ch_eldership = 2;
+                int64 fp_id = id1.my_fp.id;
+
+                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                    Naddr a = (Naddr)_a;
+                    ArrayList<int> _naddr_temp = new ArrayList<int>();
+                    _naddr_temp.add_all(a.pos);
+                    _naddr_temp[ch_level] = ch_pos;
+                    return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                };
+
+                ArrayList<int> _elderships_temp = new ArrayList<int>();
+                _elderships_temp.add_all(id1.my_fp.elderships);
+                _elderships_temp[ch_level] = ch_eldership;
+
+                id1.my_naddr = (Naddr)update_naddr(id1.my_naddr);
+                id1.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
+                id1.qspn_manager.make_real(
+                    update_naddr, id1.my_fp);
+            }
+
+            // After a short while (.1 sec) the connectivity gnode will be dismissed.
+            // Suppose that first delta0 receives notification that its arc with mu1
+            //  is removed, and then delta0 itself is dismissed.
+            tasklet.ms_wait(100);
+
+            // Prepare to verify signals produced by arc removal.
+            // Expect signals `path_removed`, `destination_removed`, `changed_nodes_inside`.
+            test_id0_path_removed = 1;
+            test_id0_destination_removed = 1;
+            test_id0_changed_nodes_inside = 3;
+            test_id0_changed_nodes_inside_qspnmgr = id0.qspn_manager;
+            id0.qspn_manager.arc_remove(arc_id0_mu1);
+            tasklet.ms_wait(10);
+            assert(test_id0_path_removed == -1);
+            assert(test_id0_destination_removed == -1);
+            assert(test_id0_changed_nodes_inside == -1);
+
+            // Identity #0: disable and dismiss.
+            id0.qspn_manager.stop_operations();
+            id0.qspn_manager = null;
+
+            // After, say, .5 sec. id1 receives RPC call to get_full_etp. And will immediately throw QspnBootstrapInProgressError.
+            /*
+                   requesting_address=2:1:1:0.
+                   Caller is TcpclientCallerInfo
+                   my_address = 169.254.150.45
+                   peer_address = 169.254.230.90
+                   sourceid = 713199376
+             */
+            tasklet.ms_wait(500);
+            Naddr requesting_address;
+            compute_naddr("2.1.1.0", _gsizes, out requesting_address);
+            FakeCallerInfo rpc_caller = new FakeCallerInfo();
+            rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id1_gamma0});
+            try {
+                id1.qspn_manager.get_full_etp(requesting_address, rpc_caller);
+                assert_not_reached();
+            } catch (QspnNotAcceptedError e) {
+                assert_not_reached();
+            } catch (QspnBootstrapInProgressError e) {
+                // it should go here
+            }
+
+            // after, say, .2 seconds id1 gets the response from gamma0,
+            //  which will be the following:
+            tasklet.ms_wait(200);
+            // build an EtpMessage
+            string s_etpmessage_gamma0 = """{""" +
+                """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
+                """"fingerprints":[""" +
+                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                            ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                            ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                            ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                            ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                            ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+                """"nodes-inside":[1,2,2,2,2],""" +
+                """"hops":[],""" +
+                """"p-list":[]}""";
+            IQspnEtpMessage id1_resp_gamma0 =
+                (IQspnEtpMessage)
+                json_object_from_string(s_etpmessage_gamma0,
+                                        name_to_type("NetsukukuQspnEtpMessage"));
+            // simulate the response
+            id1_expected_answer.send_async("OK");
+            id1_expected_answer.send_async(id1_resp_gamma0);
+            // Immediately (send_async will not wait) prepare to verify signals produced by ETP processing.
+            test_id1_destination_added = 1;
+            test_id1_path_added = 1;
+            test_id1_changed_fp = 1;
+            test_id1_changed_fp_qspnmgr = id1.qspn_manager;
+            test_id1_changed_nodes_inside = 1;
+            test_id1_changed_nodes_inside_qspnmgr = id1.qspn_manager;
+            test_id1_qspn_bootstrap_complete = 1;
+            // While we wait for those signals, also expect (in less than 0.5 seconds) a call to RPC get_full_etp from id1 to beta0
+            //  from delta1 to mu2 and from delta1 to gamma0. The node mu2 will throw QspnBootstrapInProgressError, while the
+            //  response from gamma0 will be the same as before.
+            id1_resp_gamma0 =
+                (IQspnEtpMessage)
+                json_object_from_string(s_etpmessage_gamma0,
+                                        name_to_type("NetsukukuQspnEtpMessage"));
+            // Consider that [currently] the implementation of QspnManager.exit_bootstrap_phase() waits for each call
+            //  to return before issuing the next call.
+            IQspnAddress id1_requesting_address_2;
+            IChannel id1_expected_answer_2;
+            ArrayList<NodeID> id1_destid_set_2;
+            id1.stub_factory.expect_get_full_etp(500, out id1_requesting_address_2, out id1_expected_answer_2, out id1_destid_set_2);
+            assert(id1_destid_set_2.size == 1);
+            assert(naddr_repr((Naddr)id1_requesting_address_2) == "2:1:0:1");
+            {
+                // first, check signals of our previous ETP processing.
+                assert(test_id1_destination_added == -1);
+                assert(test_id1_path_added == -1);
+                assert(test_id1_changed_fp == -1);
+                assert(test_id1_changed_nodes_inside == -1);
+                assert(test_id1_qspn_bootstrap_complete == -1);
+            }
+            if (id1_destid_set_2[0].id == mu2_id)
+            {
+                // after .05 seconds id1 gets QspnBootstrapInProgressError from mu2.
+                tasklet.ms_wait(50);
+                id1_expected_answer_2.send_async("QspnBootstrapInProgressError");
+            }
+            else if (id1_destid_set_2[0].id == gamma0_id)
+            {
+                // after .05 seconds id1 gets answer from gamma0.
+                tasklet.ms_wait(50);
+                id1_expected_answer_2.send_async("OK");
+                id1_expected_answer_2.send_async(id1_resp_gamma0);
+            }
+            else assert_not_reached();
+            IQspnAddress id1_requesting_address_3;
+            IChannel id1_expected_answer_3;
+            ArrayList<NodeID> id1_destid_set_3;
+            id1.stub_factory.expect_get_full_etp(500, out id1_requesting_address_3, out id1_expected_answer_3, out id1_destid_set_3);
+            assert(id1_destid_set_3.size == 1);
+            assert(naddr_repr((Naddr)id1_requesting_address_3) == "2:1:0:1");
+            if (id1_destid_set_3[0].id == mu2_id)
+            {
+                // after .05 seconds id1 gets QspnBootstrapInProgressError from mu2.
+                assert(id1_destid_set_2[0].id == gamma0_id);
+                tasklet.ms_wait(50);
+                id1_expected_answer_3.send_async("QspnBootstrapInProgressError");
+            }
+            else if (id1_destid_set_3[0].id == gamma0_id)
+            {
+                // after .05 seconds id1 gets answer from gamma0.
+                assert(id1_destid_set_2[0].id == mu2_id);
+                tasklet.ms_wait(50);
+                id1_expected_answer_3.send_async("OK");
+                id1_expected_answer_3.send_async(id1_resp_gamma0);
+            }
+            else assert_not_reached();
+
         }
 
         PthTaskletImplementer.kill();
@@ -1406,10 +1575,369 @@ namespace Testbed03
                 test_id0_changed_nodes_inside_qspnmgr = null;
             }
         }
-        //else if (test_id0_changed_nodes_inside == 3)
+        else if (test_id0_changed_nodes_inside == 3)
+        {
+            if (test_id0_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 1;
+            }
+            else if (test_id0_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 2;
+            }
+            else if (test_id0_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = 3;
+            }
+            else if (test_id0_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside = test_id0_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 0);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id0_changed_nodes_inside_step = -1;
+                test_id0_changed_nodes_inside = -1;
+                test_id0_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        //else if (test_id0_changed_nodes_inside == 4)
         else
         {
             warning("unpredicted signal id0_changed_nodes_inside");
+        }
+    }
+
+    int test_id0_path_removed = -1;
+    void id0_path_removed(IQspnNodePath p)
+    {
+        if (test_id0_path_removed == 1)
+        {
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id0_mu1));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id0_mu1_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 1);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 0);
+            assert(h_hop.pos == 0);
+            test_id0_path_removed = -1;
+        }
+        // else if (test_id0_path_removed == 2)
+        else
+        {
+            warning("unpredicted signal id0_path_removed");
+        }
+    }
+
+    int test_id0_destination_removed = -1;
+    void id0_destination_removed(HCoord h)
+    {
+        if (test_id0_destination_removed == 1)
+        {
+            assert(h.lvl == 0);
+            assert(h.pos == 0);
+            test_id0_destination_removed = -1;
+        }
+        // else if (test_id0_destination_removed == 2)
+        else
+        {
+            warning("unpredicted signal id0_destination_removed");
+        }
+    }
+
+    int test_id1_destination_added = -1;
+    void id1_destination_added(HCoord h)
+    {
+        if (test_id1_destination_added == 1)
+        {
+            assert(h.lvl == 1);
+            assert(h.pos == 1);
+            test_id1_destination_added = -1;
+        }
+        // else if (test_id1_destination_added == 2)
+        else
+        {
+            warning("unpredicted signal id1_destination_added");
+        }
+    }
+
+    int test_id1_path_added = -1;
+    void id1_path_added(IQspnNodePath p)
+    {
+        if (test_id1_path_added == 1)
+        {
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id1_gamma0));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id1_gamma0_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 2);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 1);
+            assert(h_hop.pos == 1);
+            test_id1_path_added = -1;
+        }
+        // else if (test_id1_path_added == 2)
+        else
+        {
+            warning("unpredicted signal id1_path_added");
+        }
+    }
+
+    int test_id1_changed_fp = -1;
+    int test_id1_changed_fp_step = -1;
+    weak QspnManager? test_id1_changed_fp_qspnmgr = null;
+    void id1_changed_fp(int l)
+    {
+        if (test_id1_changed_fp == 1)
+        {
+            if (test_id1_changed_fp_step == -1)
+            {
+                assert(l == 2);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp_step = 2;
+            }
+            else if (test_id1_changed_fp_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp_step = 3;
+            }
+            else if (test_id1_changed_fp_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_fp = -1;
+                test_id1_changed_fp_step = -1;
+                test_id1_changed_fp_qspnmgr = null;
+            }
+        }
+        else if (test_id1_changed_fp == 2)
+        {
+            if (test_id1_changed_fp_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    Fingerprint fp = (Fingerprint)test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    string fp_elderships = fp_elderships_repr(fp);
+                    string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                    assert(fp_elderships == "0:0:0");
+                    assert(fp_elderships_seed == "2");
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_fp_step = 1;
+            }
+            else if (test_id1_changed_fp_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    Fingerprint fp = (Fingerprint)test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    string fp_elderships = fp_elderships_repr(fp);
+                    string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                    assert(fp_elderships == "0:0");
+                    assert(fp_elderships_seed == "2:0");
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_fp_step = 2;
+            }
+            else if (test_id1_changed_fp_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    Fingerprint fp = (Fingerprint)test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    string fp_elderships = fp_elderships_repr(fp);
+                    string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                    assert(fp_elderships == "0");
+                    assert(fp_elderships_seed == "2:0:0");
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_fp_step = 3;
+            }
+            else if (test_id1_changed_fp_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    Fingerprint fp = (Fingerprint)test_id1_changed_fp_qspnmgr.get_fingerprint(l);
+                    string fp_elderships = fp_elderships_repr(fp);
+                    string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                    assert(fp_elderships == "");
+                    assert(fp_elderships_seed == "2:0:0:0");
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_fp = -1;
+                test_id1_changed_fp_step = -1;
+                test_id1_changed_fp_qspnmgr = null;
+            }
+        }
+        // else if (test_id1_changed_fp == 3)
+        else
+        {
+            warning("unpredicted signal id1_changed_fp");
+        }
+    }
+
+    int test_id1_changed_nodes_inside = -1;
+    int test_id1_changed_nodes_inside_step = -1;
+    weak QspnManager? test_id1_changed_nodes_inside_qspnmgr = null;
+    void id1_changed_nodes_inside(int l)
+    {
+        if (test_id1_changed_nodes_inside == 1)
+        {
+            if (test_id1_changed_nodes_inside_step == -1)
+            {
+                assert(l == 2);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside_step = 2;
+            }
+            else if (test_id1_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside_step = 3;
+            }
+            else if (test_id1_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert_not_reached();
+                } catch (QspnBootstrapInProgressError e) {/*reached*/}
+                test_id1_changed_nodes_inside = -1;
+                test_id1_changed_nodes_inside_step = -1;
+                test_id1_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        else if (test_id1_changed_nodes_inside == 2)
+        {
+            if (test_id1_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int nodes_inside = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 1;
+            }
+            else if (test_id1_changed_nodes_inside_step == 1)
+            {
+                assert(l == 2);
+                try {
+                    int nodes_inside = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 2;
+            }
+            else if (test_id1_changed_nodes_inside_step == 2)
+            {
+                assert(l == 3);
+                try {
+                    int nodes_inside = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 3;
+            }
+            else if (test_id1_changed_nodes_inside_step == 3)
+            {
+                assert(l == 4);
+                try {
+                    int nodes_inside = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(nodes_inside == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside = -1;
+                test_id1_changed_nodes_inside_step = -1;
+                test_id1_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        // else if (test_id1_changed_nodes_inside == 3)
+        else
+        {
+            warning("unpredicted signal id1_changed_nodes_inside");
+        }
+    }
+
+    int test_id1_qspn_bootstrap_complete = -1;
+    void id1_qspn_bootstrap_complete()
+    {
+        if (test_id1_qspn_bootstrap_complete == 1)
+        {
+            try {
+                Fingerprint fp = (Fingerprint)id1.qspn_manager.get_fingerprint(0);
+                int nodes_inside = id1.qspn_manager.get_nodes_inside(0);
+                string fp_elderships = fp_elderships_repr(fp);
+                assert(fp.id == delta_fp0);
+                assert(fp_elderships == "0:0:2:0");
+                assert(nodes_inside == 1);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(1);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(1);
+                fp_elderships = fp_elderships_repr(fp);
+                string fp_elderships_seed = fp_elderships_seed_repr(fp);
+                assert(fp.id == delta_fp0);
+                assert(fp_elderships == "0:0:2");
+                assert(fp_elderships_seed == "0");
+                assert(nodes_inside == 2);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(2);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(2);
+                fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
+                assert(fp.id == gamma_fp0);
+                assert(fp_elderships == "0:0");
+                assert(fp_elderships_seed == "0:0");
+                assert(nodes_inside == 4);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(3);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(3);
+                fp_elderships = fp_elderships_repr(fp);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
+                assert(fp.id == gamma_fp0);
+                assert(fp_elderships == "0");
+                assert(fp_elderships_seed == "0:0:0");
+                assert(nodes_inside == 4);
+
+                fp = (Fingerprint)id1.qspn_manager.get_fingerprint(4);
+                nodes_inside = id1.qspn_manager.get_nodes_inside(4);
+                fp_elderships_seed = fp_elderships_seed_repr(fp);
+                assert(fp.id == gamma_fp0);
+                assert(fp_elderships_seed == "0:0:0:0");
+                assert(nodes_inside == 4);
+            } catch (QspnBootstrapInProgressError e) {
+                assert_not_reached();
+            }
+            test_id1_qspn_bootstrap_complete = -1;
+        }
+        // else if (test_id1_qspn_bootstrap_complete == 2)
+        else
+        {
+            warning("unpredicted signal id1_qspn_bootstrap_complete");
         }
     }
 }
