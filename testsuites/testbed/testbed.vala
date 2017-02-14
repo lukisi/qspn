@@ -346,7 +346,7 @@ namespace Testbed
                 if (factory.expected_send_etp != null) {
                     factory.expected_send_etp.send_async(etp);
                     factory.expected_send_etp.send_async(is_full);
-                    ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
+                    ArrayList<NodeID> destid_set = new ArrayList<NodeID>((a, b) => a.equals(b));
                     factory.expected_send_etp.send_async(destid_set);
                     return;
                 }
@@ -364,7 +364,7 @@ namespace Testbed
                              )
         {
             if(arcs.is_empty) return new QspnManagerStubVoid(this, identity_data);
-            ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
+            ArrayList<NodeID> destid_set = new ArrayList<NodeID>((a, b) => a.equals(b));
             foreach (IQspnArc arc in arcs)
             {
                 QspnArc _arc = (QspnArc)arc;
@@ -381,7 +381,7 @@ namespace Testbed
                        )
         {
             QspnArc _arc = (QspnArc)arc;
-            ArrayList<NodeID> destid_set = new ArrayList<NodeID>();
+            ArrayList<NodeID> destid_set = new ArrayList<NodeID>((a, b) => a.equals(b));
             destid_set.add(_arc.destid);
             QspnManagerStubHolder ret = new QspnManagerStubHolder(this, destid_set, identity_data);
             return ret;
