@@ -118,13 +118,24 @@ namespace Testbed01
         arc_id1_beta0_cost = new Cost(alfa1_beta0_cost);
         arc_id1_beta0 = new QspnArc(id1.nodeid, new NodeID(beta0_id), arc_id1_beta0_cost, "00:16:3E:EC:A3:E1");
         external_arc_set.add(arc_id1_beta0);
+        // Actually, since guest_gnode_level==0, we sure haven't got any internal destination,
+        //  thus this delegate won't ever get called.
+        ChangeFingerprintDelegate update_copied_internal_fingerprints = (_f) => {
+            Fingerprint f = (Fingerprint)_f;
+            for (int l = 0 /*guest_gnode_level*/; l < levels; l++)
+                f.elderships[l] = id1.my_fp.elderships[l];
+            return f;
+            // Returning the same instance is ok, because the delegate is alway
+            // called like "x = update_internal_fingerprints(x)"
+        };
         id1.qspn_manager = new QspnManager.enter_net(
-            id1.my_naddr,
             internal_arc_set,
             internal_arc_prev_arc_set,
             internal_arc_peer_naddr_set,
             external_arc_set,
+            id1.my_naddr,
             id1.my_fp,
+            update_copied_internal_fingerprints,
             id1.stub_factory,
             0,
             1,
@@ -151,12 +162,23 @@ namespace Testbed01
             int ch_eldership = 1;
             int64 fp_id = id0.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            ChangeNaddrDelegate update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
                 _naddr_temp[ch_level] = ch_pos;
                 return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            };
+
+            // Actually, since ch_level==0, we sure haven't got any internal destination,
+            //  thus this delegate won't ever get called.
+            ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = id1.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
             };
 
             ArrayList<int> _elderships_temp = new ArrayList<int>();
@@ -171,7 +193,9 @@ namespace Testbed01
             id0.qspn_manager.make_connectivity(
                 1,
                 4,
-                update_naddr, id0.my_fp);
+                update_naddr,
+                update_internal_fingerprints,
+                id0.my_fp);
             assert(test_id0_changed_nodes_inside == -1);
         }
 
@@ -192,12 +216,23 @@ namespace Testbed01
             int ch_eldership = 2;
             int64 fp_id = id1.my_fp.id;
 
-            QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+            ChangeNaddrDelegate update_naddr = (_a) => {
                 Naddr a = (Naddr)_a;
                 ArrayList<int> _naddr_temp = new ArrayList<int>();
                 _naddr_temp.add_all(a.pos);
                 _naddr_temp[ch_level] = ch_pos;
                 return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+            };
+
+            // Actually, since ch_level==0, we sure haven't got any internal destination,
+            //  thus this delegate won't ever get called.
+            ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = ch_level; l < levels; l++)
+                    f.elderships[l] = id1.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
             };
 
             ArrayList<int> _elderships_temp = new ArrayList<int>();
@@ -207,7 +242,9 @@ namespace Testbed01
             id1.my_naddr = (Naddr)update_naddr(id1.my_naddr);
             id1.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
             id1.qspn_manager.make_real(
-                update_naddr, id1.my_fp);
+                update_naddr,
+                update_internal_fingerprints,
+                id1.my_fp);
         }
 
         tasklet.ms_wait(300);

@@ -629,6 +629,14 @@ namespace Testbed03
             _id1_naddr.add_all(_guest_gnode_naddr);
             id1.my_naddr = new Naddr(_id1_naddr.to_array(), _gsizes.to_array());
             compute_fp0(delta_fp0, "0.0.1.0", out id1.my_fp);
+            ChangeFingerprintDelegate update_copied_internal_fingerprints = (_f) => {
+                Fingerprint f = (Fingerprint)_f;
+                for (int l = guest_gnode_level; l < levels; l++)
+                    f.elderships[l] = id1.my_fp.elderships[l];
+                return f;
+                // Returning the same instance is ok, because the delegate is alway
+                // called like "x = update_internal_fingerprints(x)"
+            };
 
             arc_id1_mu2_cost = new Cost(delta1_mu2_cost);
             arc_id1_mu2 = new QspnArc(id1.nodeid, new NodeID(mu2_id), arc_id1_mu2_cost, "00:16:3E:2D:8D:DE");
@@ -637,12 +645,13 @@ namespace Testbed03
             arc_id1_gamma0 = new QspnArc(id1.nodeid, new NodeID(gamma0_id), arc_id1_gamma0_cost, "00:16:3E:5B:78:D5");
 
             id1.qspn_manager = new QspnManager.enter_net(
-                id1.my_naddr,
                 new ArrayList<IQspnArc>.wrap({arc_id1_mu2}),  /*internal_arc_set*/
                 new ArrayList<IQspnArc>.wrap({arc_id0_mu1}),  /*internal_arc_prev_arc_set*/
                 new ArrayList<IQspnNaddr>.wrap({mu2_naddr}),  /*internal_arc_peer_naddr_set*/
                 new ArrayList<IQspnArc>.wrap({arc_id1_gamma0}),  /*external_arc_set*/
+                id1.my_naddr,
                 id1.my_fp,
+                update_copied_internal_fingerprints,
                 id1.stub_factory,
                 guest_gnode_level, host_gnode_level, id0.qspn_manager);
             // soon after creation, connect to signals.
@@ -668,12 +677,21 @@ namespace Testbed03
                 int ch_eldership = 1;
                 int64 fp_id = id0.my_fp.id;
 
-                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                ChangeNaddrDelegate update_naddr = (_a) => {
                     Naddr a = (Naddr)_a;
                     ArrayList<int> _naddr_temp = new ArrayList<int>();
                     _naddr_temp.add_all(a.pos);
                     _naddr_temp[ch_level] = ch_pos;
                     return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                };
+
+                ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                    Fingerprint f = (Fingerprint)_f;
+                    for (int l = ch_level; l < levels; l++)
+                        f.elderships[l] = id1.my_fp.elderships[l];
+                    return f;
+                    // Returning the same instance is ok, because the delegate is alway
+                    // called like "x = update_internal_fingerprints(x)"
                 };
 
                 ArrayList<int> _elderships_temp = new ArrayList<int>();
@@ -688,11 +706,13 @@ namespace Testbed03
                 id0.qspn_manager.make_connectivity(
                     2,
                     4,
-                    update_naddr, id0.my_fp);
+                    update_naddr,
+                    update_internal_fingerprints,
+                    id0.my_fp);
                 assert(test_id0_changed_nodes_inside == -1);
             }
 
-            // TODO to be more robust, the testbed should check the following 2 events in 2 tasklets and then join.
+            // TODO To make the testbed more robust, we should check the following 2 events in 2 tasklets and then join.
             //  At the moment though we can expect that the first event is the call to get_full_etp
             //  from id1 to gamma0; the second is the call to send_etp from id0 to nobody.
 
@@ -820,12 +840,21 @@ namespace Testbed03
                 int ch_eldership = 2;
                 int64 fp_id = id1.my_fp.id;
 
-                QspnManager.ChangeNaddrDelegate update_naddr = (_a) => {
+                ChangeNaddrDelegate update_naddr = (_a) => {
                     Naddr a = (Naddr)_a;
                     ArrayList<int> _naddr_temp = new ArrayList<int>();
                     _naddr_temp.add_all(a.pos);
                     _naddr_temp[ch_level] = ch_pos;
                     return new Naddr(_naddr_temp.to_array(), _gsizes.to_array());
+                };
+
+                ChangeFingerprintDelegate update_internal_fingerprints = (_f) => {
+                    Fingerprint f = (Fingerprint)_f;
+                    for (int l = ch_level; l < levels; l++)
+                        f.elderships[l] = id1.my_fp.elderships[l];
+                    return f;
+                    // Returning the same instance is ok, because the delegate is alway
+                    // called like "x = update_internal_fingerprints(x)"
                 };
 
                 ArrayList<int> _elderships_temp = new ArrayList<int>();
@@ -835,7 +864,9 @@ namespace Testbed03
                 id1.my_naddr = (Naddr)update_naddr(id1.my_naddr);
                 id1.my_fp = new Fingerprint(_elderships_temp.to_array(), fp_id);
                 id1.qspn_manager.make_real(
-                    update_naddr, id1.my_fp);
+                    update_naddr,
+                    update_internal_fingerprints,
+                    id1.my_fp);
             }
 
             // After a short while (.1 sec) the connectivity gnode will be dismissed.
@@ -1521,7 +1552,7 @@ namespace Testbed03
                                         assert(r_buf.read_element(1));
                                         {
                                             assert(r_buf.is_value());
-                                            // TODO assert(r_buf.get_int_value() == 2);
+                                            assert(r_buf.get_int_value() == 2);
                                         }
                                         r_buf.end_element();
                                         assert(r_buf.read_element(2));

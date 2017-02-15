@@ -518,23 +518,21 @@ namespace Netsukuku.Qspn
             }
         }
 
-        public Destination copy()
+        public Destination copy(ChangeFingerprintDelegate update_internal_fingerprints)
         {
             HCoord destination_copy_dest = new HCoord(this.dest.lvl, this.dest.pos);
             ArrayList<NodePath> destination_copy_paths = new ArrayList<NodePath>();
             foreach (NodePath np in this.paths)
             {
                 // np.path is serializable
+                EtpPath np_path;
                 try {
-                    destination_copy_paths.add(
-                        new NodePath(
-                            np.arc,
-                            deserialize_etp_path(serialize_etp_path(np.path))
-                            )
-                        );
+                    np_path = deserialize_etp_path(serialize_etp_path(np.path));
                 } catch (HelperDeserializeError e) {
                     assert_not_reached();
                 }
+                np_path.fingerprint = update_internal_fingerprints(np_path.fingerprint);
+                destination_copy_paths.add(new NodePath(np.arc, np_path));
             }
             Destination destination_copy = new Destination(
                 destination_copy_dest,
@@ -547,6 +545,9 @@ namespace Netsukuku.Qspn
     internal errordomain AcyclicError {
         GENERIC
     }
+
+    public delegate IQspnNaddr ChangeNaddrDelegate(IQspnNaddr old);
+    public delegate IQspnFingerprint ChangeFingerprintDelegate(IQspnFingerprint old);
 
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
@@ -699,12 +700,14 @@ namespace Netsukuku.Qspn
 
         private delegate IQspnArc ArcToArcDelegate(IQspnArc old);
 
-        public QspnManager.enter_net(IQspnMyNaddr my_naddr,
+        public QspnManager.enter_net(
                            Gee.List<IQspnArc> internal_arc_set,
                            Gee.List<IQspnArc> internal_arc_prev_arc_set,
                            Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> external_arc_set,
+                           IQspnMyNaddr my_naddr,
                            IQspnFingerprint my_fingerprint,
+                           ChangeFingerprintDelegate update_internal_fingerprints,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
                            int into_gnode_level,
@@ -782,7 +785,7 @@ namespace Netsukuku.Qspn
                 foreach (int pos in previous_identity.destinations[l].keys)
                 {
                     Destination destination = previous_identity.destinations[l][pos];
-                    Destination destination_copy = destination.copy();
+                    Destination destination_copy = destination.copy(update_internal_fingerprints);
                     foreach (NodePath np in destination_copy.paths)
                     {
                         np.arc = old_arc_to_new_arc(np.arc);
@@ -824,12 +827,14 @@ namespace Netsukuku.Qspn
             tasklet.spawn(ts);
         }
 
-        public QspnManager.migration(IQspnMyNaddr my_naddr,
+        public QspnManager.migration(
                            Gee.List<IQspnArc> internal_arc_set,
                            Gee.List<IQspnArc> internal_arc_prev_arc_set,
                            Gee.List<IQspnNaddr> internal_arc_peer_naddr_set,
                            Gee.List<IQspnArc> external_arc_set,
+                           IQspnMyNaddr my_naddr,
                            IQspnFingerprint my_fingerprint,
+                           ChangeFingerprintDelegate update_internal_fingerprints,
                            IQspnStubFactory stub_factory,
                            int hooking_gnode_level,
                            int into_gnode_level,
@@ -907,7 +912,7 @@ namespace Netsukuku.Qspn
                 foreach (int pos in previous_identity.destinations[l].keys)
                 {
                     Destination destination = previous_identity.destinations[l][pos];
-                    Destination destination_copy = destination.copy();
+                    Destination destination_copy = destination.copy(update_internal_fingerprints);
                     foreach (NodePath np in destination_copy.paths)
                     {
                         np.arc = old_arc_to_new_arc(np.arc);
@@ -3170,13 +3175,12 @@ namespace Netsukuku.Qspn
             return null;
         }
 
-        public delegate IQspnNaddr ChangeNaddrDelegate(IQspnNaddr old);
-
         /** Make this identity a ''connectivity'' one.
           */
         public void make_connectivity(int connectivity_from_level,
                                       int connectivity_to_level,
                                       ChangeNaddrDelegate update_naddr,
+                                      ChangeFingerprintDelegate update_internal_fingerprints,
                                       IQspnFingerprint new_fp)
         {
             assert(connectivity_from_level <= connectivity_to_level);
@@ -3199,6 +3203,18 @@ namespace Netsukuku.Qspn
             this.connectivity_to_level = connectivity_to_level;
             int new_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
             assert(new_id >= gsizes[connectivity_from_level-1]);
+            // Apply `update_internal_fingerprints` to destinations that are internal to connectivity_from_level-1.
+            for (int l = 0; l < connectivity_from_level-1; l++)
+            {
+                foreach (int pos in destinations[l].keys)
+                {
+                    Destination destination = destinations[l][pos];
+                    foreach (NodePath np in destination.paths)
+                    {
+                        np.path.fingerprint = update_internal_fingerprints(np.path.fingerprint);
+                    }
+                }
+            }
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
@@ -3265,22 +3281,36 @@ namespace Netsukuku.Qspn
             }
         }
 
-        /** This identity now has a ''real'' position at level 'into_gnode_level' - 1.
+        /** This identity, which was born as a "enter_net" or "migration", now has a "real" position at
+            the level 'into_gnode_level' - 1.
           */
         public void make_real(ChangeNaddrDelegate update_naddr,
+                              ChangeFingerprintDelegate update_internal_fingerprints,
                               IQspnFingerprint new_fp)
         {
-            // Gather arcs that are internal to connectivity_from_level-1. Put in `internal_arcs`.
+            // Gather arcs that are internal to hooking_gnode_level. Put in `internal_arcs`.
             ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
             foreach (IQspnArc arc in my_arcs)
              if (arc_to_naddr[arc] != null)
-             if (my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl < connectivity_from_level-1)
+             if (my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl < hooking_gnode_level)
                 internal_arcs.add(arc);
             // Apply `update_naddr` to `my_naddr`.
             my_naddr = (IQspnMyNaddr)update_naddr(my_naddr);
             // Apply `update_naddr` to `arc_to_naddr` for each internal arc.
             foreach (IQspnArc arc in internal_arcs)
                 arc_to_naddr[arc] = update_naddr(arc_to_naddr[arc]);
+            // Apply `update_internal_fingerprints` to destinations that are internal to hooking_gnode_level.
+            for (int l = 0; l < hooking_gnode_level; l++)
+            {
+                foreach (int pos in destinations[l].keys)
+                {
+                    Destination destination = destinations[l][pos];
+                    foreach (NodePath np in destination.paths)
+                    {
+                        np.path.fingerprint = update_internal_fingerprints(np.path.fingerprint);
+                    }
+                }
+            }
             // Fingerprint at level 0.
             my_fingerprints.remove_at(0);
             my_fingerprints.insert(0, new_fp);
