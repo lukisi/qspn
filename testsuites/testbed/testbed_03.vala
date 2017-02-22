@@ -664,7 +664,7 @@ namespace Testbed03
             id1.qspn_manager.path_added.connect(id1_path_added);
             // TODO  id1.qspn_manager.path_changed.connect(id1_path_changed);
             // TODO  id1.qspn_manager.path_removed.connect(id1_path_removed);
-            // TODO  id1.qspn_manager.presence_notified.connect(id1_presence_notified);
+            id1.qspn_manager.presence_notified.connect(id1_presence_notified);
             id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
             // TODO  id1.qspn_manager.remove_identity.connect(id1_remove_identity);
 
@@ -947,7 +947,7 @@ namespace Testbed03
             test_id1_changed_nodes_inside = 1;
             test_id1_changed_nodes_inside_qspnmgr = id1.qspn_manager;
             test_id1_qspn_bootstrap_complete = 1;
-            // While we wait for those signals, also expect (in less than 0.5 seconds) a call to RPC get_full_etp from id1 to beta0
+            // While we wait for those signals, also expect (in less than 0.5 seconds) a call to RPC get_full_etp
             //  from delta1 to mu2 and from delta1 to gamma0. The node mu2 will throw QspnBootstrapInProgressError, while the
             //  response from gamma0 will be the same as before.
             id1_resp_gamma0 =
@@ -2294,7 +2294,7 @@ namespace Testbed03
                 }
             }
 
-            // After short, we receive an ETP from mu2.
+            // After short, we receive an ETP from mu2. But no signals will be emitted from its process.
             tasklet.ms_wait(10);
             {
                 // build an EtpMessage
@@ -2343,6 +2343,11 @@ namespace Testbed03
             }
             tasklet.ms_wait(100);
         }
+
+        // In less than 1.5 seconds we should get the signal `presence_notified`
+        test_id1_presence_notified = 1;
+        tasklet.ms_wait(1500);
+        assert(test_id1_presence_notified == -1);
 
         PthTaskletImplementer.kill();
     }
@@ -3304,6 +3309,20 @@ namespace Testbed03
         else
         {
             warning("unpredicted signal id1_qspn_bootstrap_complete");
+        }
+    }
+
+    int test_id1_presence_notified = -1;
+    void id1_presence_notified()
+    {
+        if (test_id1_presence_notified == 1)
+        {
+            test_id1_presence_notified = -1;
+        }
+        // else if (test_id1_presence_notified == 2)
+        else
+        {
+            warning("unpredicted signal id1_presence_notified");
         }
     }
 }
