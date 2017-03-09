@@ -4,3 +4,5 @@ This is the module QSPN.
 It depends on: tasklet-system, ntkd-common, ntkdrpc.
 
 The ''ntkd'' daemon includes it.
+
+See documentation at https://github.com/lukisi/documentation
