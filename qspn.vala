@@ -2612,7 +2612,7 @@ namespace Netsukuku.Qspn
                         NodePath p1 = od_set[od_set.index_of(p)];
                         if (p in vd_set)
                         {
-                            all_paths_set.add(prepare_path_step_1(p));
+                            all_paths_set.add(prepare_path_step_1(p1));
                             if (d.lvl == 0)
                             {
                                 sd.add(new SignalToEmit.path_changed(get_ret_path(p)));

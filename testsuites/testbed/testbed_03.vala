@@ -2353,9 +2353,7 @@ namespace Testbed03
          After some time we have that both beta and mu go off.
          First, gamma receives notification that beta goes off.
          Then, delta receives notification that mu goes off.
-         Gamma will ask for a new ETP from delta - this could be avoided because in case of dead-link
-         gamma should ask only to the neighbour that are on the same gnode as gamma and beta, that is
-         the gnode wherein the dead-link was. Delta returns a ETP.
+         Gamma will ask for a new ETP from delta. Delta returns a ETP.
          Then, gamma sends an ETP, reporting that:
           - its path to (0,1) - that is to 2:1:1:1 - is now dead.
           - its gnode of level 1 has only 1 node-inside.
@@ -3259,7 +3257,7 @@ namespace Testbed03
                 "arcs":[511816849],
                 "cost":{"typename":"TestbedCost","value":{"usec-rtt":10101}},
                 "fingerprint":{"typename":"TestbedFingerprint","value":{"id":901335,"level":1,"elderships":[0,0,0],"elderships-seed":[0]}},
-                "nodes-inside":2,
+                "nodes-inside":1,
                 "ignore-outside":[false,false,true,true]}}]}
             */
             {
@@ -3771,7 +3769,7 @@ namespace Testbed03
                             assert(r_buf.read_member("nodes-inside"));
                             {
                                 assert(r_buf.is_value());
-                                assert(r_buf.get_int_value() == 2);
+                                assert(r_buf.get_int_value() == 1);
                             }
                             r_buf.end_member();
                             assert(r_buf.read_member("ignore-outside"));
