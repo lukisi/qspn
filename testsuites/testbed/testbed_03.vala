@@ -659,11 +659,11 @@ namespace Testbed03
             id1.qspn_manager.changed_fp.connect(id1_changed_fp);
             id1.qspn_manager.changed_nodes_inside.connect(id1_changed_nodes_inside);
             id1.qspn_manager.destination_added.connect(id1_destination_added);
-            // TODO  id1.qspn_manager.destination_removed.connect(id1_destination_removed);
+            id1.qspn_manager.destination_removed.connect(id1_destination_removed);
             // TODO  id1.qspn_manager.gnode_splitted.connect(id1_gnode_splitted);
             id1.qspn_manager.path_added.connect(id1_path_added);
             // TODO  id1.qspn_manager.path_changed.connect(id1_path_changed);
-            // TODO  id1.qspn_manager.path_removed.connect(id1_path_removed);
+            id1.qspn_manager.path_removed.connect(id1_path_removed);
             id1.qspn_manager.presence_notified.connect(id1_presence_notified);
             id1.qspn_manager.qspn_bootstrap_complete.connect(id1_qspn_bootstrap_complete);
             // TODO  id1.qspn_manager.remove_identity.connect(id1_remove_identity);
@@ -2775,32 +2775,35 @@ namespace Testbed03
             }
 
             // build an EtpMessage
-            string s_etpmessage = """{""" +
-                """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
-                """"fingerprints":[""" +
-                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
-                            ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
-                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
-                            ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
-                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
-                            ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
-                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
-                            ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
-                    """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
-                            ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
-                """"nodes-inside":[1,1,3,3,3],""" +
-                """"hops":[],""" +
-                """"p-list":[""" +
-                    """{"typename":"NetsukukuQspnEtpPath","value":{""" +
-                        """"hops":[{"typename":"NetsukukuHCoord","value":{"pos":1}}],""" +
-                        """"arcs":[1444704466],""" +
-                        """"cost":{"typename":"NetsukukuQspnDeadCost","value":{}},""" +
-                        """"fingerprint":{"typename":"TestbedFingerprint","value":{"id":""" + @"$(873044)" +
-                                             ""","level":0,"elderships":[2,0,0,0],"elderships-seed":[]}},""" +
-                        """"nodes-inside":1,""" +
-                        """"ignore-outside":[false,true,true,true]}}]}""";
-            Type type_etpmessage = name_to_type("NetsukukuQspnEtpMessage");
-            IQspnEtpMessage gamma0_etp = (IQspnEtpMessage)json_object_from_string(s_etpmessage, type_etpmessage);
+            IQspnEtpMessage gamma0_etp;
+            {
+                string s_etpmessage = """{""" +
+                    """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
+                    """"fingerprints":[""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+                    """"nodes-inside":[1,1,3,3,3],""" +
+                    """"hops":[],""" +
+                    """"p-list":[""" +
+                        """{"typename":"NetsukukuQspnEtpPath","value":{""" +
+                            """"hops":[{"typename":"NetsukukuHCoord","value":{"pos":1}}],""" +
+                            """"arcs":[1444704466],""" +
+                            """"cost":{"typename":"NetsukukuQspnDeadCost","value":{}},""" +
+                            """"fingerprint":{"typename":"TestbedFingerprint","value":{"id":""" + @"$(873044)" +
+                                                 ""","level":0,"elderships":[2,0,0,0],"elderships-seed":[]}},""" +
+                            """"nodes-inside":1,""" +
+                            """"ignore-outside":[false,true,true,true]}}]}""";
+                Type type_etpmessage = name_to_type("NetsukukuQspnEtpMessage");
+                gamma0_etp = (IQspnEtpMessage)json_object_from_string(s_etpmessage, type_etpmessage);
+            }
             bool gamma0_is_full = false;
             FakeCallerInfo gamma0_rpc_caller = new FakeCallerInfo();
             gamma0_rpc_caller.valid_set = new ArrayList<QspnArc>.wrap({arc_id1_gamma0});
@@ -2814,6 +2817,602 @@ namespace Testbed03
                 id1.qspn_manager.send_etp(gamma0_etp, gamma0_is_full, gamma0_rpc_caller);
             } catch (QspnNotAcceptedError e) {assert_not_reached();}
             h_ts2.join();
+            assert(test_id1_changed_nodes_inside == -1);
+
+            // Now delta gets notified that mu2 is gone.
+            test_id1_path_removed = 1;
+            test_id1_destination_removed = 1;
+            id1.qspn_manager.arc_remove(arc_id1_mu2);
+            // Expect in less than .1 seconds call to get_full_etp from id1 to gamma0.
+            //   requesting_address=2:1:0:1.
+            IQspnAddress id1_requesting_address_2;
+            IChannel id1_expected_answer_2;
+            ArrayList<NodeID> id1_destid_set_2;
+            id1.stub_factory.expect_get_full_etp(100, out id1_requesting_address_2, out id1_expected_answer_2, out id1_destid_set_2);
+            assert(id1_destid_set_2.size == 1);
+            assert(id1_destid_set_2[0].id == gamma0_id);
+            assert(naddr_repr((Naddr)id1_requesting_address_2) == "2:1:0:1");
+            // make sure those signals did come in:
+            assert(test_id1_destination_removed == -1);
+            assert(test_id1_changed_nodes_inside == -1);
+            // The answer will be an EtpMessage:
+            IQspnEtpMessage gamma0_etp_2;
+            {
+                string s_etpmessage = """{""" +
+                    """"node-address":{"typename":"TestbedNaddr","value":{"pos":[0,1,1,2],"sizes":[2,2,2,4]}},""" +
+                    """"fingerprints":[""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":0,"elderships":[0,0,0,0],"elderships-seed":[]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":1,"elderships":[0,0,0],"elderships-seed":[0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":2,"elderships":[0,0],"elderships-seed":[0,0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":3,"elderships":[0],"elderships-seed":[0,0,0]}},""" +
+                        """{"typename":"TestbedFingerprint","value":{"id":""" + @"$(gamma_fp0)" +
+                                ""","level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],""" +
+                    """"nodes-inside":[1,1,3,3,3],""" +
+                    """"hops":[],""" +
+                    """"p-list":[]}""";
+                Type type_etpmessage = name_to_type("NetsukukuQspnEtpMessage");
+                gamma0_etp_2 = (IQspnEtpMessage)json_object_from_string(s_etpmessage, type_etpmessage);
+            }
+            id1_expected_answer_2.send_async("OK");
+            id1_expected_answer_2.send_async(gamma0_etp_2);
+            // prepare to expect signals (send_async will not schedule immediately)
+            test_id1_changed_nodes_inside = 3;
+            test_id1_changed_nodes_inside_qspnmgr = id1.qspn_manager;
+            // while we wait for signals changed_nodes_inside, also expect in a little while to send a non-full ETP to gamma0
+            IQspnEtpMessage id1_send_etp;
+            bool id1_send_is_full;
+            ArrayList<NodeID> id1_destid_set;
+            id1.stub_factory.expect_send_etp(100, out id1_send_etp, out id1_send_is_full, out id1_destid_set);
+            assert(! id1_send_is_full);
+            assert(new NodeID(gamma0_id) in id1_destid_set);
+            // Verify that we send NetsukukuQspnEtpMessage:
+            /*
+                {"node-address":{"typename":"TestbedNaddr","value":{"pos":[1,0,1,2],"sizes":[2,2,2,4]}},
+                "fingerprints":[
+                    {"typename":"TestbedFingerprint","value":{"id":154713,"level":0,"elderships":[0,2,0,0],"elderships-seed":[]}},
+                    {"typename":"TestbedFingerprint","value":{"id":154713,"level":1,"elderships":[2,0,0],"elderships-seed":[0]}},
+                    {"typename":"TestbedFingerprint","value":{"id":901335,"level":2,"elderships":[0,0],"elderships-seed":[0,0]}},
+                    {"typename":"TestbedFingerprint","value":{"id":901335,"level":3,"elderships":[0],"elderships-seed":[0,0,0]}},
+                    {"typename":"TestbedFingerprint","value":{"id":901335,"level":4,"elderships":[],"elderships-seed":[0,0,0,0]}}],
+                "nodes-inside":[1,1,2,2,2],
+                "hops":[],
+                "p-list":[{"typename":"NetsukukuQspnEtpPath","value":{
+                    "hops":[{"typename":"NetsukukuHCoord","value":{}}],
+                    "arcs":[1639381630],
+                    "cost":{"typename":"NetsukukuQspnDeadCost","value":{}},
+                    "fingerprint":{"typename":"TestbedFingerprint","value":{"id":823055,"level":0,"elderships":[2,2,0,0],"elderships-seed":[]}},
+                    "nodes-inside":1,
+                    "ignore-outside":[false,true,true,true]}}]}
+            */
+            {
+                string s0 = json_string_from_object(id1_send_etp, false);
+                Json.Parser p0 = new Json.Parser();
+                try {
+                    assert(p0.load_from_data(s0));
+                } catch (Error e) {assert_not_reached();}
+                Json.Node n = p0.get_root();
+                Json.Reader r_buf = new Json.Reader(n);
+                assert(r_buf.is_object());
+                assert(r_buf.read_member("node-address"));
+                {
+                    assert(r_buf.is_object());
+                    assert(r_buf.read_member("value"));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("pos"));
+                        {
+                            assert(r_buf.is_array());
+                            assert(r_buf.count_elements() == 4);
+                            assert(r_buf.read_element(0));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(1));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(2));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_element();
+                            assert(r_buf.read_element(3));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 2);
+                            }
+                            r_buf.end_element();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_member();
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("fingerprints"));
+                {
+                    assert(r_buf.is_array());
+                    assert(r_buf.count_elements() == 5);
+                    assert(r_buf.read_element(0));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("id"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == delta_fp0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("level"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 4);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 2);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(2));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(3));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships-seed"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 0);
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(1));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("id"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == delta_fp0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("level"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 3);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 2);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(2));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships-seed"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 1);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(2));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("id"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == gamma_fp0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("level"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 2);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 2);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships-seed"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 2);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(3));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("id"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == gamma_fp0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("level"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 3);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 1);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships-seed"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 3);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(2));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(4));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("id"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == gamma_fp0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("level"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 4);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 0);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("elderships-seed"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 4);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(2));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(3));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_int_value() == 0);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("nodes-inside"));
+                {
+                    assert(r_buf.is_array());
+                    assert(r_buf.count_elements() == 5);
+                    assert(r_buf.read_element(0));
+                    {
+                        assert(r_buf.is_value());
+                        assert(r_buf.get_int_value() == 1);
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(1));
+                    {
+                        assert(r_buf.is_value());
+                        assert(r_buf.get_int_value() == 1);
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(2));
+                    {
+                        assert(r_buf.is_value());
+                        assert(r_buf.get_int_value() == 2);
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(3));
+                    {
+                        assert(r_buf.is_value());
+                        assert(r_buf.get_int_value() == 2);
+                    }
+                    r_buf.end_element();
+                    assert(r_buf.read_element(4));
+                    {
+                        assert(r_buf.is_value());
+                        assert(r_buf.get_int_value() == 2);
+                    }
+                    r_buf.end_element();
+                }
+                r_buf.end_member();
+                assert(r_buf.read_member("p-list"));
+                {
+                    assert(r_buf.is_array());
+                    assert(r_buf.count_elements() == 1);
+                    assert(r_buf.read_element(0));
+                    {
+                        assert(r_buf.is_object());
+                        assert(r_buf.read_member("value"));
+                        {
+                            assert(r_buf.is_object());
+                            assert(r_buf.read_member("hops"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 1);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_object());
+                                    assert(r_buf.read_member("value"));
+                                    {
+                                        assert(r_buf.is_object());
+                                        if (r_buf.read_member("lvl"))
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 0);
+                                        }
+                                        r_buf.end_member();
+                                        if (r_buf.read_member("pos"))
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 0);
+                                        }
+                                        r_buf.end_member();
+                                    }
+                                    r_buf.end_member();
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("cost"));
+                            {
+                                assert(r_buf.is_object());
+                                assert(r_buf.read_member("typename"));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_string_value() == "NetsukukuQspnDeadCost"); 
+                                }
+                                r_buf.end_member();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("fingerprint"));
+                            {
+                                assert(r_buf.is_object());
+                                assert(r_buf.read_member("value"));
+                                {
+                                    assert(r_buf.is_object());
+                                    assert(r_buf.read_member("id"));
+                                    {
+                                        assert(r_buf.is_value());
+                                        assert(r_buf.get_int_value() == mu_fp0); 
+                                    }
+                                    r_buf.end_member();
+                                    assert(r_buf.read_member("level"));
+                                    {
+                                        assert(r_buf.is_value());
+                                        assert(r_buf.get_int_value() == 0);
+                                    }
+                                    r_buf.end_member();
+                                    assert(r_buf.read_member("elderships"));
+                                    {
+                                        assert(r_buf.is_array());
+                                        assert(r_buf.count_elements() == 4);
+                                        assert(r_buf.read_element(0));
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 2);
+                                        }
+                                        r_buf.end_element();
+                                        assert(r_buf.read_element(1));
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 2);
+                                        }
+                                        r_buf.end_element();
+                                        assert(r_buf.read_element(2));
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 0);
+                                        }
+                                        r_buf.end_element();
+                                        assert(r_buf.read_element(3));
+                                        {
+                                            assert(r_buf.is_value());
+                                            assert(r_buf.get_int_value() == 0);
+                                        }
+                                        r_buf.end_element();
+                                    }
+                                    r_buf.end_member();
+                                }
+                                r_buf.end_member();
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("nodes-inside"));
+                            {
+                                assert(r_buf.is_value());
+                                assert(r_buf.get_int_value() == 1);
+                            }
+                            r_buf.end_member();
+                            assert(r_buf.read_member("ignore-outside"));
+                            {
+                                assert(r_buf.is_array());
+                                assert(r_buf.count_elements() == 4);
+                                assert(r_buf.read_element(0));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_boolean_value() == false);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(1));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_boolean_value() == true);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(2));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_boolean_value() == true);
+                                }
+                                r_buf.end_element();
+                                assert(r_buf.read_element(3));
+                                {
+                                    assert(r_buf.is_value());
+                                    assert(r_buf.get_boolean_value() == true);
+                                }
+                                r_buf.end_element();
+                            }
+                            r_buf.end_member();
+                        }
+                        r_buf.end_member();
+                    }
+                    r_buf.end_element();
+                }
+                r_buf.end_member();
+            }
             assert(test_id1_changed_nodes_inside == -1);
         }
 
@@ -4289,7 +4888,48 @@ namespace Testbed03
                 test_id1_changed_nodes_inside_qspnmgr = null;
             }
         }
-        // else if (test_id1_changed_nodes_inside == 3)
+        else if (test_id1_changed_nodes_inside == 3)
+        {
+            if (test_id1_changed_nodes_inside_step == -1)
+            {
+                assert(l == 1);
+                try {
+                    int n = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(n == 1);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 2;
+            }
+            else if (test_id1_changed_nodes_inside_step == 2)
+            {
+                assert(l == 2);
+                try {
+                    int n = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(n == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 3;
+            }
+            else if (test_id1_changed_nodes_inside_step == 3)
+            {
+                assert(l == 3);
+                try {
+                    int n = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(n == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside_step = 4;
+            }
+            else if (test_id1_changed_nodes_inside_step == 4)
+            {
+                assert(l == 4);
+                try {
+                    int n = test_id1_changed_nodes_inside_qspnmgr.get_nodes_inside(l);
+                    assert(n == 2);
+                } catch (QspnBootstrapInProgressError e) {assert_not_reached();}
+                test_id1_changed_nodes_inside = -1;
+                test_id1_changed_nodes_inside_step = -1;
+                test_id1_changed_nodes_inside_qspnmgr = null;
+            }
+        }
+        // else if (test_id1_changed_nodes_inside == 4)
         else
         {
             warning("unpredicted signal id1_changed_nodes_inside");
@@ -4365,6 +5005,45 @@ namespace Testbed03
         else
         {
             warning("unpredicted signal id1_presence_notified");
+        }
+    }
+
+    int test_id1_path_removed = -1;
+    void id1_path_removed(IQspnNodePath p)
+    {
+        if (test_id1_path_removed == 1)
+        {
+            assert(p.i_qspn_get_arc().i_qspn_equals(arc_id1_mu2));
+            assert(p.i_qspn_get_cost().i_qspn_compare_to(arc_id1_mu2_cost) == 0);
+            assert(p.i_qspn_get_nodes_inside() == 1);
+            Gee.List<IQspnHop> hops = p.i_qspn_get_hops();
+            assert(hops.size == 1);
+            IQspnHop hop = hops[0];
+            HCoord h_hop = hop.i_qspn_get_hcoord();
+            assert(h_hop.lvl == 0);
+            assert(h_hop.pos == 0);
+            test_id1_path_removed = -1;
+        }
+        // else if (test_id1_path_removed == 2)
+        else
+        {
+            warning("unpredicted signal id1_path_removed");
+        }
+    }
+
+    int test_id1_destination_removed = -1;
+    void id1_destination_removed(HCoord h)
+    {
+        if (test_id1_destination_removed == 1)
+        {
+            assert(h.lvl == 0);
+            assert(h.pos == 0);
+            test_id1_destination_removed = -1;
+        }
+        // else if (test_id1_destination_removed == 2)
+        else
+        {
+            warning("unpredicted signal id1_destination_removed");
         }
     }
 }
