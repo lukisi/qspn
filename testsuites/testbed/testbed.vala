@@ -236,6 +236,23 @@ namespace Testbed
             expected_get_full_etp = null;
         }
 
+        private IChannel? expected_got_destroy = null;
+        public void expect_got_destroy(int timeout_msec, out ArrayList<NodeID> destid_set)
+        {
+            assert(expected_got_destroy == null);
+            expected_got_destroy = tasklet.get_channel();
+            try {
+                Value v0 = expected_got_destroy.recv_with_timeout(timeout_msec);
+                //assert(v0 is ArrayList<NodeID>);
+                destid_set = (ArrayList<NodeID>)v0;
+            } catch (ChannelError.TIMEOUT e) {
+                assert_not_reached();
+            } catch (ChannelError e) {
+                assert_not_reached();
+            }
+            expected_got_destroy = null;
+        }
+
         /* This "holder" class is needed because the QspnManagerRemote class provided by
          * the ZCD framework is owned (and tied to) by the AddressManagerXxxxRootStub.
          */
@@ -271,24 +288,25 @@ namespace Testbed
                 string call_id = @"$(get_time_now())";
                 print(@"$(call_id): Identity #$(identity_data.local_identity_index): calling RPC get_full_etp: $(msg_hdr).\n");
                 print(@"   requesting_address=$(naddr_repr((Naddr)requesting_address)).\n");
-
-                error("TODO wait for an answer from some channel.\n");
+                error("unexpected RPC call.");
             }
 
             public void got_destroy()
             throws StubError, DeserializeError
             {
+                if (factory.expected_got_destroy != null) {
+                    factory.expected_got_destroy.send_async(destid_set);
+                    return;
+                }
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_destroy: $(msg_hdr).\n");
-
-                error("TODO wait for an answer from some channel.\n");
+                error("unexpected RPC call.");
             }
 
             public void got_prepare_destroy()
             throws StubError, DeserializeError
             {
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): calling RPC got_prepare_destroy: $(msg_hdr).\n");
-
-                error("TODO wait for an answer from some channel.\n");
+                error("unexpected RPC call.");
             }
 
             public void send_etp(IQspnEtpMessage etp, bool is_full)
@@ -305,8 +323,7 @@ namespace Testbed
                 string typename = type_to_name(etp.get_type());
                 print(@"   $(typename) etp=$(json_string_from_object(etp)).\n");
                 print(@"   is_full=$(is_full).\n");
-
-                error("TODO wait for an answer from some channel.\n");
+                error("unexpected RPC call.");
             }
         }
 
@@ -331,13 +348,20 @@ namespace Testbed
             public void got_destroy()
             throws StubError, DeserializeError
             {
+                if (factory.expected_got_destroy != null) {
+                    ArrayList<NodeID> destid_set = new ArrayList<NodeID>((a, b) => a.equals(b));
+                    factory.expected_got_destroy.send_async(destid_set);
+                    return;
+                }
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC got_destroy, but have no (other) arcs.\n");
+                error("unexpected RPC call.");
             }
 
             public void got_prepare_destroy()
             throws StubError, DeserializeError
             {
                 print(@"$(get_time_now()): Identity #$(identity_data.local_identity_index): would call RPC got_prepare_destroy, but have no (other) arcs.\n");
+                error("unexpected RPC call.");
             }
 
             public void send_etp(IQspnEtpMessage etp, bool is_full)
@@ -354,6 +378,7 @@ namespace Testbed
                 string typename = type_to_name(etp.get_type());
                 print(@"   $(typename) etp=$(json_string_from_object(etp)).\n");
                 print(@"   is_full=$(is_full).\n");
+                error("unexpected RPC call.");
             }
         }
 

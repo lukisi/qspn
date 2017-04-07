@@ -249,6 +249,16 @@ namespace Testbed01
 
         tasklet.ms_wait(300);
         // Identity #0: disable and dismiss.
+
+        // Spawn a tasklet to call destroy and immediately expect for got_destroy RPC call.
+        DestroyTasklet ts_d0 = new DestroyTasklet(id0.qspn_manager);
+        ITaskletHandle h_ts_d0 = tasklet.spawn(ts_d0, true);
+        // In less than 0.1 seconds we expect a call to RPC got_destroy from id0 to no-arcs.
+        ArrayList<NodeID> id0_destid_set_2;
+        id0.stub_factory.expect_got_destroy(100, out id0_destid_set_2);
+        assert(id0_destid_set_2.is_empty);
+        h_ts_d0.join();
+
         id0.qspn_manager.stop_operations();
         id0.qspn_manager = null;
 
@@ -868,8 +878,19 @@ namespace Testbed01
             tasklet.ms_wait(200);
         }
 
-        // After some time, remove arc.
-        tasklet.ms_wait(1600);
+        // After some time, going to shutdown the system: first
+        // destroy the qspnmanager, then remove arcs.
+        tasklet.ms_wait(300);
+
+        // Spawn a tasklet to call destroy and immediately expect for got_destroy RPC call.
+        DestroyTasklet ts_d1 = new DestroyTasklet(id1.qspn_manager);
+        ITaskletHandle h_ts_d1 = tasklet.spawn(ts_d1, true);
+        // In less than 0.1 seconds we expect a call to RPC got_destroy from id1 to beta0.
+        ArrayList<NodeID> id1_destid_set_3;
+        id1.stub_factory.expect_got_destroy(100, out id1_destid_set_3);
+        assert(new NodeID(beta0_id) in id1_destid_set_3);
+        h_ts_d1.join();
+
         // Prepare to verify signals produced by arc removal.
         // Expect signals `path_removed`, `destination_removed`, `changed_nodes_inside`, `changed_fp`.
         test_id1_path_removed = 1;
@@ -891,6 +912,22 @@ namespace Testbed01
         id1.qspn_manager = null;
 
         PthTaskletImplementer.kill();
+    }
+
+    class DestroyTasklet : Object, ITaskletSpawnable
+    {
+        private QspnManager q;
+        public DestroyTasklet(QspnManager q)
+        {
+            this.q = q;
+        }
+
+        public void * func()
+        {
+            tasklet.ms_wait(1);
+            q.destroy();
+            return null;
+        }
     }
 
     class FollowId0Tasklet : Object, ITaskletSpawnable

@@ -570,7 +570,7 @@ namespace Testbed02
         assert(test_id0_changed_nodes_inside == -1);
 
         // After some time, remove arc.
-        tasklet.ms_wait(1600);
+        tasklet.ms_wait(300);
         // Prepare to verify signals produced by arc removal.
         // Expect signals `path_removed`, `destination_removed`, `changed_nodes_inside`.
         test_id0_path_removed = 1;
@@ -583,12 +583,40 @@ namespace Testbed02
         assert(test_id0_destination_removed == -1);
         assert(test_id0_changed_nodes_inside == -1);
 
+        // After some time, going to shutdown the system: first
+        // destroy the qspnmanager, then remove arcs. In this case we have no arcs.
         tasklet.ms_wait(200);
+
+        // Spawn a tasklet to call destroy and immediately expect for got_destroy RPC call.
+        DestroyTasklet ts_d0 = new DestroyTasklet(id0.qspn_manager);
+        ITaskletHandle h_ts_d0 = tasklet.spawn(ts_d0, true);
+        // In less than 0.1 seconds we expect a call to RPC got_destroy from id0 to beta0.
+        ArrayList<NodeID> id0_destid_set_2;
+        id0.stub_factory.expect_got_destroy(100, out id0_destid_set_2);
+        assert(id0_destid_set_2.is_empty);
+        h_ts_d0.join();
+
         // Identity #0: disable and dismiss.
         id0.qspn_manager.stop_operations();
         id0.qspn_manager = null;
 
         PthTaskletImplementer.kill();
+    }
+
+    class DestroyTasklet : Object, ITaskletSpawnable
+    {
+        private QspnManager q;
+        public DestroyTasklet(QspnManager q)
+        {
+            this.q = q;
+        }
+
+        public void * func()
+        {
+            tasklet.ms_wait(1);
+            q.destroy();
+            return null;
+        }
     }
 
     class Id0GetFullEtpTasklet : Object, ITaskletSpawnable

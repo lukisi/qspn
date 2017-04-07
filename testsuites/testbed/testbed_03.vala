@@ -3419,6 +3419,22 @@ namespace Testbed03
         PthTaskletImplementer.kill();
     }
 
+    class DestroyTasklet : Object, ITaskletSpawnable
+    {
+        private QspnManager q;
+        public DestroyTasklet(QspnManager q)
+        {
+            this.q = q;
+        }
+
+        public void * func()
+        {
+            tasklet.ms_wait(1);
+            q.destroy();
+            return null;
+        }
+    }
+
     class Id0GetFullEtpTasklet : Object, ITaskletSpawnable
     {
         public Naddr requesting_address;
