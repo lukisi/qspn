@@ -58,7 +58,7 @@ public class FakeGenericNaddr : Object, IQspnAddress, IQspnNaddr, IQspnMyNaddr, 
         return true;
     }
 
-    public unowned GLib.ParamSpec find_property
+    public unowned GLib.ParamSpec? find_property
     (string name)
     {
         return get_class().find_property(name);
@@ -185,7 +185,7 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
         return true;
     }
 
-    public unowned GLib.ParamSpec find_property
+    public unowned GLib.ParamSpec? find_property
     (string name)
     {
         return get_class().find_property(name);

@@ -1,8 +1,12 @@
 Part of Netsukuku.
 
-This is the module QSPN.
+This package is the module QSPN.
 It depends on: tasklet-system, ntkd-common, ntkdrpc.
 
-The ''ntkd'' daemon includes it.
+This package produces a convenience library for the daemon 'ntkd'.
+
+The whole package is to be included into the package 'ntkd' by means
+of the macro AC_CONFIG_SUBDIRS in configure.ac and the declaration
+SUBDIRS in Makefile.am.
 
 See documentation at https://github.com/lukisi/documentation
