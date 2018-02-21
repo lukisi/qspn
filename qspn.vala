@@ -43,7 +43,7 @@ namespace Netsukuku.Qspn
     {
         public abstract bool i_qspn_equals(IQspnFingerprint other);
         public abstract int i_qspn_get_level();
-        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints);
+        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints, bool is_null_eldership=false);
         public abstract bool i_qspn_elder_seed(IQspnFingerprint other);
     }
 
@@ -590,8 +590,8 @@ namespace Netsukuku.Qspn
         private int levels;
         private int[] gsizes;
         private bool bootstrap_complete;
-        private int hooking_gnode_level;
-        private int into_gnode_level;
+        private int guest_gnode_level;
+        private int host_gnode_level;
         private ITaskletHandle? periodical_update_tasklet = null;
         private ArrayList<IQspnArc> queued_arcs;
         private ArrayList<PairFingerprints> pending_gnode_split;
@@ -680,7 +680,7 @@ namespace Netsukuku.Qspn
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we get immediately bootstrap_complete.
             bootstrap_complete = true;
-            hooking_gnode_level = levels;
+            guest_gnode_level = levels;
             // Start a tasklet where we signal we have completed the bootstrap,
             // after a small wait, so that the signal actually is emitted after the costructor returns.
             BootstrapCompleteTasklet ts = new BootstrapCompleteTasklet();
@@ -709,8 +709,8 @@ namespace Netsukuku.Qspn
                            IQspnFingerprint my_fingerprint,
                            ChangeFingerprintDelegate update_internal_fingerprints,
                            IQspnStubFactory stub_factory,
-                           int hooking_gnode_level,
-                           int into_gnode_level,
+                           int guest_gnode_level,
+                           int host_gnode_level,
                            QspnManager previous_identity
                            )
         {
@@ -774,13 +774,13 @@ namespace Netsukuku.Qspn
             levels = my_naddr.i_qspn_get_levels();
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
-            assert(into_gnode_level <= levels);
-            assert(hooking_gnode_level < into_gnode_level);
+            assert(host_gnode_level <= levels);
+            assert(guest_gnode_level < host_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int l = 0; l < levels; l++) destinations.add(
                 new HashMap<int, Destination>());
-            for (int l = 0; l < hooking_gnode_level; l++)
+            for (int l = 0; l < guest_gnode_level; l++)
             {
                 foreach (int pos in previous_identity.destinations[l].keys)
                 {
@@ -793,35 +793,27 @@ namespace Netsukuku.Qspn
                     destinations[l][pos] = destination_copy;
                 }
             }
-            // Only the level 0 fingerprint is given.
-            // The lower levels up to 'into_gnode_level' - 1 are immediately constructed
-            //  from the imported map.
-            // The higher levels will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
             this.my_nodes_inside = new ArrayList<int>();
             // Fingerprint at level 0.
             my_fingerprints.add(my_fingerprint);
-            // Nodes_inside at level 0. If this is a ''connectivity'' address we say we have 0 ''real'' nodes.
-            if (connectivity_from_level > 0) my_nodes_inside.add(0);
-            else my_nodes_inside.add(1);
+            // Nodes_inside at level 0.
+            my_nodes_inside.add(1);
+            // At upper levels
             for (int l = 1; l <= levels; l++)
             {
-                // At start build fingerprint at level l with fingerprint at
-                // level l-1 and an empty set.
                 my_fingerprints.add(my_fingerprints[l-1]
                         .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
-                // The same with the number of nodes inside our g-node.
                 my_nodes_inside.add(my_nodes_inside[l-1]);
             }
-            // The lower levels up to 'into_gnode_level' - 1 are now constructed.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // register an internal handler of my own signal bootstrap_complete:
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
-            this.hooking_gnode_level = hooking_gnode_level;
-            this.into_gnode_level = into_gnode_level;
+            this.guest_gnode_level = guest_gnode_level;
+            this.host_gnode_level = host_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
             tasklet.spawn(ts);
@@ -836,8 +828,8 @@ namespace Netsukuku.Qspn
                            IQspnFingerprint my_fingerprint,
                            ChangeFingerprintDelegate update_internal_fingerprints,
                            IQspnStubFactory stub_factory,
-                           int hooking_gnode_level,
-                           int into_gnode_level,
+                           int guest_gnode_level,
+                           int host_gnode_level,
                            QspnManager previous_identity
                            )
         {
@@ -901,13 +893,13 @@ namespace Netsukuku.Qspn
             levels = my_naddr.i_qspn_get_levels();
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
-            assert(into_gnode_level <= levels);
-            assert(hooking_gnode_level < into_gnode_level);
+            assert(host_gnode_level <= levels);
+            assert(guest_gnode_level < host_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
             destinations = new ArrayList<HashMap<int, Destination>>();
             for (int l = 0; l < levels; l++) destinations.add(
                 new HashMap<int, Destination>());
-            for (int l = 0; l < hooking_gnode_level; l++)
+            for (int l = 0; l < guest_gnode_level; l++)
             {
                 foreach (int pos in previous_identity.destinations[l].keys)
                 {
@@ -920,35 +912,27 @@ namespace Netsukuku.Qspn
                     destinations[l][pos] = destination_copy;
                 }
             }
-            // Only the level 0 fingerprint is given.
-            // The lower levels up to 'into_gnode_level' - 1 are immediately constructed
-            //  from the imported map.
-            // The higher levels will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
             this.my_nodes_inside = new ArrayList<int>();
             // Fingerprint at level 0.
             my_fingerprints.add(my_fingerprint);
-            // Nodes_inside at level 0. If this is a ''connectivity'' address we say we have 0 ''real'' nodes.
-            if (connectivity_from_level > 0) my_nodes_inside.add(0);
-            else my_nodes_inside.add(1);
+            // Nodes_inside at level 0.
+            my_nodes_inside.add(1);
+            // At upper levels
             for (int l = 1; l <= levels; l++)
             {
-                // At start build fingerprint at level l with fingerprint at
-                // level l-1 and an empty set.
                 my_fingerprints.add(my_fingerprints[l-1]
                         .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
-                // The same with the number of nodes inside our g-node.
                 my_nodes_inside.add(my_nodes_inside[l-1]);
             }
-            // The lower levels up to 'into_gnode_level' - 1 are now constructed.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
             // register an internal handler of my own signal bootstrap_complete:
             qspn_bootstrap_complete.connect(on_bootstrap_complete);
             // With this type of constructor we are not bootstrap_complete.
             bootstrap_complete = false;
-            this.hooking_gnode_level = hooking_gnode_level;
-            this.into_gnode_level = into_gnode_level;
+            this.guest_gnode_level = guest_gnode_level;
+            this.host_gnode_level = host_gnode_level;
             BootstrapPhaseTasklet ts = new BootstrapPhaseTasklet();
             ts.mgr = this;
             tasklet.spawn(ts);
@@ -965,8 +949,6 @@ namespace Netsukuku.Qspn
         }
         private void bootstrap_phase()
         {
-            int i = hooking_gnode_level;
-            int j = into_gnode_level;
             queued_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             // Consider that if (arc_to_naddr[arc] == null) then it was not an internal_arc.
             foreach (IQspnArc arc in my_arcs) if (arc_to_naddr[arc] == null)
@@ -988,7 +970,7 @@ namespace Netsukuku.Qspn
                     continue;
                 }
                 int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
-                if (lvl < i || lvl >= j) continue;
+                if (lvl < guest_gnode_level || lvl >= host_gnode_level) continue;
                 // Process etp. No forward is needed.
                 int arc_id = get_arc_id(arc);
                 assert(arc_id >= 0);
@@ -1032,7 +1014,7 @@ namespace Netsukuku.Qspn
         {
             // Exit bootstrap.
             bootstrap_complete = true;
-            hooking_gnode_level = levels;
+            guest_gnode_level = levels;
             qspn_bootstrap_complete();
             // Process all arcs.
             queued_arcs.clear();
@@ -2906,6 +2888,12 @@ namespace Netsukuku.Qspn
             changes_in_my_gnodes = false;
             // for level 1
             {
+                bool is_null_eldership = false;
+                if (my_naddr.i_qspn_get_pos(0) >= gsizes[0])
+                {
+                    my_nodes_inside[0] = 0;
+                    is_null_eldership = true;
+                }
                 Gee.List<IQspnFingerprint> fp_set = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 int nn_tot = 0;
                 foreach (Destination d in destinations[0].values)
@@ -2929,7 +2917,7 @@ namespace Netsukuku.Qspn
                     fp_set.add(best_p.path.fingerprint);
                     nn_tot += 1;
                 }
-                IQspnFingerprint new_fp = my_fingerprints[0].i_qspn_construct(fp_set);
+                IQspnFingerprint new_fp = my_fingerprints[0].i_qspn_construct(fp_set, is_null_eldership);
                 IQspnFingerprint old_fp = my_fingerprints[1];
                 my_fingerprints[1] = new_fp;
                 if (! new_fp.i_qspn_equals(old_fp))
@@ -2948,6 +2936,12 @@ namespace Netsukuku.Qspn
             // for upper levels
             for (int i = 2; i <= levels; i++)
             {
+                bool is_null_eldership = false;
+                if (my_naddr.i_qspn_get_pos(i-1) >= gsizes[i-1])
+                {
+                    my_nodes_inside[i-1] = 0;
+                    is_null_eldership = true;
+                }
                 Gee.List<IQspnFingerprint> fp_set = new ArrayList<IQspnFingerprint>((a, b) => a.i_qspn_equals(b));
                 int nn_tot = 0;
                 foreach (Destination d in destinations[i-1].values)
@@ -2989,7 +2983,7 @@ namespace Netsukuku.Qspn
                     fp_set.add(fp_d);
                     nn_tot += nn_d;
                 }
-                IQspnFingerprint new_fp = my_fingerprints[i-1].i_qspn_construct(fp_set);
+                IQspnFingerprint new_fp = my_fingerprints[i-1].i_qspn_construct(fp_set, is_null_eldership);
                 IQspnFingerprint old_fp = my_fingerprints[i];
                 my_fingerprints[i] = new_fp;
                 if (! new_fp.i_qspn_equals(old_fp))
@@ -2998,9 +2992,10 @@ namespace Netsukuku.Qspn
                     changed_fp(i);
                 }
                 int new_nn = my_nodes_inside[i-1] + nn_tot;
-                if (new_nn != my_nodes_inside[i])
+                int old_nn = my_nodes_inside[i];
+                my_nodes_inside[i] = new_nn;
+                if (new_nn != old_nn)
                 {
-                    my_nodes_inside[i] = new_nn;
                     changes_in_my_gnodes = true;
                     changed_nodes_inside(i);
                 }
@@ -3080,8 +3075,8 @@ namespace Netsukuku.Qspn
           */
         public Gee.List<HCoord> get_known_destinations(int lvl) throws QspnBootstrapInProgressError
         {
-            if (lvl >= hooking_gnode_level)
-                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
+            if (lvl >= guest_gnode_level)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             var ret = new ArrayList<HCoord>((a, b) => a.equals(b));
             foreach (Destination d in destinations[lvl].values)
                 ret.add(d.dest);
@@ -3092,8 +3087,8 @@ namespace Netsukuku.Qspn
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
         {
-            if (d.lvl >= hooking_gnode_level)
-                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
+            if (d.lvl >= guest_gnode_level)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
@@ -3137,8 +3132,8 @@ namespace Netsukuku.Qspn
           */
         public int get_nodes_inside(int level) throws QspnBootstrapInProgressError
         {
-            if (level >= hooking_gnode_level+1)
-                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
+            if (level >= guest_gnode_level+1)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             return my_nodes_inside[level];
         }
 
@@ -3146,8 +3141,8 @@ namespace Netsukuku.Qspn
           */
         public IQspnFingerprint get_fingerprint(int level) throws QspnBootstrapInProgressError
         {
-            if (level >= hooking_gnode_level+1)
-                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(hooking_gnode_level).");
+            if (level >= guest_gnode_level+1)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             return my_fingerprints[level];
         }
 
@@ -3155,7 +3150,7 @@ namespace Netsukuku.Qspn
           */
         public bool is_bootstrap_complete()
         {
-            return hooking_gnode_level == levels;
+            return guest_gnode_level == levels;
         }
 
         /** Gives the list of current arcs
@@ -3179,9 +3174,7 @@ namespace Netsukuku.Qspn
           */
         public void make_connectivity(int connectivity_from_level,
                                       int connectivity_to_level,
-                                      ChangeNaddrDelegate update_naddr,
-                                      ChangeFingerprintDelegate update_internal_fingerprints,
-                                      IQspnFingerprint new_fp)
+                                      ChangeNaddrDelegate update_naddr)
         {
             assert(connectivity_from_level <= connectivity_to_level);
             assert(connectivity_to_level <= levels);
@@ -3203,24 +3196,6 @@ namespace Netsukuku.Qspn
             this.connectivity_to_level = connectivity_to_level;
             int new_id = my_naddr.i_qspn_get_pos(connectivity_from_level-1);
             assert(new_id >= gsizes[connectivity_from_level-1]);
-            // Apply `update_internal_fingerprints` to destinations that are internal to connectivity_from_level-1.
-            for (int l = 0; l < connectivity_from_level-1; l++)
-            {
-                foreach (int pos in destinations[l].keys)
-                {
-                    Destination destination = destinations[l][pos];
-                    foreach (NodePath np in destination.paths)
-                    {
-                        np.path.fingerprint = update_internal_fingerprints(np.path.fingerprint);
-                    }
-                }
-            }
-            // Fingerprint at level 0.
-            my_fingerprints.remove_at(0);
-            my_fingerprints.insert(0, new_fp);
-            // Nodes_inside at level 0. This is a ''connectivity'' address, we say we have 0 ''real'' nodes.
-            my_nodes_inside.remove_at(0);
-            my_nodes_inside.insert(0, 0);
             // Re-evaluate informations on our g-nodes.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
@@ -3281,80 +3256,11 @@ namespace Netsukuku.Qspn
             }
         }
 
-        /** This identity, which was born as a "enter_net" or "migration", now has a "real" position at
-            the level 'into_gnode_level' - 1.
+        /** Exit the current network with my g-node of level `lvl`.
           */
-        public void make_real(ChangeNaddrDelegate update_naddr,
-                              ChangeFingerprintDelegate update_internal_fingerprints,
-                              IQspnFingerprint new_fp)
+        public void exit_network(int lvl)
         {
-            // Gather arcs that are internal to hooking_gnode_level. Put in `internal_arcs`.
-            ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>();
-            foreach (IQspnArc arc in my_arcs)
-             if (arc_to_naddr[arc] != null)
-             if (my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl < hooking_gnode_level)
-                internal_arcs.add(arc);
-            // Apply `update_naddr` to `my_naddr`.
-            my_naddr = (IQspnMyNaddr)update_naddr(my_naddr);
-            // Apply `update_naddr` to `arc_to_naddr` for each internal arc.
-            foreach (IQspnArc arc in internal_arcs)
-                arc_to_naddr[arc] = update_naddr(arc_to_naddr[arc]);
-            // Apply `update_internal_fingerprints` to destinations that are internal to hooking_gnode_level.
-            for (int l = 0; l < hooking_gnode_level; l++)
-            {
-                foreach (int pos in destinations[l].keys)
-                {
-                    Destination destination = destinations[l][pos];
-                    foreach (NodePath np in destination.paths)
-                    {
-                        np.path.fingerprint = update_internal_fingerprints(np.path.fingerprint);
-                    }
-                }
-            }
-            // Fingerprint at level 0.
-            my_fingerprints.remove_at(0);
-            my_fingerprints.insert(0, new_fp);
-            // Nodes_inside at level 0. If this is a *connectivity identity* we say we have 0 ''real'' nodes.
-            my_nodes_inside.remove_at(0);
-            if (connectivity_from_level > 0) my_nodes_inside.insert(0, 0);
-            else my_nodes_inside.insert(0, 1);
-            // Re-evaluate informations on our g-nodes.
-            bool changes_in_my_gnodes;
-            update_clusters(out changes_in_my_gnodes);
-            if (bootstrap_complete)
-            {
-                // Send a void ETP to all neighbors outside 'hooking_gnode_level'.
-                EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>());
-                ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-                foreach (IQspnArc arc in my_arcs)
-                {
-                    // Consider that if (arc_to_naddr[arc] == null) then it was not an internal_arc.
-                    if (arc_to_naddr[arc] == null)
-                    {
-                        outer_w_arcs.add(arc);
-                        continue;
-                    }
-                    int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
-                    if (lvl >= hooking_gnode_level) outer_w_arcs.add(arc);
-                }
-                IQspnManagerStub stub_send_to_outer =
-                        stub_factory.i_qspn_get_broadcast(
-                        outer_w_arcs,
-                        // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, etp, false));
-                try {
-                    assert(check_outgoing_message(etp));
-                    stub_send_to_outer.send_etp(etp, false);
-                } catch (QspnNotAcceptedError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                } catch (DeserializeError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                } catch (StubError e) {
-                    critical(@"QspnManager.make_real: StubError in broadcast sending: $(e.message)");
-                }
-            }
+            error("not implemented yet");
         }
 
         /** Remove outer arcs from this connectivity identity.
@@ -3737,7 +3643,7 @@ namespace Netsukuku.Qspn
             {
                 // Check the sender.
                 int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
-                if (lvl >= hooking_gnode_level)
+                if (lvl >= guest_gnode_level)
                 {
                     // The sender is outside my hooking gnode. Ignore it.
                     return;
@@ -3750,7 +3656,7 @@ namespace Netsukuku.Qspn
                     foreach (EtpPath etp_path in etp.p_list)
                     {
                         int this_lvl = etp_path.hops.last().lvl;
-                        if (this_lvl == into_gnode_level - 1)
+                        if (this_lvl == host_gnode_level - 1)
                         {
                             has_path_to_into_gnode = true;
                             break;

@@ -238,11 +238,7 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
          */
         assert(_other.level == level);
 
-        /* The correct behaviour assures that distinct g-nodes in the same upper
-         * g-node will never get the same eldership at lower level. We should (somehow) assure that a
-         * fingerprint maliciously crafted will be spotted and dropped.
-         */
-        assert(_other.elderships[0] != elderships[0]);
+        if (elderships[0] == -1) return false; // other is elder, because mine is_null_eldership.
 
         if (_other.elderships[0] < elderships[0]) return false; // other is elder
         return true;
@@ -285,12 +281,16 @@ public class FakeFingerprint : Object, IQspnFingerprint, Json.Serializable
         return level;
     }
 
-    public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints)
+    public IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints, bool is_null_eldership)
     {
         // given that:
         //  levels = level + elderships.size
         // do not construct for level = levels+1
         assert(elderships.size > 0);
+
+        // handle is_null_eldership
+        if (is_null_eldership) elderships[0] = -1;
+
         FakeFingerprint ret = new FakeFingerprint.empty();
         ret.level = level + 1;
         ret.elderships = new ArrayList<int>();
