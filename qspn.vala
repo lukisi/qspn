@@ -607,7 +607,7 @@ namespace Netsukuku.Qspn
         public signal void presence_notified();
         // An arc has been removed from my list. May happen because of a bad link or
         // because of other events.
-        public signal void arc_removed(IQspnArc arc, string message, bool bad_link=false);
+        public signal void arc_removed(IQspnArc arc, bool bad_link=false);
         // A gnode (or node) is now known on the network and the first path towards
         //  it is now available to this node.
         public signal void destination_added(HCoord h);
@@ -966,7 +966,8 @@ namespace Netsukuku.Qspn
                 if (bad_answer)
                 {
                     arc_remove(arc);
-                    arc_removed(arc, @"Qspn: bootstrap: $(message)", bad_link);
+                    warning(@"Qspn: bootstrap: $(message)");
+                    arc_removed(arc, bad_link);
                     continue;
                 }
                 int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
@@ -1030,7 +1031,8 @@ namespace Netsukuku.Qspn
                 if (bad_answer)
                 {
                     arc_remove(arc);
-                    arc_removed(arc, @"Qspn: exit_bootstrap: $(message)", bad_link);
+                    warning(@"Qspn: exit_bootstrap: $(message)");
+                    arc_removed(arc, bad_link);
                     continue;
                 }
                 // Process etp. No forward is needed.
@@ -1197,20 +1199,23 @@ namespace Netsukuku.Qspn
                 catch (QspnNotAcceptedError e) {
                     // we're not in its arcs; remove and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcSendEtp: QspnNotAcceptedError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcSendEtp: QspnNotAcceptedError $(e.message)");
+                    mgr.arc_removed(arc);
                 }
                 catch (StubError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcSendEtp: StubError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcSendEtp: StubError $(e.message)", true);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcSendEtp: DeserializeError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcSendEtp: DeserializeError $(e.message)");
+                    mgr.arc_removed(arc);
                 }
             }
         }
@@ -1274,7 +1279,8 @@ namespace Netsukuku.Qspn
             if (bad_answer)
             {
                 arc_remove(arc);
-                arc_removed(arc, @"Qspn: arc_add: $(message)", bad_link);
+                warning(@"Qspn: arc_add: $(message)");
+                arc_removed(arc, bad_link);
                 return;
             }
 
@@ -1345,21 +1351,24 @@ namespace Netsukuku.Qspn
             }
             catch (QspnNotAcceptedError e) {
                 arc_remove(arc);
+                warning(@"Qspn: arc_add: send_etp QspnNotAcceptedError $(e.message)");
                 // emit signal
-                arc_removed(arc, @"Qspn: arc_add: send_etp QspnNotAcceptedError $(e.message)");
+                arc_removed(arc);
                 return;
             }
             catch (StubError e) {
                 arc_remove(arc);
+                warning(@"Qspn: arc_add: send_etp StubError $(e.message)");
                 // emit signal
-                arc_removed(arc, @"Qspn: arc_add: send_etp StubError $(e.message)", true);
+                arc_removed(arc, true);
                 return;
             }
             catch (DeserializeError e) {
                 // remove failed arc and emit signal
                 arc_remove(arc);
+                warning(@"Qspn: arc_add: send_etp DeserializeError $(e.message)");
                 // emit signal
-                arc_removed(arc, @"Qspn: arc_add: send_etp DeserializeError $(e.message)");
+                arc_removed(arc);
                 return;
             }
             // That's it.
@@ -1425,8 +1434,9 @@ namespace Netsukuku.Qspn
                 gather_full_etp_set(my_arcs, (arc, msg, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
+                    warning(@"Qspn: arc_is_changed: $(msg)");
                     // emit signal
-                    arc_removed(arc, @"Qspn: arc_is_changed: $(msg)", bad_link);
+                    arc_removed(arc, bad_link);
                 });
             // Got ETPs. Revise the paths in each of them.
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
@@ -1569,8 +1579,9 @@ namespace Netsukuku.Qspn
                 gather_full_etp_set(my_arcs, (arc, msg, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
+                    warning(@"Qspn: arc_remove: $(msg)");
                     // emit signal
-                    arc_removed(arc, @"Qspn: arc_remove: $(msg)", bad_link);
+                    arc_removed(arc, bad_link);
                 });
             // Got ETPs. Revise the paths in each of them.
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
@@ -3281,7 +3292,7 @@ namespace Netsukuku.Qspn
                 if (lvl >= connectivity_to_level)
                 {
                     arc_remove(arc);
-                    arc_removed(arc, "Qspn: remove_outer_arcs");
+                    arc_removed(arc);
                 }
             }
         }
@@ -3414,14 +3425,16 @@ namespace Netsukuku.Qspn
                 catch (StubError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcPrepareDestroy: StubError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcPrepareDestroy: StubError $(e.message)", true);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcPrepareDestroy: DeserializeError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcPrepareDestroy: DeserializeError $(e.message)");
+                    mgr.arc_removed(arc);
                 }
             }
         }
@@ -3472,14 +3485,16 @@ namespace Netsukuku.Qspn
                 catch (StubError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcDestroy: StubError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcDestroy: StubError $(e.message)", true);
+                    mgr.arc_removed(arc, true);
                 }
                 catch (DeserializeError e) {
                     // remove failed arc and emit signal
                     mgr.arc_remove(arc);
+                    warning(@"Qspn: MissingArcDestroy: DeserializeError $(e.message)");
                     // emit signal
-                    mgr.arc_removed(arc, @"Qspn: MissingArcDestroy: DeserializeError $(e.message)");
+                    mgr.arc_removed(arc);
                 }
             }
         }
@@ -3551,8 +3566,9 @@ namespace Netsukuku.Qspn
                 //  should not happen. But the rest of the code, who knows? So to be sure
                 //  we check. If it is the case remove the arc.
                 arc_remove(arc);
+                warning(@"Qspn: RPC:get_full_etp: requesting_address is not IQspnNaddr");
                 // emit signal
-                arc_removed(arc, @"Qspn: RPC:get_full_etp: requesting_address is not IQspnNaddr");
+                arc_removed(arc);
                 tasklet.exit_tasklet(null);
             }
             IQspnNaddr requesting_naddr = (IQspnNaddr) requesting_address;
@@ -3612,8 +3628,9 @@ namespace Netsukuku.Qspn
             if (m == null)
             {
                 arc_remove(arc);
+                warning(@"Qspn: RPC:send_etp: m is <null>");
                 // emit signal
-                arc_removed(arc, @"Qspn: RPC:send_etp: m is <null>");
+                arc_removed(arc);
                 tasklet.exit_tasklet(null);
             }
             if (! (m is EtpMessage))
@@ -3622,8 +3639,9 @@ namespace Netsukuku.Qspn
                 //  should not happen. But the rest of the code, who knows? So to be sure
                 //  we check. If it is the case, remove the arc.
                 arc_remove(arc);
+                warning(@"Qspn: RPC:send_etp: m is not EtpMessage, but $(m.get_type().name())");
                 // emit signal
-                arc_removed(arc, @"Qspn: RPC:send_etp: m is not EtpMessage, but $(m.get_type().name())");
+                arc_removed(arc);
                 tasklet.exit_tasklet(null);
             }
             EtpMessage etp = (EtpMessage) m;
@@ -3632,8 +3650,9 @@ namespace Netsukuku.Qspn
                 // We check the correctness of a message from another node.
                 // If the message is junk, remove the arc.
                 arc_remove(arc);
+                warning(@"Qspn: RPC:send_etp: check_incoming_message not passed");
                 // emit signal
-                arc_removed(arc, @"Qspn: RPC:send_etp: check_incoming_message not passed");
+                arc_removed(arc);
                 tasklet.exit_tasklet(null);
             }
 
@@ -3780,7 +3799,7 @@ namespace Netsukuku.Qspn
 
             // remove the arc
             arc_remove(arc);
-            arc_removed(arc, "Qspn: RPC:got_destroy: He asked.");
+            arc_removed(arc);
         }
 
         ~QspnManager()
