@@ -1,6 +1,6 @@
 /*
  *  This file is part of Netsukuku.
- *  Copyright (C) 2015-2016 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
+ *  Copyright (C) 2015-2018 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
  *
  *  Netsukuku is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,10 +17,201 @@
  */
 
 using Netsukuku;
+using Netsukuku.Qspn;
 using Gee;
 
-namespace TestSerializeInternals
+namespace Netsukuku.Qspn
 {
+    internal class EtpMessage : Object, Json.Serializable, IQspnEtpMessage
+    {
+        public IQspnNaddr node_address {get; set;}
+        public Gee.List<IQspnFingerprint> fingerprints {get; set;}
+        public Gee.List<int> nodes_inside {get; set;}
+        public Gee.List<HCoord> hops {get; set;}
+        public Gee.List<EtpPath> p_list {get; set;}
+
+        public bool deserialize_property
+        (string property_name,
+         out GLib.Value @value,
+         GLib.ParamSpec pspec,
+         Json.Node property_node)
+        {
+            @value = 0;
+            switch (property_name) {
+            case "node_address":
+            case "node-address":
+                try {
+                    @value = deserialize_i_qspn_naddr(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "fingerprints":
+                try {
+                    @value = deserialize_list_i_qspn_fingerprint(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "nodes_inside":
+            case "nodes-inside":
+                try {
+                    @value = deserialize_list_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "hops":
+                try {
+                    @value = deserialize_list_hcoord(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "p_list":
+            case "p-list":
+                try {
+                    @value = deserialize_list_etp_path(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            default:
+                return false;
+            }
+            return true;
+        }
+
+        public unowned GLib.ParamSpec? find_property
+        (string name)
+        {
+            return get_class().find_property(name);
+        }
+
+        public Json.Node serialize_property
+        (string property_name,
+         GLib.Value @value,
+         GLib.ParamSpec pspec)
+        {
+            switch (property_name) {
+            case "node_address":
+            case "node-address":
+                return serialize_i_qspn_naddr((IQspnNaddr)@value);
+            case "fingerprints":
+                return serialize_list_i_qspn_fingerprint((Gee.List<IQspnFingerprint>)@value);
+            case "nodes_inside":
+            case "nodes-inside":
+                return serialize_list_int((Gee.List<int>)@value);
+            case "hops":
+                return serialize_list_hcoord((Gee.List<HCoord>)@value);
+            case "p_list":
+            case "p-list":
+                return serialize_list_etp_path((Gee.List<EtpPath>)@value);
+            default:
+                error(@"wrong param $(property_name)");
+            }
+        }
+    }
+
+    internal class EtpPath : Object, Json.Serializable
+    {
+        public Gee.List<HCoord> hops {get; set;}
+        public Gee.List<int> arcs {get; set;}
+        public IQspnCost cost {get; set;}
+        public IQspnFingerprint fingerprint {get; set;}
+        public int nodes_inside {get; set;}
+        public Gee.List<bool> ignore_outside {get; set;}
+
+        public bool deserialize_property
+        (string property_name,
+         out GLib.Value @value,
+         GLib.ParamSpec pspec,
+         Json.Node property_node)
+        {
+            @value = 0;
+            switch (property_name) {
+            case "hops":
+                try {
+                    @value = deserialize_list_hcoord(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "arcs":
+                try {
+                    @value = deserialize_list_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "cost":
+                try {
+                    @value = deserialize_i_qspn_cost(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "fingerprint":
+                try {
+                    @value = deserialize_i_qspn_fingerprint(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "nodes_inside":
+            case "nodes-inside":
+                try {
+                    @value = deserialize_int(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            case "ignore_outside":
+            case "ignore-outside":
+                try {
+                    @value = deserialize_list_bool(property_node);
+                } catch (HelperDeserializeError e) {
+                    return false;
+                }
+                break;
+            default:
+                return false;
+            }
+            return true;
+        }
+
+        public unowned GLib.ParamSpec? find_property
+        (string name)
+        {
+            return get_class().find_property(name);
+        }
+
+        public Json.Node serialize_property
+        (string property_name,
+         GLib.Value @value,
+         GLib.ParamSpec pspec)
+        {
+            switch (property_name) {
+            case "hops":
+                return serialize_list_hcoord((Gee.List<HCoord>)@value);
+            case "arcs":
+                return serialize_list_int((Gee.List<int>)@value);
+            case "cost":
+                return serialize_i_qspn_cost((IQspnCost)@value);
+            case "fingerprint":
+                return serialize_i_qspn_fingerprint((IQspnFingerprint)@value);
+            case "nodes_inside":
+            case "nodes-inside":
+                return serialize_int((int)@value);
+            case "ignore_outside":
+            case "ignore-outside":
+                return serialize_list_bool((Gee.List<bool>)@value);
+            default:
+                error(@"wrong param $(property_name)");
+            }
+        }
+    }
+
     internal errordomain HelperDeserializeError {
         GENERIC
     }

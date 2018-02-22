@@ -6,20 +6,22 @@ noinst_LTLIBRARIES = \
 	$(NULL)
 
 TESTS = \
-	test_serialize_helpers \
+	test_serializables \
 	test_split_signal \
 	test_not_split_signal \
 	test1 \
 	$(NULL)
 
 check_PROGRAMS = \
-	test_serialize_helpers \
+	test_serializables \
 	simulator \
 	$(NULL)
 
 libqspn_la_SOURCES = \
+	api.vala \
 	qspn.vala \
-	serialize_helpers.vala \
+	rngen.vala \
+	serializables.vala \
 	$(NULL)
 
 libqspn_la_VALAFLAGS = \
@@ -57,26 +59,26 @@ libqspn_la_LIBADD = \
 	$(NTKDRPC_LIBS) \
 	$(NULL)
 
-test_serialize_helpers_SOURCES =  \
-	testsuites/test_serialize_helpers/test_serialize_helpers.vala \
-	testsuites/test_serialize_helpers/serialize_helpers.vala \
+test_serializables_SOURCES =  \
+	testsuites/test_serializables/test_serializables.vala \
+	testsuites/test_serializables/serializables.vala \
 	$(NULL)
 
-test_serialize_helpers_VALAFLAGS = \
+test_serializables_VALAFLAGS = \
 	--vapidir $(GEE_PREFIX)/share/vala/vapi \
 	--vapidir $(JSON_PREFIX)/share/vala-0.32/vapi \
 	--pkg gee-0.8 \
 	--pkg json-glib-1.0 \
 	$(NULL)
 
-test_serialize_helpers_CPPFLAGS = \
+test_serializables_CPPFLAGS = \
 	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GEE_CFLAGS) \
 	$(JSONGLIB_CFLAGS) \
 	$(NULL)
 
-test_serialize_helpers_LDADD = \
+test_serializables_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(JSONGLIB_LIBS) \

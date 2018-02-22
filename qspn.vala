@@ -1,6 +1,6 @@
 /*
  *  This file is part of Netsukuku.
- *  Copyright (C) 2014-2016 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
+ *  Copyright (C) 2014-2018 Luca Dionisi aka lukisi <luca.dionisi@gmail.com>
  *
  *  Netsukuku is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,294 +25,6 @@ namespace Netsukuku.Qspn
     internal void init_equal_func_iqspnarc()
     {
         equal_func_iqspnarc = (a, b) => a.i_qspn_equals(b);
-    }
-
-    public interface IQspnNaddr : Object, IQspnAddress
-    {
-        public abstract int i_qspn_get_levels();
-        public abstract int i_qspn_get_gsize(int level);
-        public abstract int i_qspn_get_pos(int level);
-    }
-
-    public interface IQspnMyNaddr : Object, IQspnNaddr
-    {
-        public abstract HCoord i_qspn_get_coord_by_address(IQspnNaddr dest);
-    }
-
-    public interface IQspnFingerprint : Object
-    {
-        public abstract bool i_qspn_equals(IQspnFingerprint other);
-        public abstract int i_qspn_get_level();
-        public abstract IQspnFingerprint i_qspn_construct(Gee.List<IQspnFingerprint> fingerprints, bool is_null_eldership=false);
-        public abstract bool i_qspn_elder_seed(IQspnFingerprint other);
-    }
-
-    public interface IQspnCost : Object
-    {
-        public abstract int i_qspn_compare_to(IQspnCost other);
-        public abstract IQspnCost i_qspn_add_segment(IQspnCost other);
-        public abstract bool i_qspn_important_variation(IQspnCost new_cost);
-        public abstract bool i_qspn_is_dead();
-        public abstract bool i_qspn_is_null();
-    }
-
-    // Cost: Zero.
-    internal class NullCost : Object, IQspnCost
-    {
-        public int i_qspn_compare_to(IQspnCost other)
-        {
-            if (other is NullCost) return 0;
-            return -1;
-        }
-
-        public IQspnCost i_qspn_add_segment(IQspnCost other)
-        {
-            return other;
-        }
-
-        public bool i_qspn_important_variation(IQspnCost new_cost)
-        {
-            if (new_cost is NullCost) return false;
-            return true;
-        }
-
-        public bool i_qspn_is_null()
-        {
-            return true;
-        }
-
-        public bool i_qspn_is_dead()
-        {
-            return false;
-        }
-    }
-
-    // Cost: Infinity.
-    internal class DeadCost : Object, IQspnCost
-    {
-        public int i_qspn_compare_to(IQspnCost other)
-        {
-            if (other is DeadCost) return 0;
-            return 1;
-        }
-
-        public IQspnCost i_qspn_add_segment(IQspnCost other)
-        {
-            return this;
-        }
-
-        public bool i_qspn_important_variation(IQspnCost new_cost)
-        {
-            if (new_cost is DeadCost) return false;
-            return true;
-        }
-
-        public bool i_qspn_is_null()
-        {
-            return false;
-        }
-
-        public bool i_qspn_is_dead()
-        {
-            return true;
-        }
-    }
-
-    public interface IQspnArc : Object
-    {
-        public abstract IQspnCost i_qspn_get_cost();
-        public abstract bool i_qspn_equals(IQspnArc other);
-        public abstract bool i_qspn_comes_from(CallerInfo rpc_caller);
-    }
-
-    internal class EtpMessage : Object, Json.Serializable, IQspnEtpMessage
-    {
-        public IQspnNaddr node_address {get; set;}
-        public Gee.List<IQspnFingerprint> fingerprints {get; set;}
-        public Gee.List<int> nodes_inside {get; set;}
-        public Gee.List<HCoord> hops {get; set;}
-        public Gee.List<EtpPath> p_list {get; set;}
-
-        public bool deserialize_property
-        (string property_name,
-         out GLib.Value @value,
-         GLib.ParamSpec pspec,
-         Json.Node property_node)
-        {
-            @value = 0;
-            switch (property_name) {
-            case "node_address":
-            case "node-address":
-                try {
-                    @value = deserialize_i_qspn_naddr(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "fingerprints":
-                try {
-                    @value = deserialize_list_i_qspn_fingerprint(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "nodes_inside":
-            case "nodes-inside":
-                try {
-                    @value = deserialize_list_int(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "hops":
-                try {
-                    @value = deserialize_list_hcoord(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "p_list":
-            case "p-list":
-                try {
-                    @value = deserialize_list_etp_path(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            default:
-                return false;
-            }
-            return true;
-        }
-
-        public unowned GLib.ParamSpec? find_property
-        (string name)
-        {
-            return get_class().find_property(name);
-        }
-
-        public Json.Node serialize_property
-        (string property_name,
-         GLib.Value @value,
-         GLib.ParamSpec pspec)
-        {
-            switch (property_name) {
-            case "node_address":
-            case "node-address":
-                return serialize_i_qspn_naddr((IQspnNaddr)@value);
-            case "fingerprints":
-                return serialize_list_i_qspn_fingerprint((Gee.List<IQspnFingerprint>)@value);
-            case "nodes_inside":
-            case "nodes-inside":
-                return serialize_list_int((Gee.List<int>)@value);
-            case "hops":
-                return serialize_list_hcoord((Gee.List<HCoord>)@value);
-            case "p_list":
-            case "p-list":
-                return serialize_list_etp_path((Gee.List<EtpPath>)@value);
-            default:
-                error(@"wrong param $(property_name)");
-            }
-        }
-    }
-
-    internal class EtpPath : Object, Json.Serializable
-    {
-        public Gee.List<HCoord> hops {get; set;}
-        public Gee.List<int> arcs {get; set;}
-        public IQspnCost cost {get; set;}
-        public IQspnFingerprint fingerprint {get; set;}
-        public int nodes_inside {get; set;}
-        public Gee.List<bool> ignore_outside {get; set;}
-
-        public bool deserialize_property
-        (string property_name,
-         out GLib.Value @value,
-         GLib.ParamSpec pspec,
-         Json.Node property_node)
-        {
-            @value = 0;
-            switch (property_name) {
-            case "hops":
-                try {
-                    @value = deserialize_list_hcoord(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "arcs":
-                try {
-                    @value = deserialize_list_int(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "cost":
-                try {
-                    @value = deserialize_i_qspn_cost(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "fingerprint":
-                try {
-                    @value = deserialize_i_qspn_fingerprint(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "nodes_inside":
-            case "nodes-inside":
-                try {
-                    @value = deserialize_int(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            case "ignore_outside":
-            case "ignore-outside":
-                try {
-                    @value = deserialize_list_bool(property_node);
-                } catch (HelperDeserializeError e) {
-                    return false;
-                }
-                break;
-            default:
-                return false;
-            }
-            return true;
-        }
-
-        public unowned GLib.ParamSpec? find_property
-        (string name)
-        {
-            return get_class().find_property(name);
-        }
-
-        public Json.Node serialize_property
-        (string property_name,
-         GLib.Value @value,
-         GLib.ParamSpec pspec)
-        {
-            switch (property_name) {
-            case "hops":
-                return serialize_list_hcoord((Gee.List<HCoord>)@value);
-            case "arcs":
-                return serialize_list_int((Gee.List<int>)@value);
-            case "cost":
-                return serialize_i_qspn_cost((IQspnCost)@value);
-            case "fingerprint":
-                return serialize_i_qspn_fingerprint((IQspnFingerprint)@value);
-            case "nodes_inside":
-            case "nodes-inside":
-                return serialize_int((int)@value);
-            case "ignore_outside":
-            case "ignore-outside":
-                return serialize_list_bool((Gee.List<bool>)@value);
-            default:
-                error(@"wrong param $(property_name)");
-            }
-        }
     }
 
     internal class NodePath : Object
@@ -353,21 +65,6 @@ namespace Netsukuku.Qspn
         }
     }
 
-    public interface IQspnHop : Object
-    {
-        public abstract int i_qspn_get_arc_id();
-        public abstract HCoord i_qspn_get_hcoord();
-    }
-
-    public interface IQspnNodePath : Object
-    {
-        public abstract IQspnArc i_qspn_get_arc();
-        public abstract Gee.List<IQspnHop> i_qspn_get_hops();
-        public abstract IQspnCost i_qspn_get_cost();
-        public abstract int i_qspn_get_nodes_inside();
-        public abstract bool equals(IQspnNodePath other);
-    }
-
     internal class RetHop : Object, IQspnHop
     {
         public int arc_id;
@@ -406,30 +103,6 @@ namespace Netsukuku.Qspn
             }
             return false;
         }
-    }
-
-    public interface IQspnThresholdCalculator : Object
-    {
-        public abstract int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2);
-    }
-
-    public interface IQspnMissingArcHandler : Object
-    {
-        public abstract void i_qspn_missing(IQspnArc arc);
-    }
-
-    public interface IQspnStubFactory : Object
-    {
-        public abstract IQspnManagerStub
-                        i_qspn_get_broadcast(
-                            Gee.List<IQspnArc> arcs,
-                            IQspnMissingArcHandler? missing_handler=null
-                        );
-        public abstract IQspnManagerStub
-                        i_qspn_get_tcp(
-                            IQspnArc arc,
-                            bool wait_reply=true
-                        );
     }
 
     internal class Destination : Object
@@ -546,9 +219,6 @@ namespace Netsukuku.Qspn
         GENERIC
     }
 
-    public delegate IQspnNaddr ChangeNaddrDelegate(IQspnNaddr old);
-    public delegate IQspnFingerprint ChangeFingerprintDelegate(IQspnFingerprint old);
-
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
@@ -573,6 +243,12 @@ namespace Netsukuku.Qspn
             arc_timeout = _arc_timeout;
             threshold_calculator = _threshold_calculator;
         }
+
+        public static void init_rngen(IRandomNumberGenerator? rngen=null, uint32? seed=null)
+        {
+            PRNGen.init_rngen(rngen, seed);
+        }
+
         private static int max_paths;
         private static double max_common_hops_ratio;
         private static int arc_timeout;
@@ -762,7 +438,7 @@ namespace Netsukuku.Qspn
                 int arc_id = 0;
                 while (arc_id == 0 || id_arc_map.has_key(arc_id))
                 {
-                    arc_id = Random.int_range(0, int.MAX);
+                    arc_id = PRNGen.int_range(0, int.MAX);
                 }
                 // memorize
                 assert(! (external_arc in my_arcs));
@@ -881,7 +557,7 @@ namespace Netsukuku.Qspn
                 int arc_id = 0;
                 while (arc_id == 0 || id_arc_map.has_key(arc_id))
                 {
-                    arc_id = Random.int_range(0, int.MAX);
+                    arc_id = PRNGen.int_range(0, int.MAX);
                 }
                 // memorize
                 assert(! (external_arc in my_arcs));
@@ -1255,7 +931,7 @@ namespace Netsukuku.Qspn
             int arc_id = 0;
             while (arc_id == 0 || id_arc_map.has_key(arc_id))
             {
-                arc_id = Random.int_range(0, int.MAX);
+                arc_id = PRNGen.int_range(0, int.MAX);
             }
             // memorize
             my_arcs.add(arc);
@@ -3272,6 +2948,17 @@ namespace Netsukuku.Qspn
         public void exit_network(int lvl)
         {
             error("not implemented yet");
+            /*
+            * per l da lvl a levels-1:
+              * per ogni destinazione nota d di livello l:
+                * per ogni percorso p noto verso d:
+                  * rimuovi p e segnala path_removed
+                * rimuovi d e segnala destination_removed
+            * ricomputa fp e nodi_interni dei miei gnodi
+            * per ogni arco a in my_arcs:
+              * se my_naddr.get_hcoord_for_naddr(get_naddr_for_arc(a)).lvl >= lvl:
+                * rimuovi arco a e segnala arc_removed
+            */
         }
 
         /** Remove outer arcs from this connectivity identity.
