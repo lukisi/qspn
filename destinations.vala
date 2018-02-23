@@ -59,46 +59,6 @@ namespace Netsukuku.Qspn
         }
     }
 
-    internal class RetHop : Object, IQspnHop
-    {
-        public int arc_id;
-        public HCoord hcoord;
-
-        /* Interface */
-        public int i_qspn_get_arc_id() {return arc_id;}
-        public HCoord i_qspn_get_hcoord() {return hcoord;}
-    }
-
-    internal class RetPath : Object, IQspnNodePath
-    {
-        public IQspnArc arc;
-        public ArrayList<IQspnHop> hops;
-        public IQspnCost cost;
-        public int nodes_inside;
-
-        /* Interface */
-        public IQspnArc i_qspn_get_arc() {return arc;}
-        public Gee.List<IQspnHop> i_qspn_get_hops() {return hops;}
-        public IQspnCost i_qspn_get_cost() {return cost;}
-        public int i_qspn_get_nodes_inside() {return nodes_inside;}
-        public bool equals(IQspnNodePath other)
-        {
-            if (arc.i_qspn_equals(other.i_qspn_get_arc()))
-            {
-                Gee.List<IQspnHop> other_hops = other.i_qspn_get_hops();
-                if (other_hops.size != hops.size) return false;
-                for (int i = 0; i < hops.size; i++)
-                {
-                    IQspnHop hop = hops[i];
-                    IQspnHop other_hop = other_hops[i];
-                    if (hop.i_qspn_get_arc_id() != other_hop.i_qspn_get_arc_id()) return false;
-                }
-                return true;
-            }
-            return false;
-        }
-    }
-
     internal class Destination : Object
     {
         public Destination(HCoord dest, Gee.List<NodePath> paths)
@@ -207,5 +167,67 @@ namespace Netsukuku.Qspn
                 );
             return destination_copy;
         }
+    }
+
+    internal class RetHop : Object, IQspnHop
+    {
+        public int arc_id;
+        public HCoord hcoord;
+
+        /* Interface */
+        public int i_qspn_get_arc_id() {return arc_id;}
+        public HCoord i_qspn_get_hcoord() {return hcoord;}
+    }
+
+    internal class RetPath : Object, IQspnNodePath
+    {
+        public IQspnArc arc;
+        public ArrayList<IQspnHop> hops;
+        public IQspnCost cost;
+        public int nodes_inside;
+
+        /* Interface */
+        public IQspnArc i_qspn_get_arc() {return arc;}
+        public Gee.List<IQspnHop> i_qspn_get_hops() {return hops;}
+        public IQspnCost i_qspn_get_cost() {return cost;}
+        public int i_qspn_get_nodes_inside() {return nodes_inside;}
+        public bool equals(IQspnNodePath other)
+        {
+            if (arc.i_qspn_equals(other.i_qspn_get_arc()))
+            {
+                Gee.List<IQspnHop> other_hops = other.i_qspn_get_hops();
+                if (other_hops.size != hops.size) return false;
+                for (int i = 0; i < hops.size; i++)
+                {
+                    IQspnHop hop = hops[i];
+                    IQspnHop other_hop = other_hops[i];
+                    if (hop.i_qspn_get_arc_id() != other_hop.i_qspn_get_arc_id()) return false;
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // Helper: get IQspnNodePath from NodePath
+    private RetPath get_ret_path(NodePath np)
+    {
+        EtpPath p = np.path;
+        IQspnArc arc = np.arc;
+        RetPath r = new RetPath();
+        r.arc = arc;
+        r.hops = new ArrayList<IQspnHop>();
+        for (int j = 0; j < p.arcs.size; j++)
+        {
+            HCoord h = p.hops[j];
+            int arc_id = p.arcs[j];
+            RetHop hop = new RetHop();
+            hop.arc_id = arc_id;
+            hop.hcoord = h;
+            r.hops.add(hop);
+        }
+        r.cost = p.cost.i_qspn_add_segment(arc.i_qspn_get_cost());
+        r.nodes_inside = p.nodes_inside;
+        return r;
     }
 }

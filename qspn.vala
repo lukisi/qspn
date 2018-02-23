@@ -66,17 +66,17 @@ namespace Netsukuku.Qspn
         private static int arc_timeout;
         private static IQspnThresholdCalculator threshold_calculator;
 
-        private IQspnMyNaddr my_naddr;
+        internal IQspnMyNaddr my_naddr;
         private ArrayList<IQspnArc> my_arcs;
         private HashMap<IQspnArc,IQspnNaddr?> arc_to_naddr;
         private HashMap<int, IQspnArc> id_arc_map;
         private ArrayList<IQspnFingerprint> my_fingerprints;
         private ArrayList<int> my_nodes_inside;
-        private IQspnStubFactory stub_factory;
+        internal IQspnStubFactory stub_factory;
         private int connectivity_from_level;
         private int connectivity_to_level;
-        private int levels;
-        private int[] gsizes;
+        internal static int levels;
+        internal static int[] gsizes;
         private bool bootstrap_complete;
         private int guest_gnode_level;
         private int host_gnode_level;
@@ -262,10 +262,6 @@ namespace Netsukuku.Qspn
                 arc_to_naddr[external_arc] = null;
                 id_arc_map[arc_id] = external_arc;
             }
-            // find parameters of the network
-            levels = my_naddr.i_qspn_get_levels();
-            gsizes = new int[levels];
-            for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
             assert(host_gnode_level <= levels);
             assert(guest_gnode_level < host_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
@@ -383,10 +379,6 @@ namespace Netsukuku.Qspn
                 arc_to_naddr[external_arc] = null;
                 id_arc_map[arc_id] = external_arc;
             }
-            // find parameters of the network
-            levels = my_naddr.i_qspn_get_levels();
-            gsizes = new int[levels];
-            for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
             assert(host_gnode_level <= levels);
             assert(guest_gnode_level < host_gnode_level);
             // Prepare empty map, then import paths from ''previous_identity''.
@@ -468,7 +460,6 @@ namespace Netsukuku.Qspn
                 if (lvl < guest_gnode_level || lvl >= host_gnode_level) continue;
                 // Process etp. No forward is needed.
                 int arc_id = get_arc_id(arc);
-                assert(arc_id >= 0);
                 // Revise the paths in it.
                 Gee.List<NodePath> q;
                 try
@@ -531,7 +522,6 @@ namespace Netsukuku.Qspn
                 }
                 // Process etp. No forward is needed.
                 int arc_id = get_arc_id(arc);
-                assert(arc_id >= 0);
                 // Revise the paths in it.
                 Gee.List<NodePath> q;
                 try
@@ -608,7 +598,7 @@ namespace Netsukuku.Qspn
                 return;
             }
             etp = (EtpMessage) resp;
-            if (! check_incoming_message(etp))
+            if (! check_incoming_message(etp, my_naddr))
             {
                 bad_answer = true;
                 message = @"retrieve_full_etp: check_incoming_message not passed";
@@ -627,8 +617,9 @@ namespace Netsukuku.Qspn
                     return id;
                 }
             }
-            return -1;
+            assert_not_reached();
         }
+
         // Helper: get arcs for a broadcast message to all.
         private Gee.List<IQspnArc> get_arcs_broadcast_all()
         {
@@ -667,50 +658,6 @@ namespace Netsukuku.Qspn
             public void * func()
             {
                 mgr.periodical_update();
-            }
-        }
-
-        internal class MissingArcSendEtp : Object, IQspnMissingArcHandler
-        {
-            public MissingArcSendEtp(QspnManager mgr, EtpMessage m, bool is_full)
-            {
-                this.mgr = mgr;
-                this.m = m;
-                this.is_full = is_full;
-            }
-            public QspnManager mgr;
-            public EtpMessage m;
-            public bool is_full;
-            public void i_qspn_missing(IQspnArc arc)
-            {
-                IQspnManagerStub stub =
-                        mgr.stub_factory.i_qspn_get_tcp(arc);
-                debug("Sending reliable ETP to missing arc");
-                try {
-                    assert(mgr.check_outgoing_message(m));
-                    stub.send_etp(m, is_full);
-                }
-                catch (QspnNotAcceptedError e) {
-                    // we're not in its arcs; remove and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcSendEtp: QspnNotAcceptedError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc);
-                }
-                catch (StubError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcSendEtp: StubError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc, true);
-                }
-                catch (DeserializeError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcSendEtp: DeserializeError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc);
-                }
             }
         }
 
@@ -818,7 +765,7 @@ namespace Netsukuku.Qspn
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the new arc");
                 try {
-                    assert(check_outgoing_message(new_etp));
+                    assert(check_outgoing_message(new_etp, my_naddr));
                     stub_send_to_others.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -840,7 +787,7 @@ namespace Netsukuku.Qspn
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
             try {
-                assert(check_outgoing_message(full_etp));
+                assert(check_outgoing_message(full_etp, my_naddr));
                 stub_send_to_arc.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
@@ -901,7 +848,6 @@ namespace Netsukuku.Qspn
 
             // manage my_arcs and id_arc_map
             int changed_arc_id = get_arc_id(changed_arc);
-            assert(changed_arc_id >= 0);
             // remove old instance, we do not know if it's the same instance
             my_arcs.remove(changed_arc);
             my_arcs.add(changed_arc);
@@ -937,7 +883,6 @@ namespace Netsukuku.Qspn
             foreach (PairArcEtp pair in results)
             {
                 int arc_id = get_arc_id(pair.a);
-                assert(arc_id >= 0);
                 try
                 {
                     q.add_all(revise_etp(pair.m, pair.a, arc_id, true));
@@ -975,7 +920,7 @@ namespace Netsukuku.Qspn
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
-                    assert(check_outgoing_message(new_etp));
+                    assert(check_outgoing_message(new_etp, my_naddr));
                     stub_send_to_all.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1034,7 +979,6 @@ namespace Netsukuku.Qspn
 
             // First, remove the arc...
             int arc_id = get_arc_id(removed_arc);
-            assert(arc_id >= 0);
             my_arcs.remove(removed_arc);
             arc_to_naddr.unset(removed_arc);
             id_arc_map.unset(arc_id);
@@ -1082,7 +1026,6 @@ namespace Netsukuku.Qspn
             foreach (PairArcEtp pair in results)
             {
                 int arc_m_id = get_arc_id(pair.a);
-                assert(arc_m_id >= 0);
                 try
                 {
                     q.add_all(revise_etp(pair.m, pair.a, arc_m_id, true));
@@ -1122,7 +1065,7 @@ namespace Netsukuku.Qspn
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
                 try {
-                    assert(check_outgoing_message(new_etp));
+                    assert(check_outgoing_message(new_etp, my_naddr));
                     stub_send_to_all.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {
@@ -1135,117 +1078,6 @@ namespace Netsukuku.Qspn
                 }
                 catch (StubError e) {
                     critical(@"QspnManager.arc_remove: StubError in send to broadcast to all: $(e.message)");
-                }
-            }
-        }
-
-        // Helper: get IQspnNodePath from NodePath
-        private RetPath get_ret_path(NodePath np)
-        {
-            EtpPath p = np.path;
-            IQspnArc arc = np.arc;
-            RetPath r = new RetPath();
-            r.arc = arc;
-            r.hops = new ArrayList<IQspnHop>();
-            for (int j = 0; j < p.arcs.size; j++)
-            {
-                HCoord h = p.hops[j];
-                int arc_id = p.arcs[j];
-                RetHop hop = new RetHop();
-                hop.arc_id = arc_id;
-                hop.hcoord = h;
-                r.hops.add(hop);
-            }
-            r.cost = p.cost.i_qspn_add_segment(arc.i_qspn_get_cost());
-            r.nodes_inside = p.nodes_inside;
-            return r;
-        }
-
-        // Helper: path to send in a ETP
-        private EtpPath prepare_path_step_1(NodePath np)
-        {
-            EtpPath p = new EtpPath();
-            p.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
-            p.hops.add_all(np.path.hops);
-            p.arcs = new ArrayList<int>();
-            p.arcs.add_all(np.path.arcs);
-            p.fingerprint = np.path.fingerprint;
-            p.nodes_inside = np.path.nodes_inside;
-            p.cost = np.cost;
-            return p;
-        }
-        private void prepare_path_step_2(EtpPath p)
-        {
-            // Set values for ignore_outside.
-            p.ignore_outside = new ArrayList<bool>();
-            p.ignore_outside.add(false);
-            for (int i = 1; i < levels; i++)
-            {
-                if (p.hops.last().lvl >= i)
-                {
-                    int j = 0;
-                    while (true)
-                    {
-                        if (p.hops[j].lvl >= i) break;
-                        j++;
-                    }
-                    int d_lvl = p.hops[j].lvl;
-                    int d_pos = p.hops[j].pos;
-                    assert(destinations.size > d_lvl);
-                    if (! destinations[d_lvl].has_key(d_pos))
-                    {
-                        if (p.cost.i_qspn_is_dead())
-                        {
-                            p.ignore_outside.add(false);
-                            continue;
-                        }
-                        else assert_not_reached();
-                    }
-                    Destination d = destinations[d_lvl][d_pos];
-                    NodePath? best_to_arc = null;
-                    foreach (NodePath q in d.paths)
-                    {
-                        if (q.path.arcs.last() == p.arcs[j])
-                        {
-                            if (best_to_arc == null)
-                            {
-                                best_to_arc = q;
-                            }
-                            else
-                            {
-                                if (q.cost.i_qspn_compare_to(best_to_arc.cost) < 0)
-                                {
-                                    best_to_arc = q;
-                                }
-                            }
-                        }
-                    }
-                    if (best_to_arc == null)
-                    {
-                        p.ignore_outside.add(false);
-                    }
-                    else
-                    {
-                        bool same = false;
-                        if (best_to_arc.path.hops.size == j+1)
-                        {
-                            same = true;
-                            for (int k = 0; k < j; k++)
-                            {
-                                if (!(best_to_arc.path.hops[k].equals(p.hops[k])) || 
-                                    best_to_arc.path.arcs[k] != p.arcs[k])
-                                {
-                                    same = false;
-                                    break;
-                                }
-                            }
-                        }
-                        p.ignore_outside.add(!same);
-                    }
-                }
-                else
-                {
-                    p.ignore_outside.add(true);
                 }
             }
         }
@@ -1444,7 +1276,7 @@ namespace Netsukuku.Qspn
                     foreach (NodePath np in d.paths)
                     {
                         EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p);
+                        prepare_path_step_2(p, destinations);
                         etp_paths.add(p);
                     }
                 }
@@ -1564,7 +1396,7 @@ namespace Netsukuku.Qspn
                 return;
             }
             EtpMessage m = (EtpMessage) resp;
-            if (!check_incoming_message(m))
+            if (!check_incoming_message(m, my_naddr))
             {
                 // We check the correctness of a message from another node.
                 // If the message is junk, remove the arc.
@@ -1589,74 +1421,6 @@ namespace Netsukuku.Qspn
                 if (my_arcs.size == 0) continue;
                 publish_full_etp();
             }
-        }
-
-        // Helper: check that an incoming ETP is valid:
-        // The address MUST have the same topology parameters as mine.
-        // The address MUST NOT be the same as mine.
-        private bool check_incoming_message(EtpMessage m)
-        {
-            if (m.node_address.i_qspn_get_levels() != levels) return false;
-            bool not_same = false;
-            for (int l = 0; l < levels; l++)
-            {
-                if (m.node_address.i_qspn_get_gsize(l) != gsizes[l]) return false;
-                if (m.node_address.i_qspn_get_pos(l) != my_naddr.i_qspn_get_pos(l)) not_same = true;
-            }
-            if (! not_same) return false;
-            return check_any_message(m);
-        }
-        // Helper: check that an outgoing ETP is valid:
-        // The address MUST be mine.
-        private bool check_outgoing_message(EtpMessage m)
-        {
-            if (m.node_address.i_qspn_get_levels() != levels) return false;
-            bool not_same = false;
-            for (int l = 0; l < levels; l++)
-            {
-                if (m.node_address.i_qspn_get_gsize(l) != gsizes[l]) return false;
-                if (m.node_address.i_qspn_get_pos(l) != my_naddr.i_qspn_get_pos(l)) not_same = true;
-            }
-            if (not_same) return false;
-            return check_any_message(m);
-        }
-        // Helper: check that an ETP (both incoming or outgoing) is valid:
-        // For each path p in P:
-        //  . For i = p.hops.last().lvl+1 TO levels-1:
-        //    . p.ignore_outside[i] must be true
-        //  . p.fingerprint must be valid for p.hops.last().lvl
-        //  . p.arcs.size MUST be the same of p.hops.size.
-        //  . For each HCoord g in p.hops:
-        //    . g.lvl has to be between 0 and levels-1
-        //    . g.lvl has to grow only
-        // With the main hops list of the ETP:
-        //  . For each HCoord g in hops:
-        //    . g.lvl has to be between 0 and levels-1
-        //    . g.lvl has to grow only
-        private bool check_any_message(EtpMessage m)
-        {
-            if (! check_tplist(m.hops)) return false;
-            foreach (EtpPath p in m.p_list)
-            {
-                for (int i = p.hops.last().lvl+1; i < levels; i++)
-                    if (! p.ignore_outside[i]) return false;
-                if (p.fingerprint.i_qspn_get_level() != p.hops.last().lvl) return false;
-                if (p.hops.size != p.arcs.size) return false;
-                if (! check_tplist(p.hops)) return false;
-            }
-            return true;
-        }
-        private bool check_tplist(Gee.List<HCoord> hops)
-        {
-            int curlvl = 0;
-            foreach (HCoord c in hops)
-            {
-                if (c.lvl < curlvl) return false;
-                if (c.lvl >= levels) return false;
-                curlvl = c.lvl;
-                if (c.pos < 0) return false;
-            }
-            return true;
         }
 
         private class SignalToEmit : Object
@@ -2231,7 +1995,7 @@ namespace Netsukuku.Qspn
         }
         private void finalize_paths(Collection<EtpPath> all_paths_set)
         {
-            foreach (EtpPath p in all_paths_set) prepare_path_step_2(p);
+            foreach (EtpPath p in all_paths_set) prepare_path_step_2(p, destinations);
         }
         private class SignalSplitTasklet : Object, ITaskletSpawnable
         {
@@ -2354,7 +2118,7 @@ namespace Netsukuku.Qspn
                     foreach (NodePath np in d.paths)
                     {
                         EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p);
+                        prepare_path_step_2(p, destinations);
                         etp_paths.add(p);
                     }
                 }
@@ -2368,7 +2132,7 @@ namespace Netsukuku.Qspn
                     new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
             try {
-                assert(check_outgoing_message(new_etp));
+                assert(check_outgoing_message(new_etp, my_naddr));
                 stub_send_to_all.send_etp(new_etp, false);
             }
             catch (QspnNotAcceptedError e) {
@@ -2519,7 +2283,7 @@ namespace Netsukuku.Qspn
                     new MissingArcSendEtp(this, full_etp, true));
             debug("Sending ETP to all");
             try {
-                assert(check_outgoing_message(full_etp));
+                assert(check_outgoing_message(full_etp, my_naddr));
                 stub_send_to_all.send_etp(full_etp, true);
             }
             catch (QspnNotAcceptedError e) {
@@ -2748,7 +2512,7 @@ namespace Netsukuku.Qspn
                     // If a neighbor doesnt send its ACK repeat the message via tcp
                     new MissingArcSendEtp(this, etp, false));
             try {
-                assert(check_outgoing_message(etp));
+                assert(check_outgoing_message(etp, my_naddr));
                 stub_send_to_outer.send_etp(etp, false);
             } catch (QspnNotAcceptedError e) {
                 // a broadcast will never get a return value nor an error
@@ -2913,36 +2677,6 @@ namespace Netsukuku.Qspn
                 critical(@"QspnManager.prepare_destroy: StubError in broadcast sending to internal_arcs: $(e.message)");
             }
         }
-        internal class MissingArcPrepareDestroy : Object, IQspnMissingArcHandler
-        {
-            public MissingArcPrepareDestroy(QspnManager mgr)
-            {
-                this.mgr = mgr;
-            }
-            public QspnManager mgr;
-            public void i_qspn_missing(IQspnArc arc)
-            {
-                IQspnManagerStub stub =
-                        mgr.stub_factory.i_qspn_get_tcp(arc, false);
-                try {
-                    stub.got_prepare_destroy();
-                }
-                catch (StubError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcPrepareDestroy: StubError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc, true);
-                }
-                catch (DeserializeError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcPrepareDestroy: DeserializeError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc);
-                }
-            }
-        }
 
         /** Signal the imminent removal of this identity (connectivity or not).
           */
@@ -2971,36 +2705,6 @@ namespace Netsukuku.Qspn
                 assert_not_reached();
             } catch (StubError e) {
                 critical(@"QspnManager.destroy: StubError in broadcast sending to outer_w_arcs: $(e.message)");
-            }
-        }
-        internal class MissingArcDestroy : Object, IQspnMissingArcHandler
-        {
-            public MissingArcDestroy(QspnManager mgr)
-            {
-                this.mgr = mgr;
-            }
-            public QspnManager mgr;
-            public void i_qspn_missing(IQspnArc arc)
-            {
-                IQspnManagerStub stub =
-                        mgr.stub_factory.i_qspn_get_tcp(arc, false);
-                try {
-                    stub.got_destroy();
-                }
-                catch (StubError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcDestroy: StubError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc, true);
-                }
-                catch (DeserializeError e) {
-                    // remove failed arc and emit signal
-                    mgr.arc_remove(arc);
-                    warning(@"Qspn: MissingArcDestroy: DeserializeError $(e.message)");
-                    // emit signal
-                    mgr.arc_removed(arc);
-                }
             }
         }
 
@@ -3094,14 +2798,14 @@ namespace Netsukuku.Qspn
                     if (!found)
                     {
                         EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p);
+                        prepare_path_step_2(p, destinations);
                         etp_paths.add(p);
                     }
                 }
             }
             debug("Sending ETP on request");
             var ret = prepare_new_etp(etp_paths);
-            assert(check_outgoing_message(ret));
+            assert(check_outgoing_message(ret, my_naddr));
             return ret;
         }
 
@@ -3150,7 +2854,7 @@ namespace Netsukuku.Qspn
                 tasklet.exit_tasklet(null);
             }
             EtpMessage etp = (EtpMessage) m;
-            if (! check_incoming_message(etp))
+            if (! check_incoming_message(etp, my_naddr))
             {
                 // We check the correctness of a message from another node.
                 // If the message is junk, remove the arc.
@@ -3201,7 +2905,6 @@ namespace Netsukuku.Qspn
 
             debug("Processing incoming ETP");
             int arc_id = get_arc_id(arc);
-            assert(arc_id >= 0);
             // Revise the paths in it.
             Gee.List<NodePath> q;
             try
@@ -3249,7 +2952,7 @@ namespace Netsukuku.Qspn
                         new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the sender");
                 try {
-                    assert(check_outgoing_message(new_etp));
+                    assert(check_outgoing_message(new_etp, my_naddr));
                     stub_send_to_others.send_etp(new_etp, false);
                 }
                 catch (QspnNotAcceptedError e) {

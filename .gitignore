@@ -1,6 +1,8 @@
 api.c
 qspn.c
 destinations.c
+etp_message.c
+missing_arcs.c
 rngen.c
 serializables.c
 qspn.h

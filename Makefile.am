@@ -21,6 +21,8 @@ libqspn_la_SOURCES = \
 	api.vala \
 	qspn.vala \
 	destinations.vala \
+	etp_message.vala \
+	missing_arcs.vala \
 	rngen.vala \
 	serializables.vala \
 	$(NULL)
