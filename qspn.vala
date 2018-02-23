@@ -67,11 +67,11 @@ namespace Netsukuku.Qspn
         private static IQspnThresholdCalculator threshold_calculator;
 
         internal IQspnMyNaddr my_naddr;
-        private ArrayList<IQspnArc> my_arcs;
-        private HashMap<IQspnArc,IQspnNaddr?> arc_to_naddr;
-        private HashMap<int, IQspnArc> id_arc_map;
-        private ArrayList<IQspnFingerprint> my_fingerprints;
-        private ArrayList<int> my_nodes_inside;
+        internal ArrayList<IQspnArc> my_arcs;
+        internal HashMap<IQspnArc,IQspnNaddr?> arc_to_naddr;
+        internal HashMap<int, IQspnArc> id_arc_map;
+        internal ArrayList<IQspnFingerprint> my_fingerprints;
+        internal ArrayList<int> my_nodes_inside;
         internal IQspnStubFactory stub_factory;
         private int connectivity_from_level;
         private int connectivity_to_level;
@@ -87,7 +87,7 @@ namespace Netsukuku.Qspn
         //  values. This is useful when we want to iterate on a certain level.
         //  In addition we can specify a level and then refer by index to the
         //  position. This is useful when we want to remove one item.
-        private ArrayList<HashMap<int, Destination>> destinations;
+        internal ArrayList<HashMap<int, Destination>> destinations;
 
         // The hook on a particular network has completed; the module is bootstrap_complete.
         public signal void qspn_bootstrap_complete();
@@ -447,7 +447,7 @@ namespace Netsukuku.Qspn
                 bool bad_answer;
                 string message;
                 bool bad_link;
-                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
+                retrieve_full_etp(this, arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
                 if (bootstrap_in_progress) continue;
                 if (bad_answer)
                 {
@@ -511,7 +511,7 @@ namespace Netsukuku.Qspn
                 bool bad_answer;
                 string message;
                 bool bad_link;
-                retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
+                retrieve_full_etp(this, arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
                 if (bootstrap_in_progress) continue;
                 if (bad_answer)
                 {
@@ -545,70 +545,13 @@ namespace Netsukuku.Qspn
                 update_clusters(out changes_in_my_gnodes);
             }
             // Prepare full ETP and send to all my neighbors.
-            publish_full_etp();
+            publish_full_etp(this);
             tasklet.ms_wait(1000);
             presence_notified();
         }
 
-        private void retrieve_full_etp(IQspnArc arc, out EtpMessage? etp,
-         out bool bootstrap_in_progress,
-         out bool bad_answer, out string message, out bool bad_link)
-        {
-            bootstrap_in_progress = false;
-            bad_answer = false;
-            message = "";
-            bad_link = false;
-            etp = null;
-            IQspnManagerStub stub_get_etp =
-                    stub_factory.i_qspn_get_tcp(arc);
-            IQspnEtpMessage? resp = null;
-            try {
-                resp = stub_get_etp.get_full_etp(my_naddr);
-            }
-            catch (QspnBootstrapInProgressError e) {
-                bootstrap_in_progress = true;
-                return;
-            }
-            catch (StubError e) {
-                bad_answer = true;
-                message = @"retrieve_full_etp: StubError $(e.message)";
-                bad_link = true;
-                return;
-            }
-            catch (DeserializeError e) {
-                bad_answer = true;
-                message = @"retrieve_full_etp: DeserializeError $(e.message)";
-                return;
-            }
-            catch (QspnNotAcceptedError e) {
-                bad_answer = true;
-                message = @"retrieve_full_etp: QspnNotAcceptedError $(e.message)";
-                return;
-            }
-            if (resp == null)
-            {
-                bad_answer = true;
-                message = @"retrieve_full_etp: resp is <null>";
-                return;
-            }
-            if (! (resp is EtpMessage))
-            {
-                bad_answer = true;
-                message = @"retrieve_full_etp: resp is not EtpMessage, but $(resp.get_type().name())";
-                return;
-            }
-            etp = (EtpMessage) resp;
-            if (! check_incoming_message(etp, my_naddr))
-            {
-                bad_answer = true;
-                message = @"retrieve_full_etp: check_incoming_message not passed";
-                return;
-            }
-            return;
-        }
-
         // Helper: get id of arc
-        private int get_arc_id(IQspnArc arc)
+        internal int get_arc_id(IQspnArc arc)
         {
             foreach (int id in id_arc_map.keys)
             {
@@ -621,14 +564,14 @@ namespace Netsukuku.Qspn
         }
 
         // Helper: get arcs for a broadcast message to all.
-        private Gee.List<IQspnArc> get_arcs_broadcast_all()
+        internal Gee.List<IQspnArc> get_arcs_broadcast_all()
         {
             var ret = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             ret.add_all(my_arcs);
             return ret;
         }
         // Helper: get arcs for a broadcast message to all but one.
-        private Gee.List<IQspnArc> get_arcs_broadcast_all_but_one(IQspnArc arc)
+        internal Gee.List<IQspnArc> get_arcs_broadcast_all_but_one(IQspnArc arc)
         {
             var ret = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc one in my_arcs) if (! arc.i_qspn_equals(one))
@@ -715,7 +658,7 @@ namespace Netsukuku.Qspn
             bool bad_answer;
             string message;
             bool bad_link;
-            retrieve_full_etp(arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
+            retrieve_full_etp(this, arc, out etp, out bootstrap_in_progress, out bad_answer, out message, out bad_link);
             if (bootstrap_in_progress) return; // Give up. The neighbor will start a flood when its bootstrap is complete.
             if (bad_answer)
             {
@@ -756,8 +699,7 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes) &&
                 my_arcs.size > 1 /*at least another neighbor*/ )
             {
-                EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
-                                                     etp);
+                EtpMessage new_etp = prepare_fwd_etp(this, all_paths_set, etp);
                 IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         get_arcs_broadcast_all_but_one(arc),
@@ -782,7 +724,7 @@ namespace Netsukuku.Qspn
             }
 
             // create a new etp for arc
-            EtpMessage full_etp = prepare_full_etp();
+            EtpMessage full_etp = prepare_full_etp(this);
             IQspnManagerStub stub_send_to_arc =
                     stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
@@ -871,7 +813,7 @@ namespace Netsukuku.Qspn
 
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
-                gather_full_etp_set(my_arcs, (arc, msg, bad_link) => {
+                gather_full_etp_set(this, my_arcs, (arc, msg, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
                     warning(@"Qspn: arc_is_changed: $(msg)");
@@ -912,7 +854,7 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes)
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(all_paths_set);
+                EtpMessage new_etp = prepare_new_etp(this, all_paths_set);
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         get_arcs_broadcast_all(),
@@ -995,7 +937,7 @@ namespace Netsukuku.Qspn
                     {
                         d.paths.remove_at(i);
                         path_removed(get_ret_path(np));
-                        EtpPath p = prepare_path_step_1(np);
+                        EtpPath p = prepare_path_for_sending(np);
                         p.cost = new DeadCost();
                         paths_to_add_to_all_paths.add(p);
                     }
@@ -1014,7 +956,7 @@ namespace Netsukuku.Qspn
             // Then do the same as when arc is changed and remember to add paths_to_add_to_all_paths
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
-                gather_full_etp_set(my_arcs, (arc, msg, bad_link) => {
+                gather_full_etp_set(this, my_arcs, (arc, msg, bad_link) => {
                     // remove failed arcs and emit signal
                     arc_remove(arc);
                     warning(@"Qspn: arc_remove: $(msg)");
@@ -1057,7 +999,7 @@ namespace Netsukuku.Qspn
                 my_arcs.size > 0 /*at least a neighbor remains*/ )
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(all_paths_set);
+                EtpMessage new_etp = prepare_new_etp(this, all_paths_set);
                 IQspnManagerStub stub_send_to_all =
                         stub_factory.i_qspn_get_broadcast(
                         get_arcs_broadcast_all(),
@@ -1174,8 +1116,7 @@ namespace Netsukuku.Qspn
             v_path.fingerprint = m.fingerprints[i-1];
             v_path.nodes_inside = m.nodes_inside[i-1];
             // ignore_outside is not important here.
-            v_path.ignore_outside = new ArrayList<bool>();
-            for (j = 0; j < levels; j++) v_path.ignore_outside.add(false);
+            set_ignore_outside_null(v_path);
             m.p_list.add(v_path);
             if (peer_naddr_changed)
             {
@@ -1190,8 +1131,7 @@ namespace Netsukuku.Qspn
                 old_v_path.fingerprint = m.fingerprints[i-1];
                 old_v_path.nodes_inside = m.nodes_inside[i-1];
                 // ignore_outside is not important here.
-                old_v_path.ignore_outside = new ArrayList<bool>();
-                for (j = 0; j < levels; j++) old_v_path.ignore_outside.add(false);
+                set_ignore_outside_null(old_v_path);
                 m.p_list.add(old_v_path);
             }
             // if it is a full etp
@@ -1230,6 +1170,8 @@ namespace Netsukuku.Qspn
                         p0.fingerprint = np.path.fingerprint;
                         p0.nodes_inside = np.path.nodes_inside;
                         p0.cost = new DeadCost();
+                        // ignore_outside is not important here.
+                        set_ignore_outside_null(p0);
                         NodePath np0 = new NodePath(arc, p0);
                         ret.add(np0);
                     }
@@ -1244,172 +1186,6 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
-        // Helper: prepare new ETP
-        private EtpMessage prepare_new_etp
-        (Collection<EtpPath> all_paths_set,
-         Gee.List<HCoord>? etp_hops=null)
-        {
-            EtpMessage ret = new EtpMessage();
-            ret.p_list = new ArrayList<EtpPath>();
-            foreach (EtpPath p in all_paths_set)
-            {
-                ret.p_list.add(p);
-            }
-            ret.node_address = my_naddr;
-            ret.fingerprints = new ArrayList<IQspnFingerprint>();
-            ret.fingerprints.add_all(my_fingerprints);
-            ret.nodes_inside = new ArrayList<int>();
-            ret.nodes_inside.add_all(my_nodes_inside);
-            ret.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
-            if (etp_hops != null) ret.hops.add_all(etp_hops);
-            return ret;
-        }
-
-        // Helper: prepare full ETP
-        private EtpMessage prepare_full_etp()
-        {
-            var etp_paths = new ArrayList<EtpPath>();
-            for (int l = 0; l < levels; l++)
-            {
-                foreach (Destination d in destinations[l].values)
-                {
-                    foreach (NodePath np in d.paths)
-                    {
-                        EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p, destinations);
-                        etp_paths.add(p);
-                    }
-                }
-            }
-            return prepare_new_etp(etp_paths);
-        }
-
-        // Helper: prepare forward ETP
-        private EtpMessage prepare_fwd_etp
-        (Collection<EtpPath> all_paths_set,
-         EtpMessage m)
-        {
-            // The message 'm' has been revised, so that m.hops has the 'exit_gnode'
-            //  at the beginning.
-            return prepare_new_etp(all_paths_set,
-                                   m.hops);
-        }
-
-        // Helper: gather ETP from a set of arcs
-        private class PairArcEtp : Object {
-            public PairArcEtp(EtpMessage m, IQspnArc a)
-            {
-                this.m = m;
-                this.a = a;
-            }
-            public EtpMessage m;
-            public IQspnArc a;
-        }
-        private class GatherEtpSetData : Object
-        {
-            public ArrayList<ITaskletHandle> tasks;
-            public ArrayList<IQspnArc> arcs;
-            public ArrayList<IQspnManagerStub> stubs;
-            public ArrayList<PairArcEtp> results;
-            public IQspnNaddr my_naddr;
-            public unowned FailedArcHandler failed_arc_handler;
-        }
-        private delegate void FailedArcHandler(IQspnArc failed_arc, string message, bool bad_link);
-        private Collection<PairArcEtp>
-        gather_full_etp_set(Collection<IQspnArc> arcs, FailedArcHandler failed_arc_handler)
-        {
-            // Work in parallel then join
-            // Prepare (one instance for this run) an object work for the tasklets
-            GatherEtpSetData work = new GatherEtpSetData();
-            work.tasks = new ArrayList<ITaskletHandle>();
-            work.arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            work.stubs = new ArrayList<IQspnManagerStub>();
-            work.results = new ArrayList<PairArcEtp>();
-            work.my_naddr = my_naddr;
-            work.failed_arc_handler = failed_arc_handler;
-            int i = 0;
-            foreach (IQspnArc arc in arcs)
-            {
-                var stub = stub_factory.i_qspn_get_tcp(arc);
-                work.arcs.add(arc);
-                work.stubs.add(stub);
-                GetFullEtpTasklet ts = new GetFullEtpTasklet();
-                ts.mgr = this;
-                ts.work = work;
-                ts.i = i++;
-                ITaskletHandle t = tasklet.spawn(ts, /*joinable*/ true);
-                work.tasks.add(t);
-            }
-            // join
-            foreach (ITaskletHandle t in work.tasks) t.join();
-            return work.results;
-        }
-        private class GetFullEtpTasklet : Object, ITaskletSpawnable
-        {
-            public weak QspnManager mgr;
-            public GatherEtpSetData work;
-            public int i;
-            public void * func()
-            {
-                mgr.tasklet_get_full_etp(work, i);
-                return null;
-            }
-        }
-        private void tasklet_get_full_etp(GatherEtpSetData work, int i)
-        {
-            IQspnManagerStub stub = work.stubs[i];
-            IQspnEtpMessage? resp = null;
-            try {
-                int arc_id = get_arc_id(work.arcs[i]);
-                debug(@"Requesting ETP from arc $(arc_id)");
-                resp = stub.get_full_etp(work.my_naddr);
-            }
-            catch (QspnBootstrapInProgressError e) {
-                debug("Got QspnBootstrapInProgressError. Give up.");
-                // Give up this tasklet. The neighbor will start a flood when its bootstrap is complete.
-                return;
-            }
-            catch (StubError e) {
-                work.failed_arc_handler(work.arcs[i], @"gather_full_etp_set: StubError $(e.message)", true);
-                return;
-            }
-            catch (QspnNotAcceptedError e) {
-                work.failed_arc_handler(work.arcs[i], @"gather_full_etp_set: QspnNotAcceptedError $(e.message)", false);
-                return;
-            }
-            catch (DeserializeError e) {
-                work.failed_arc_handler(work.arcs[i], @"gather_full_etp_set: DeserializeError $(e.message)", false);
-                return;
-            }
-            if (resp == null)
-            {
-                work.failed_arc_handler(work.arcs[i], @"gather_full_etp_set: resp is <null>", false);
-                return;
-            }
-            if (! (resp is EtpMessage))
-            {
-                // The module only knows this class that implements IQspnEtpMessage, so this
-                //  should not happen. But the rest of the code, who knows? So to be sure
-                //  we check. If it is the case, remove the arc.
-                work.failed_arc_handler(work.arcs[i],
-                        @"gather_full_etp_set: resp is not EtpMessage, but $(resp.get_type().name())", false);
-                return;
-            }
-            EtpMessage m = (EtpMessage) resp;
-            if (!check_incoming_message(m, my_naddr))
-            {
-                // We check the correctness of a message from another node.
-                // If the message is junk, remove the arc.
-                work.failed_arc_handler(work.arcs[i], @"gather_full_etp_set: check_incoming_message not passed", false);
-                return;
-            }
-            arc_to_naddr[work.arcs[i]] = m.node_address;
-
-            debug("Got one.");
-            PairArcEtp res = new PairArcEtp(m, work.arcs[i]);
-            work.results.add(res);
-        }
-
         /** Periodically update full
           */
         [NoReturn]
@@ -1419,7 +1195,7 @@ namespace Netsukuku.Qspn
             {
                 tasklet.ms_wait(600000); // 10 minutes
                 if (my_arcs.size == 0) continue;
-                publish_full_etp();
+                publish_full_etp(this);
             }
         }
 
@@ -1823,7 +1599,7 @@ namespace Netsukuku.Qspn
                     if (! (p in md_set))
                     {
                         IQspnFingerprint fp_d_p = p.path.fingerprint;
-                        all_paths_set.add(prepare_path_step_1(p));
+                        all_paths_set.add(prepare_path_for_sending(p));
                         if (d.lvl == 0)
                         {
                             sd.add(new SignalToEmit.path_added(get_ret_path(p)));
@@ -1843,7 +1619,7 @@ namespace Netsukuku.Qspn
                     IQspnFingerprint fp_d_p = p.path.fingerprint;
                     if (! (p in od_set))
                     {
-                        EtpPath pp = prepare_path_step_1(p);
+                        EtpPath pp = prepare_path_for_sending(p);
                         pp.cost = new DeadCost();
                         all_paths_set.add(pp);
                         if (d.lvl == 0)
@@ -1863,7 +1639,7 @@ namespace Netsukuku.Qspn
                         NodePath p1 = od_set[od_set.index_of(p)];
                         if (p in vd_set)
                         {
-                            all_paths_set.add(prepare_path_step_1(p1));
+                            all_paths_set.add(prepare_path_for_sending(p1));
                             if (d.lvl == 0)
                             {
                                 sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
@@ -1995,7 +1771,7 @@ namespace Netsukuku.Qspn
         }
         private void finalize_paths(Collection<EtpPath> all_paths_set)
         {
-            foreach (EtpPath p in all_paths_set) prepare_path_step_2(p, destinations);
+            foreach (EtpPath p in all_paths_set) set_ignore_outside_for_sending(this, p);
         }
         private class SignalSplitTasklet : Object, ITaskletSpawnable
         {
@@ -2117,14 +1893,14 @@ namespace Netsukuku.Qspn
                     Destination d = destinations[g.lvl][g.pos];
                     foreach (NodePath np in d.paths)
                     {
-                        EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p, destinations);
+                        EtpPath p = prepare_path_for_sending(np);
+                        set_ignore_outside_for_sending(this, p);
                         etp_paths.add(p);
                     }
                 }
             }
             if (etp_paths.is_empty) return;
-            EtpMessage new_etp = prepare_new_etp(etp_paths);
+            EtpMessage new_etp = prepare_new_etp(this, etp_paths);
             IQspnManagerStub stub_send_to_all =
                     stub_factory.i_qspn_get_broadcast(
                     get_arcs_broadcast_all(),
@@ -2268,34 +2044,6 @@ namespace Netsukuku.Qspn
                     changes_in_my_gnodes = true;
                     changed_nodes_inside(i);
                 }
-            }
-        }
-
-        // Helper: publish full ETP to all
-        private void publish_full_etp()
-        {
-            // Prepare full ETP and send to all my neighbors.
-            EtpMessage full_etp = prepare_full_etp();
-            IQspnManagerStub stub_send_to_all =
-                    stub_factory.i_qspn_get_broadcast(
-                    get_arcs_broadcast_all(),
-                    // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, full_etp, true));
-            debug("Sending ETP to all");
-            try {
-                assert(check_outgoing_message(full_etp, my_naddr));
-                stub_send_to_all.send_etp(full_etp, true);
-            }
-            catch (QspnNotAcceptedError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (DeserializeError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (StubError e) {
-                critical(@"QspnManager.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
             }
         }
 
@@ -2486,42 +2234,8 @@ namespace Netsukuku.Qspn
             public void * func()
             {
                 tasklet.ms_wait(delay);
-                mgr.publish_connectivity(old_pos, old_lvl);
+                publish_connectivity(mgr, old_pos, old_lvl);
                 return null;
-            }
-        }
-        private void publish_connectivity(int old_pos, int old_lvl)
-        {
-            // Send a void ETP to all neighbors outside 'old_lvl'.
-            ArrayList<HCoord> hops = new ArrayList<HCoord>((a, b) => a.equals(b));
-            hops.add(new HCoord(old_lvl, old_pos));
-            EtpMessage etp = prepare_new_etp(new ArrayList<EtpPath>(), hops);
-            ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
-            foreach (IQspnArc arc in my_arcs)
-            {
-                // Consider that this is not the identity which is migrating, but the one which is staying.
-                //  We should have the peer_naddr for all the arcs.
-                if (arc_to_naddr[arc] == null) continue;
-                HCoord arc_h = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]);
-                if (arc_h.lvl == old_lvl && arc_h.pos != old_pos) outer_w_arcs.add(arc);
-                if (arc_h.lvl > old_lvl) outer_w_arcs.add(arc);
-            }
-            IQspnManagerStub stub_send_to_outer =
-                    stub_factory.i_qspn_get_broadcast(
-                    outer_w_arcs,
-                    // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, etp, false));
-            try {
-                assert(check_outgoing_message(etp, my_naddr));
-                stub_send_to_outer.send_etp(etp, false);
-            } catch (QspnNotAcceptedError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            } catch (DeserializeError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            } catch (StubError e) {
-                critical(@"QspnManager.publish_connectivity: StubError in broadcast sending: $(e.message)");
             }
         }
 
@@ -2797,14 +2511,14 @@ namespace Netsukuku.Qspn
                     }
                     if (!found)
                     {
-                        EtpPath p = prepare_path_step_1(np);
-                        prepare_path_step_2(p, destinations);
+                        EtpPath p = prepare_path_for_sending(np);
+                        set_ignore_outside_for_sending(this, p);
                         etp_paths.add(p);
                     }
                 }
             }
             debug("Sending ETP on request");
-            var ret = prepare_new_etp(etp_paths);
+            var ret = prepare_new_etp(this, etp_paths);
             assert(check_outgoing_message(ret, my_naddr));
             return ret;
         }
@@ -2943,8 +2657,7 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes) &&
                 my_arcs.size > 1 /*at least another neighbor*/ )
             {
-                EtpMessage new_etp = prepare_fwd_etp(all_paths_set,
-                                                     etp);
+                EtpMessage new_etp = prepare_fwd_etp(this, all_paths_set, etp);
                 IQspnManagerStub stub_send_to_others =
                         stub_factory.i_qspn_get_broadcast(
                         get_arcs_broadcast_all_but_one(arc),

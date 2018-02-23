@@ -2,6 +2,8 @@ api.c
 qspn.c
 destinations.c
 etp_message.c
+etp_retrieve.c
+etp_publish.c
 missing_arcs.c
 rngen.c
 serializables.c

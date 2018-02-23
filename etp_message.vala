@@ -21,8 +21,8 @@ using TaskletSystem;
 
 namespace Netsukuku.Qspn
 {
-    // Helper: path to send in a ETP
-    internal EtpPath prepare_path_step_1(NodePath np)
+    // Helper: prepare a path to send in a ETP
+    internal EtpPath prepare_path_for_sending(NodePath np)
     {
         EtpPath p = new EtpPath();
         p.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
@@ -34,7 +34,7 @@ namespace Netsukuku.Qspn
         p.cost = np.cost;
         return p;
     }
-    internal void prepare_path_step_2(EtpPath p, ArrayList<HashMap<int, Destination>> destinations)
+    internal void set_ignore_outside_for_sending(QspnManager mgr, EtpPath p)
     {
         // Set values for ignore_outside.
         p.ignore_outside = new ArrayList<bool>();
@@ -51,8 +51,8 @@ namespace Netsukuku.Qspn
                 }
                 int d_lvl = p.hops[j].lvl;
                 int d_pos = p.hops[j].pos;
-                assert(destinations.size > d_lvl);
-                if (! destinations[d_lvl].has_key(d_pos))
+                assert(mgr.destinations.size > d_lvl);
+                if (! mgr.destinations[d_lvl].has_key(d_pos))
                 {
                     if (p.cost.i_qspn_is_dead())
                     {
@@ -61,7 +61,7 @@ namespace Netsukuku.Qspn
                     }
                     else assert_not_reached();
                 }
-                Destination d = destinations[d_lvl][d_pos];
+                Destination d = mgr.destinations[d_lvl][d_pos];
                 NodePath? best_to_arc = null;
                 foreach (NodePath q in d.paths)
                 {
@@ -108,6 +108,13 @@ namespace Netsukuku.Qspn
                 p.ignore_outside.add(true);
             }
         }
+    }
+
+    // Helper: for implicit paths in a received ETP
+    internal void set_ignore_outside_null(EtpPath p)
+    {
+        p.ignore_outside = new ArrayList<bool>();
+        for (int j = 0; j < QspnManager.levels; j++) p.ignore_outside.add(false);
     }
 
     // Helper: check that an incoming ETP is valid:
@@ -176,5 +183,59 @@ namespace Netsukuku.Qspn
             if (c.pos < 0) return false;
         }
         return true;
+    }
+
+    // Helper: prepare new ETP
+    private EtpMessage prepare_new_etp
+    (QspnManager mgr,
+     Collection<EtpPath> all_paths_set,
+     Gee.List<HCoord>? etp_hops=null)
+    {
+        EtpMessage ret = new EtpMessage();
+        ret.p_list = new ArrayList<EtpPath>();
+        foreach (EtpPath p in all_paths_set)
+        {
+            ret.p_list.add(p);
+        }
+        ret.node_address = mgr.my_naddr;
+        ret.fingerprints = new ArrayList<IQspnFingerprint>();
+        ret.fingerprints.add_all(mgr.my_fingerprints);
+        ret.nodes_inside = new ArrayList<int>();
+        ret.nodes_inside.add_all(mgr.my_nodes_inside);
+        ret.hops = new ArrayList<HCoord>((a, b) => a.equals(b));
+        if (etp_hops != null) ret.hops.add_all(etp_hops);
+        return ret;
+    }
+
+    // Helper: prepare full ETP
+    private EtpMessage prepare_full_etp(QspnManager mgr)
+    {
+        var etp_paths = new ArrayList<EtpPath>();
+        for (int l = 0; l < QspnManager.levels; l++)
+        {
+            foreach (Destination d in mgr.destinations[l].values)
+            {
+                foreach (NodePath np in d.paths)
+                {
+                    EtpPath p = prepare_path_for_sending(np);
+                    set_ignore_outside_for_sending(mgr, p);
+                    etp_paths.add(p);
+                }
+            }
+        }
+        return prepare_new_etp(mgr, etp_paths);
+    }
+
+    // Helper: prepare forward ETP
+    private EtpMessage prepare_fwd_etp
+    (QspnManager mgr,
+     Collection<EtpPath> all_paths_set,
+     EtpMessage m)
+    {
+        // The message 'm' has been revised, so that m.hops has the 'exit_gnode'
+        //  at the beginning.
+        return prepare_new_etp(mgr,
+                               all_paths_set,
+                               m.hops);
     }
 }

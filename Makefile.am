@@ -22,6 +22,8 @@ libqspn_la_SOURCES = \
 	qspn.vala \
 	destinations.vala \
 	etp_message.vala \
+	etp_retrieve.vala \
+	etp_publish.vala \
 	missing_arcs.vala \
 	rngen.vala \
 	serializables.vala \
