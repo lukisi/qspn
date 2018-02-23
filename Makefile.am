@@ -20,6 +20,7 @@ check_PROGRAMS = \
 libqspn_la_SOURCES = \
 	api.vala \
 	qspn.vala \
+	destinations.vala \
 	rngen.vala \
 	serializables.vala \
 	$(NULL)

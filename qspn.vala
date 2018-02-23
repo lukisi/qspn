@@ -27,194 +27,6 @@ namespace Netsukuku.Qspn
         equal_func_iqspnarc = (a, b) => a.i_qspn_equals(b);
     }
 
-    internal class NodePath : Object
-    {
-        public NodePath(IQspnArc arc, EtpPath path)
-        {
-            this.arc = arc;
-            this.path = path;
-            exposed = false;
-        }
-        public IQspnArc arc;
-        public EtpPath path;
-        public bool exposed;
-        private IQspnCost _cost;
-        public IQspnCost cost {
-            get {
-                _cost = arc.i_qspn_get_cost().i_qspn_add_segment(path.cost);
-                return _cost;
-            }
-        }
-        public bool hops_arcs_equal(NodePath q)
-        {
-            return hops_arcs_equal_etppath(q.path);
-        }
-        public bool hops_arcs_equal_etppath(EtpPath p)
-        {
-            Gee.List<HCoord> my_hops_list = path.hops;
-            Gee.List<HCoord> p_hops_list = p.hops;
-            if (my_hops_list.size != p_hops_list.size) return false;
-            for (int i = 0; i < my_hops_list.size; i++)
-                if (! (my_hops_list[i].equals(p_hops_list[i]))) return false;
-            Gee.List<int> my_arcs_list = path.arcs;
-            Gee.List<int> p_arcs_list = p.arcs;
-            if (my_arcs_list.size != p_arcs_list.size) return false;
-            for (int i = 0; i < my_arcs_list.size; i++)
-                if (my_arcs_list[i] != p_arcs_list[i]) return false;
-            return true;
-        }
-    }
-
-    internal class RetHop : Object, IQspnHop
-    {
-        public int arc_id;
-        public HCoord hcoord;
-
-        /* Interface */
-        public int i_qspn_get_arc_id() {return arc_id;}
-        public HCoord i_qspn_get_hcoord() {return hcoord;}
-    }
-
-    internal class RetPath : Object, IQspnNodePath
-    {
-        public IQspnArc arc;
-        public ArrayList<IQspnHop> hops;
-        public IQspnCost cost;
-        public int nodes_inside;
-
-        /* Interface */
-        public IQspnArc i_qspn_get_arc() {return arc;}
-        public Gee.List<IQspnHop> i_qspn_get_hops() {return hops;}
-        public IQspnCost i_qspn_get_cost() {return cost;}
-        public int i_qspn_get_nodes_inside() {return nodes_inside;}
-        public bool equals(IQspnNodePath other)
-        {
-            if (arc.i_qspn_equals(other.i_qspn_get_arc()))
-            {
-                Gee.List<IQspnHop> other_hops = other.i_qspn_get_hops();
-                if (other_hops.size != hops.size) return false;
-                for (int i = 0; i < hops.size; i++)
-                {
-                    IQspnHop hop = hops[i];
-                    IQspnHop other_hop = other_hops[i];
-                    if (hop.i_qspn_get_arc_id() != other_hop.i_qspn_get_arc_id()) return false;
-                }
-                return true;
-            }
-            return false;
-        }
-    }
-
-    internal class Destination : Object
-    {
-        public Destination(HCoord dest, Gee.List<NodePath> paths)
-        {
-            assert(! paths.is_empty);
-            this.dest = dest;
-            this.paths = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
-            this.paths.add_all(paths);
-        }
-        public HCoord dest;
-        public ArrayList<NodePath> paths;
-
-        private IQspnFingerprint? fpd;
-        private int nnd;
-        private NodePath? best_p;
-        public void evaluate()
-        {
-            fpd = null;
-            nnd = -1;
-            best_p = null;
-            foreach (NodePath p in paths)
-            {
-                IQspnFingerprint fpdp = p.path.fingerprint;
-                int nndp = p.path.nodes_inside;
-                if (fpd == null)
-                {
-                    fpd = fpdp;
-                    nnd = nndp;
-                    best_p = p;
-                }
-                else
-                {
-                    if (dest.lvl == 0)
-                    {
-                        if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
-                        {
-                            fpd = fpdp;
-                            nnd = nndp;
-                            best_p = p;
-                        }
-                    }
-                    else
-                    {
-                        if (! fpd.i_qspn_equals(fpdp))
-                        {
-                            if (! fpd.i_qspn_elder_seed(fpdp))
-                            {
-                                fpd = fpdp;
-                                nnd = nndp;
-                                best_p = p;
-                            }
-                        }
-                        else
-                        {
-                            if (p.cost.i_qspn_compare_to(best_p.cost) < 0)
-                            {
-                                nnd = nndp;
-                                best_p = p;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public NodePath best_path {
-            get {
-                evaluate();
-                return best_p;
-            }
-        }
-
-        public int nodes_inside {
-            get {
-                evaluate();
-                return nnd;
-            }
-        }
-
-        public IQspnFingerprint fingerprint {
-            get {
-                evaluate();
-                return fpd;
-            }
-        }
-
-        public Destination copy(ChangeFingerprintDelegate update_internal_fingerprints)
-        {
-            HCoord destination_copy_dest = new HCoord(this.dest.lvl, this.dest.pos);
-            ArrayList<NodePath> destination_copy_paths = new ArrayList<NodePath>();
-            foreach (NodePath np in this.paths)
-            {
-                // np.path is serializable
-                EtpPath np_path;
-                try {
-                    np_path = deserialize_etp_path(serialize_etp_path(np.path));
-                } catch (HelperDeserializeError e) {
-                    assert_not_reached();
-                }
-                np_path.fingerprint = update_internal_fingerprints(np_path.fingerprint);
-                destination_copy_paths.add(new NodePath(np.arc, np_path));
-            }
-            Destination destination_copy = new Destination(
-                destination_copy_dest,
-                destination_copy_paths
-                );
-            return destination_copy;
-        }
-    }
-
     internal errordomain AcyclicError {
         GENERIC
     }
@@ -310,6 +122,12 @@ namespace Netsukuku.Qspn
             assert_not_reached();
         }
 
+        private bool is_main_identity {
+            get {
+                return connectivity_from_level == 0;
+            }
+        }
+
         /* 3 types of constructor */
         public QspnManager.create_net(IQspnMyNaddr my_naddr,
                            IQspnFingerprint my_fingerprint,
@@ -331,21 +149,17 @@ namespace Netsukuku.Qspn
             levels = my_naddr.i_qspn_get_levels();
             gsizes = new int[levels];
             for (int l = 0; l < levels; l++) gsizes[l] = my_naddr.i_qspn_get_gsize(l);
-            // Only the level 0 fingerprint is given. The other ones
-            // will be constructed when the node has completed bootstrap.
             this.my_fingerprints = new ArrayList<IQspnFingerprint>();
             this.my_nodes_inside = new ArrayList<int>();
             // Fingerprint at level 0.
             my_fingerprints.add(my_fingerprint);
             // Nodes_inside at level 0.
             my_nodes_inside.add(1);
+            // At upper levels
             for (int l = 1; l <= levels; l++)
             {
-                // At start build fingerprint at level l with fingerprint at
-                // level l-1 and an empty set.
                 my_fingerprints.add(my_fingerprints[l-1]
                         .i_qspn_construct(new ArrayList<IQspnFingerprint>()));
-                // The same with the number of nodes inside our g-node.
                 my_nodes_inside.add(my_nodes_inside[l-1]);
             }
             // prepare empty map
@@ -394,6 +208,8 @@ namespace Netsukuku.Qspn
             // This might be a *main identity*, or a *connectivity* one.
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
+            assert(connectivity_from_level < guest_gnode_level+1);
+            if (connectivity_to_level > guest_gnode_level) connectivity_to_level = guest_gnode_level;
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
@@ -513,6 +329,8 @@ namespace Netsukuku.Qspn
             // This might be a *main identity*, or a *connectivity* one.
             connectivity_from_level = previous_identity.connectivity_from_level;
             connectivity_to_level = previous_identity.connectivity_to_level;
+            assert(connectivity_from_level < guest_gnode_level+1);
+            if (connectivity_to_level > guest_gnode_level) connectivity_to_level = guest_gnode_level;
             this.stub_factory = stub_factory;
             pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
@@ -2965,7 +2783,7 @@ namespace Netsukuku.Qspn
           */
         public void remove_outer_arcs()
         {
-            assert(connectivity_to_level > 0);
+            assert(! is_main_identity);
             ArrayList<IQspnArc> arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             arcs.add_all(my_arcs);
             foreach (IQspnArc arc in arcs)
@@ -2991,7 +2809,7 @@ namespace Netsukuku.Qspn
         {
             // Requires: a lock has been acquired on all g-nodes this identity
             //  belongs to at level from connectivity_from_level to connectivity_to_level.
-            assert(connectivity_from_level > 0);
+            assert(! is_main_identity);
             assert(connectivity_to_level >= connectivity_from_level);
             assert(connectivity_to_level <= levels);
             int i = connectivity_from_level - 1;
@@ -3070,7 +2888,7 @@ namespace Netsukuku.Qspn
           */
         public void prepare_destroy()
         {
-            assert(connectivity_from_level > 0);
+            assert(! is_main_identity);
             int i = connectivity_from_level - 1;
             ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
@@ -3451,7 +3269,7 @@ namespace Netsukuku.Qspn
         public void got_prepare_destroy(CallerInfo? _rpc_caller=null)
         {
             // Verify that I am a ''connectivity'' identity.
-            if (connectivity_from_level == 0) tasklet.exit_tasklet(null);
+            if (is_main_identity) tasklet.exit_tasklet(null);
             // TODO check that the order came from the Coordinator
             // Propagate order
             prepare_destroy();
