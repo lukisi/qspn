@@ -579,15 +579,6 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
-        public void stop_operations()
-        {
-            if (periodical_update_tasklet != null)
-            {
-                periodical_update_tasklet.kill();
-                periodical_update_tasklet = null;
-            }
-        }
-
         private void on_bootstrap_complete()
         {
             // start in a tasklet the periodical send of full updates.
@@ -601,6 +592,27 @@ namespace Netsukuku.Qspn
             public void * func()
             {
                 mgr.periodical_update();
+            }
+        }
+        /** Periodically update full
+          */
+        [NoReturn]
+        private void periodical_update()
+        {
+            while (true)
+            {
+                tasklet.ms_wait(600000); // 10 minutes
+                if (my_arcs.size == 0) continue;
+                publish_full_etp(this);
+            }
+        }
+
+        public void stop_operations()
+        {
+            if (periodical_update_tasklet != null)
+            {
+                periodical_update_tasklet.kill();
+                periodical_update_tasklet = null;
             }
         }
 
@@ -1096,19 +1108,6 @@ namespace Netsukuku.Qspn
                 ret.add(np);
             }
             return ret;
-        }
-
-        /** Periodically update full
-          */
-        [NoReturn]
-        private void periodical_update()
-        {
-            while (true)
-            {
-                tasklet.ms_wait(600000); // 10 minutes
-                if (my_arcs.size == 0) continue;
-                publish_full_etp(this);
-            }
         }
 
         private class SignalToEmit : Object
