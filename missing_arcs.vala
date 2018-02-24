@@ -34,34 +34,8 @@ namespace Netsukuku.Qspn
         public bool is_full;
         public void i_qspn_missing(IQspnArc arc)
         {
-            IQspnManagerStub stub =
-                    mgr.stub_factory.i_qspn_get_tcp(arc);
             debug("Sending reliable ETP to missing arc");
-            try {
-                assert(check_outgoing_message(m, mgr.my_naddr));
-                stub.send_etp(m, is_full);
-            }
-            catch (QspnNotAcceptedError e) {
-                // we're not in its arcs; remove and emit signal
-                mgr.arc_remove(arc);
-                warning(@"Qspn: MissingArcSendEtp: QspnNotAcceptedError $(e.message)");
-                // emit signal
-                mgr.arc_removed(arc);
-            }
-            catch (StubError e) {
-                // remove failed arc and emit signal
-                mgr.arc_remove(arc);
-                warning(@"Qspn: MissingArcSendEtp: StubError $(e.message)");
-                // emit signal
-                mgr.arc_removed(arc, true);
-            }
-            catch (DeserializeError e) {
-                // remove failed arc and emit signal
-                mgr.arc_remove(arc);
-                warning(@"Qspn: MissingArcSendEtp: DeserializeError $(e.message)");
-                // emit signal
-                mgr.arc_removed(arc);
-            }
+            send_etp_uni(mgr, m, is_full, arc);
         }
     }
 

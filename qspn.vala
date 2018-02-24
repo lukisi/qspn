@@ -699,61 +699,13 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes) &&
                 my_arcs.size > 1 /*at least another neighbor*/ )
             {
-                EtpMessage new_etp = prepare_fwd_etp(this, all_paths_set, etp);
-                IQspnManagerStub stub_send_to_others =
-                        stub_factory.i_qspn_get_broadcast(
-                        get_arcs_broadcast_all_but_one(arc),
-                        // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the new arc");
-                try {
-                    assert(check_outgoing_message(new_etp, my_naddr));
-                    stub_send_to_others.send_etp(new_etp, false);
-                }
-                catch (QspnNotAcceptedError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (DeserializeError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (StubError e) {
-                    critical(@"QspnManager.arc_add: StubError in send to broadcast except arc $(arc_id): $(e.message)");
-                }
+                send_etp_multi(this, prepare_fwd_etp(this, all_paths_set, etp), get_arcs_broadcast_all_but_one(arc));
             }
 
             // create a new etp for arc
-            EtpMessage full_etp = prepare_full_etp(this);
-            IQspnManagerStub stub_send_to_arc =
-                    stub_factory.i_qspn_get_tcp(arc);
             debug("Sending ETP to new arc");
-            try {
-                assert(check_outgoing_message(full_etp, my_naddr));
-                stub_send_to_arc.send_etp(full_etp, true);
-            }
-            catch (QspnNotAcceptedError e) {
-                arc_remove(arc);
-                warning(@"Qspn: arc_add: send_etp QspnNotAcceptedError $(e.message)");
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
-            catch (StubError e) {
-                arc_remove(arc);
-                warning(@"Qspn: arc_add: send_etp StubError $(e.message)");
-                // emit signal
-                arc_removed(arc, true);
-                return;
-            }
-            catch (DeserializeError e) {
-                // remove failed arc and emit signal
-                arc_remove(arc);
-                warning(@"Qspn: arc_add: send_etp DeserializeError $(e.message)");
-                // emit signal
-                arc_removed(arc);
-                return;
-            }
+            send_etp_uni(this, prepare_full_etp(this), true, arc);
             // That's it.
         }
 
@@ -854,28 +806,8 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes)
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(this, all_paths_set);
-                IQspnManagerStub stub_send_to_all =
-                        stub_factory.i_qspn_get_broadcast(
-                        get_arcs_broadcast_all(),
-                        // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
-                try {
-                    assert(check_outgoing_message(new_etp, my_naddr));
-                    stub_send_to_all.send_etp(new_etp, false);
-                }
-                catch (QspnNotAcceptedError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (DeserializeError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (StubError e) {
-                    critical(@"QspnManager.arc_is_changed: StubError in send to broadcast to all: $(e.message)");
-                }
+                send_etp_multi(this, prepare_new_etp(this, all_paths_set), get_arcs_broadcast_all());
             }
         }
 
@@ -999,28 +931,8 @@ namespace Netsukuku.Qspn
                 my_arcs.size > 0 /*at least a neighbor remains*/ )
             {
                 // create a new etp for all.
-                EtpMessage new_etp = prepare_new_etp(this, all_paths_set);
-                IQspnManagerStub stub_send_to_all =
-                        stub_factory.i_qspn_get_broadcast(
-                        get_arcs_broadcast_all(),
-                        // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Sending ETP to all");
-                try {
-                    assert(check_outgoing_message(new_etp, my_naddr));
-                    stub_send_to_all.send_etp(new_etp, false);
-                }
-                catch (QspnNotAcceptedError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (DeserializeError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (StubError e) {
-                    critical(@"QspnManager.arc_remove: StubError in send to broadcast to all: $(e.message)");
-                }
+                send_etp_multi(this, prepare_new_etp(this, all_paths_set), get_arcs_broadcast_all());
             }
         }
 
@@ -1900,28 +1812,8 @@ namespace Netsukuku.Qspn
                 }
             }
             if (etp_paths.is_empty) return;
-            EtpMessage new_etp = prepare_new_etp(this, etp_paths);
-            IQspnManagerStub stub_send_to_all =
-                    stub_factory.i_qspn_get_broadcast(
-                    get_arcs_broadcast_all(),
-                    // If a neighbor doesnt send its ACK repeat the message via tcp
-                    new MissingArcSendEtp(this, new_etp, false));
             debug("Sending ETP to all");
-            try {
-                assert(check_outgoing_message(new_etp, my_naddr));
-                stub_send_to_all.send_etp(new_etp, false);
-            }
-            catch (QspnNotAcceptedError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (DeserializeError e) {
-                // a broadcast will never get a return value nor an error
-                assert_not_reached();
-            }
-            catch (StubError e) {
-                critical(@"QspnManager.flood_first_detection_split: StubError in send to broadcast to all: $(e.message)");
-            }
+            send_etp_multi(this, prepare_new_etp(this, etp_paths), get_arcs_broadcast_all());
         }
 
         // Helper: update my clusters data, based on my current map, and tell
@@ -2657,28 +2549,8 @@ namespace Netsukuku.Qspn
                 changes_in_my_gnodes) &&
                 my_arcs.size > 1 /*at least another neighbor*/ )
             {
-                EtpMessage new_etp = prepare_fwd_etp(this, all_paths_set, etp);
-                IQspnManagerStub stub_send_to_others =
-                        stub_factory.i_qspn_get_broadcast(
-                        get_arcs_broadcast_all_but_one(arc),
-                        // If a neighbor doesnt send its ACK repeat the message via tcp
-                        new MissingArcSendEtp(this, new_etp, false));
                 debug("Forward ETP to all but the sender");
-                try {
-                    assert(check_outgoing_message(new_etp, my_naddr));
-                    stub_send_to_others.send_etp(new_etp, false);
-                }
-                catch (QspnNotAcceptedError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (DeserializeError e) {
-                    // a broadcast will never get a return value nor an error
-                    assert_not_reached();
-                }
-                catch (StubError e) {
-                    critical(@"QspnManager.send_etp: StubError in send to broadcast except arc $(arc_id): $(e.message)");
-                }
+                send_etp_multi(this, prepare_fwd_etp(this, all_paths_set, etp), get_arcs_broadcast_all_but_one(arc));
             }
         }
 

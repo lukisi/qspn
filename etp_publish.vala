@@ -21,8 +21,66 @@ using TaskletSystem;
 
 namespace Netsukuku.Qspn
 {
+    // Helper: Send ETP in broadcast, with missing_handler
+    internal void send_etp_multi(QspnManager mgr, EtpMessage etp, Gee.List<IQspnArc> arcs)
+    {
+        IQspnManagerStub stub =
+                mgr.stub_factory.i_qspn_get_broadcast(arcs,
+                // If a neighbor doesnt send its ACK repeat the message via tcp
+                new MissingArcSendEtp(mgr, etp, false));
+        try {
+            assert(check_outgoing_message(etp, mgr.my_naddr));
+            stub.send_etp(etp, false);
+        }
+        catch (QspnNotAcceptedError e) {
+            // a broadcast will never get a return value nor an error
+            assert_not_reached();
+        }
+        catch (DeserializeError e) {
+            // a broadcast will never get a return value nor an error
+            assert_not_reached();
+        }
+        catch (StubError e) {
+            critical(@"Qspn.send_etp_multi: StubError in send to broadcast: $(e.message)");
+        }
+    }
+
+    // Helper: Send ETP in unicast
+    internal bool send_etp_uni(QspnManager mgr, EtpMessage etp, bool is_full, IQspnArc arc)
+    {
+        // create a new etp for arc
+        IQspnManagerStub stub = mgr.stub_factory.i_qspn_get_tcp(arc);
+        try {
+            assert(check_outgoing_message(etp, mgr.my_naddr));
+            stub.send_etp(etp, is_full);
+        }
+        catch (QspnNotAcceptedError e) {
+            mgr.arc_remove(arc);
+            warning(@"Qspn.send_etp_uni: QspnNotAcceptedError $(e.message)");
+            // emit signal
+            mgr.arc_removed(arc);
+            return false;
+        }
+        catch (StubError e) {
+            mgr.arc_remove(arc);
+            warning(@"Qspn.send_etp_uni: StubError $(e.message)");
+            // emit signal
+            mgr.arc_removed(arc, true);
+            return false;
+        }
+        catch (DeserializeError e) {
+            // remove failed arc and emit signal
+            mgr.arc_remove(arc);
+            warning(@"Qspn.send_etp_uni: DeserializeError $(e.message)");
+            // emit signal
+            mgr.arc_removed(arc);
+            return false;
+        }
+        return true;
+    }
+
     // Helper: publish full ETP to all
-    private void publish_full_etp(QspnManager mgr)
+    internal void publish_full_etp(QspnManager mgr)
     {
         // Prepare full ETP and send to all my neighbors.
         EtpMessage full_etp = prepare_full_etp(mgr);
@@ -45,11 +103,12 @@ namespace Netsukuku.Qspn
             assert_not_reached();
         }
         catch (StubError e) {
-            critical(@"QspnManager.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
+            critical(@"Qspn.publish_full_etp: StubError in send to broadcast to all: $(e.message)");
         }
     }
 
-    private void publish_connectivity(QspnManager mgr, int old_pos, int old_lvl)
+    // Helper: publish a void ETP to outer arcs (during make_connectivity)
+    internal void publish_connectivity(QspnManager mgr, int old_pos, int old_lvl)
     {
         // Send a void ETP to all neighbors outside 'old_lvl'.
         ArrayList<HCoord> hops = new ArrayList<HCoord>((a, b) => a.equals(b));
@@ -80,7 +139,7 @@ namespace Netsukuku.Qspn
             // a broadcast will never get a return value nor an error
             assert_not_reached();
         } catch (StubError e) {
-            critical(@"QspnManager.publish_connectivity: StubError in broadcast sending: $(e.message)");
+            critical(@"Qspn.publish_connectivity: StubError in send to broadcast: $(e.message)");
         }
     }
 }
