@@ -2134,18 +2134,37 @@ namespace Netsukuku.Qspn
           */
         public void exit_network(int lvl)
         {
-            error("not implemented yet");
-            /*
-            * per l da lvl a levels-1:
-              * per ogni destinazione nota d di livello l:
-                * per ogni percorso p noto verso d:
-                  * rimuovi p e segnala path_removed
-                * rimuovi d e segnala destination_removed
-            * ricomputa fp e nodi_interni dei miei gnodi
-            * per ogni arco a in my_arcs:
-              * se my_naddr.get_hcoord_for_naddr(get_naddr_for_arc(a)).lvl >= lvl:
-                * rimuovi arco a e segnala arc_removed
-            */
+            // remove paths
+            for (int l = lvl; l < levels; l++)
+            {
+                var dest_to_remove = new ArrayList<Destination>();
+                dest_to_remove.add_all(destinations[l].values);
+                foreach (Destination d in dest_to_remove)
+                {
+                    destinations[d.dest.lvl].unset(d.dest.pos);
+                    foreach (NodePath np in d.paths)
+                    {
+                        path_removed(get_ret_path(np));
+                    }
+                    destination_removed(d.dest);
+                }
+            }
+            // Re-evaluate informations on our g-nodes.
+            bool changes_in_my_gnodes;
+            update_clusters(out changes_in_my_gnodes);
+            // remove arcs
+            ArrayList<IQspnArc> arcs_to_remove = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
+            foreach (IQspnArc arc in my_arcs)
+            {
+                if (arc_to_naddr[arc] == null) continue;
+                int arc_lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
+                if (arc_lvl >= lvl) arcs_to_remove.add(arc);
+            }
+            foreach (IQspnArc arc in arcs_to_remove)
+            {
+                arc_remove(arc);
+                arc_removed(arc);
+            }
         }
 
         /** Remove outer arcs from this connectivity identity.
@@ -2157,13 +2176,20 @@ namespace Netsukuku.Qspn
             arcs.add_all(my_arcs);
             foreach (IQspnArc arc in arcs)
             {
-                // Consider that this is not the identity which is migrating, but the one which is staying.
-                //  We should have the peer_naddr for all the arcs.
-                if (arc_to_naddr[arc] == null) continue;
-                // Check the neighbor address.
-                IQspnNaddr addr = arc_to_naddr[arc];
-                int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
-                if (lvl >= connectivity_to_level)
+                // This is the connectivity identity: we should have the peer_naddr for all the internal arcs.
+                bool remove = false;
+                if (arc_to_naddr[arc] == null)
+                {
+                    remove = true;
+                }
+                else
+                {
+                    // Check the neighbor address.
+                    IQspnNaddr addr = arc_to_naddr[arc];
+                    int lvl = my_naddr.i_qspn_get_coord_by_address(addr).lvl;
+                    if (lvl >= connectivity_to_level) remove = true;
+                }
+                if (remove)
                 {
                     arc_remove(arc);
                     arc_removed(arc);
@@ -2262,8 +2288,7 @@ namespace Netsukuku.Qspn
             ArrayList<IQspnArc> internal_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
-                // Consider that this is not the identity which is migrating, but the one which is staying.
-                //  We should have the peer_naddr for all the arcs.
+                // This is the connectivity identity: we should have the peer_naddr for all the internal arcs.
                 if (arc_to_naddr[arc] == null) continue;
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl < i) internal_arcs.add(arc);
@@ -2292,8 +2317,6 @@ namespace Netsukuku.Qspn
             ArrayList<IQspnArc> outer_w_arcs = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
-                // Consider that this is not the identity which is migrating, but the one which is staying.
-                //  We should have the peer_naddr for all the arcs.
                 if (arc_to_naddr[arc] == null) continue;
                 int lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (lvl >= i) outer_w_arcs.add(arc);
