@@ -829,27 +829,6 @@ namespace Netsukuku.Qspn
             IQspnCost c = removed_arc.i_qspn_get_cost();
             assert(c != null);
 
-            ArcRemoveTasklet ts = new ArcRemoveTasklet();
-            ts.mgr = this;
-            ts.removed_arc = removed_arc;
-            tasklet.spawn(ts);
-        }
-        private class ArcRemoveTasklet : Object, ITaskletSpawnable
-        {
-            public weak QspnManager mgr;
-            public IQspnArc removed_arc;
-            public void * func()
-            {
-                mgr.tasklet_arc_remove(removed_arc);
-                return null;
-            }
-        }
-        private void tasklet_arc_remove(IQspnArc removed_arc)
-        {
-            // From outside the module is notified that this arc of mine
-            // has been removed.
-            // Or, either, the module itself wants to remove this arc (possibly
-            // because it failed to send a message).
             if (!(removed_arc in my_arcs))
             {
                 warning("QspnManager.arc_remove: not in my arcs.");
@@ -897,6 +876,34 @@ namespace Netsukuku.Qspn
                 destination_removed(d.dest);
                 destinations[d.dest.lvl].unset(d.dest.pos);
             }
+
+            // Then proceed in a tasklet
+            ArcRemoveTasklet ts = new ArcRemoveTasklet();
+            ts.mgr = this;
+            ts.removed_arc = removed_arc;
+            ts.paths_to_add_to_all_paths = paths_to_add_to_all_paths;
+            tasklet.spawn(ts);
+        }
+        private class ArcRemoveTasklet : Object, ITaskletSpawnable
+        {
+            public weak QspnManager mgr;
+            public IQspnArc removed_arc;
+            public ArrayList<EtpPath> paths_to_add_to_all_paths;
+            public void * func()
+            {
+                mgr.tasklet_arc_remove(removed_arc, paths_to_add_to_all_paths);
+                return null;
+            }
+        }
+        private void tasklet_arc_remove(IQspnArc removed_arc, ArrayList<EtpPath> paths_to_add_to_all_paths)
+        {
+            // From outside the module is notified that this arc of mine
+            // has been removed.
+            // Or, either, the module itself wants to remove this arc (possibly
+            // because it failed to send a message).
+
+            // We already removed the arc and all the NodePath from it.
+
             // Then do the same as when arc is changed and remember to add paths_to_add_to_all_paths
             // gather ETP from all of my arcs
             Collection<PairArcEtp> results =
