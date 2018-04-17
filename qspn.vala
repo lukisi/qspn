@@ -31,6 +31,10 @@ namespace Netsukuku.Qspn
         GENERIC
     }
 
+    internal errordomain ArcNotFoundError {
+        GENERIC
+    }
+
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
@@ -188,7 +192,7 @@ namespace Netsukuku.Qspn
             }
         }
 
-        private delegate IQspnArc ArcToArcDelegate(IQspnArc old);
+        private delegate IQspnArc ArcToArcDelegate(IQspnArc old) throws ArcNotFoundError;
 
         public QspnManager.enter_net(
                            Gee.List<IQspnArc> internal_arc_set,
@@ -225,7 +229,7 @@ namespace Netsukuku.Qspn
                     if (internal_arc_prev_arc_set[i] == old_arc)
                         return internal_arc_set[i];
                 }
-                assert_not_reached();
+                throw new ArcNotFoundError.GENERIC("");
             };
             for (int i = 0; i < internal_arc_set.size; i++)
             {
@@ -274,10 +278,20 @@ namespace Netsukuku.Qspn
                 {
                     Destination destination = previous_identity.destinations[l][pos];
                     Destination destination_copy = destination.copy(update_internal_fingerprints);
+                    ArrayList<NodePath> np_to_del = new ArrayList<NodePath>();
                     foreach (NodePath np in destination_copy.paths)
                     {
-                        np.arc = old_arc_to_new_arc(np.arc);
+                        try {
+                            np.arc = old_arc_to_new_arc(np.arc);
+                        } catch (ArcNotFoundError e) {
+                            // This path is no more valid. Probably the arc has been removed for a link problem.
+                            np_to_del.add(np);
+                        }
                     }
+                    // Remove invalid paths. If no more paths remain then destination_copy is not valid.
+                    foreach (NodePath np in np_to_del) destination_copy.paths.remove(np);
+                    if (destination_copy.paths.is_empty) continue;
+                    // If destination_copy is valid, add it.
                     destinations[l][pos] = destination_copy;
                 }
             }
@@ -342,7 +356,7 @@ namespace Netsukuku.Qspn
                     if (internal_arc_prev_arc_set[i] == old_arc)
                         return internal_arc_set[i];
                 }
-                assert_not_reached();
+                throw new ArcNotFoundError.GENERIC("");
             };
             for (int i = 0; i < internal_arc_set.size; i++)
             {
@@ -391,10 +405,20 @@ namespace Netsukuku.Qspn
                 {
                     Destination destination = previous_identity.destinations[l][pos];
                     Destination destination_copy = destination.copy(update_internal_fingerprints);
+                    ArrayList<NodePath> np_to_del = new ArrayList<NodePath>();
                     foreach (NodePath np in destination_copy.paths)
                     {
-                        np.arc = old_arc_to_new_arc(np.arc);
+                        try {
+                            np.arc = old_arc_to_new_arc(np.arc);
+                        } catch (ArcNotFoundError e) {
+                            // This path is no more valid. Probably the arc has been removed for a link problem.
+                            np_to_del.add(np);
+                        }
                     }
+                    // Remove invalid paths. If no more paths remain then destination_copy is not valid.
+                    foreach (NodePath np in np_to_del) destination_copy.paths.remove(np);
+                    if (destination_copy.paths.is_empty) continue;
+                    // If destination_copy is valid, add it.
                     destinations[l][pos] = destination_copy;
                 }
             }
