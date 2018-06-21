@@ -1141,6 +1141,34 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
+        // Helper: if same dest has multiple paths with different fingerprint, only one is valid.
+        // Requires: d is known destination.
+        private IQspnFingerprint find_fingerprint(HCoord d)
+        {
+            // find current valid fingerprint of d
+            assert(destinations[d.lvl].has_key(d.pos));
+            assert(! destinations[d.lvl][d.pos].paths.is_empty);
+            IQspnFingerprint? valid_fp_d = null;
+            if (d.lvl > 0)
+            {
+                foreach (NodePath p in destinations[d.lvl][d.pos].paths)
+                {
+                    IQspnFingerprint fp_d_p = p.path.fingerprint;
+                    if (valid_fp_d == null)
+                    {
+                        valid_fp_d = fp_d_p;
+                    }
+                    else
+                    {
+                        if (! fp_d_p.i_qspn_equals(valid_fp_d))
+                            if (fp_d_p.i_qspn_elder_seed(valid_fp_d)) valid_fp_d = fp_d_p;
+                    }
+                }
+            }
+            else valid_fp_d = destinations[d.lvl][d.pos].paths[0].path.fingerprint;
+            return valid_fp_d;
+        }
+
         private class SignalToEmit : Object
         {
             private int t;
@@ -2022,6 +2050,24 @@ namespace Netsukuku.Qspn
             return ret;
         }
 
+        /** Is this a known destination
+          */
+        public bool is_known_destination(HCoord d) throws QspnBootstrapInProgressError
+        {
+            int lvl = d.lvl;
+            if (lvl >= guest_gnode_level)
+                throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
+            return destinations[lvl].has_key(d.pos);
+        }
+
+        /** Get fingerprint of a known destination
+          */
+        public IQspnFingerprint get_fingerprint_of_known_destination(HCoord d) throws QspnBootstrapInProgressError
+        {
+            assert(is_known_destination(d));
+            return find_fingerprint(d);
+        }
+
         /** Provides a collection of known paths to a destination
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
@@ -2031,34 +2077,21 @@ namespace Netsukuku.Qspn
             var ret = new ArrayList<IQspnNodePath>();
             if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
             {
-                // find current valid fingerprint of d
-                IQspnFingerprint? valid_fp_d = null;
-                if (d.lvl > 0)
+                // prepare known valid paths
+                if (d.lvl == 0)
                 {
                     foreach (NodePath p in destinations[d.lvl][d.pos].paths)
                     {
-                        IQspnFingerprint fp_d_p = p.path.fingerprint;
-                        if (valid_fp_d == null)
-                        {
-                            valid_fp_d = fp_d_p;
-                        }
-                        else
-                        {
-                            if (! fp_d_p.i_qspn_equals(valid_fp_d))
-                                if (fp_d_p.i_qspn_elder_seed(valid_fp_d)) valid_fp_d = fp_d_p;
-                        }
-                    }
-                }
-                // prepare known valid paths
-                foreach (NodePath p in destinations[d.lvl][d.pos].paths)
-                {
-                    IQspnFingerprint fp_d_p = p.path.fingerprint;
-                    if (d.lvl == 0)
-                    {
                         ret.add(get_ret_path(p));
                     }
-                    else
+                }
+                else
+                {
+                    IQspnFingerprint? valid_fp_d = find_fingerprint(d);
+                    foreach (NodePath p in destinations[d.lvl][d.pos].paths)
                     {
+                        IQspnFingerprint fp_d_p = p.path.fingerprint;
+                        // check current valid fingerprint of d
                         if (fp_d_p.i_qspn_equals(valid_fp_d))
                             ret.add(get_ret_path(p));
                     }
