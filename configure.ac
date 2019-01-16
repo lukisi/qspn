@@ -31,8 +31,8 @@ PKG_CHECK_VAR([NTKDRPC_VAPIDIR], [ntkdrpc], [vapidir])
 PKG_CHECK_MODULES([PTHTASKLET], [pth-tasklet])
 PKG_CHECK_VAR([PTHTASKLET_VAPIDIR], [pth-tasklet], [vapidir])
 
-
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile test1.script test_split_signal.script test_not_split_signal.script])
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_LINKS([two_nodes:testsuites/scripts/two_nodes])
 AC_OUTPUT
 

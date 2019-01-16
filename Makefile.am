@@ -7,14 +7,12 @@ noinst_LTLIBRARIES = \
 
 TESTS = \
 	test_serializables \
-	test_split_signal \
-	test_not_split_signal \
-	test1 \
+	two_nodes \
 	$(NULL)
 
 check_PROGRAMS = \
 	test_serializables \
-	simulator \
+	system_peer \
 	$(NULL)
 
 libqspn_la_SOURCES = \
@@ -89,14 +87,18 @@ test_serializables_LDADD = \
 	$(JSONGLIB_LIBS) \
 	$(NULL)
 
-simulator_SOURCES = \
-	testsuites/simulator/simulator.vala \
-	testsuites/simulator/generic_naddr.vala \
-	testsuites/simulator/serialize_helpers.vala \
+system_peer_SOURCES =  \
+	testsuites/system_peer/system_peer.vala \
+	testsuites/system_peer/rngen.vala \
+	testsuites/system_peer/serializables.vala \
+	testsuites/system_peer/qspn_signals.vala \
+	testsuites/system_peer/rpc/module_stubs.vala \
+	testsuites/system_peer/rpc/skeleton_factory.vala \
+	testsuites/system_peer/rpc/stub_factory.vala \
 	qspn.vapi \
 	$(NULL)
 
-simulator_VALAFLAGS = \
+system_peer_VALAFLAGS = \
 	--vapidir $(GEE_PREFIX)/share/vala/vapi \
 	--vapidir $(TASKLETSYSTEM_VAPIDIR) \
 	--vapidir $(PTHTASKLET_VAPIDIR) \
@@ -109,7 +111,7 @@ simulator_VALAFLAGS = \
 	--pkg ntkdrpc \
 	$(NULL)
 
-simulator_CPPFLAGS = \
+system_peer_CPPFLAGS = \
 	-w \
 	$(GOBJECT_CFLAGS) \
 	$(GEE_CFLAGS) \
@@ -119,7 +121,7 @@ simulator_CPPFLAGS = \
 	$(NTKDRPC_CFLAGS) \
 	$(NULL)
 
-simulator_LDADD = \
+system_peer_LDADD = \
 	$(GOBJECT_LIBS) \
 	$(GEE_LIBS) \
 	$(NTKDCOMMON_LIBS) \
@@ -127,12 +129,6 @@ simulator_LDADD = \
 	$(PTHTASKLET_LIBS) \
 	$(NTKDRPC_LIBS) \
 	$(builddir)/libqspn.la \
-	$(NULL)
-
-EXTRA_DIST = \
-	test_split_signal \
-	test_not_split_signal \
-	test1 \
 	$(NULL)
 
 MAINTAINERCLEANFILES = \
