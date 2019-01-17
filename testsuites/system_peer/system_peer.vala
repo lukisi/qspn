@@ -19,27 +19,27 @@ namespace SystemPeer
     HashMap<string,PseudoNetworkInterface> pseudonic_map;
     ArrayList<PseudoArc> arc_list;
 
-    IdentityData create_local_identity(NodeID node_id)
+    IdentityData create_local_identity(NodeID nodeid)
     {
         if (local_identities == null) local_identities = new HashMap<int,IdentityData>();
-        assert(! (node_id.id in local_identities.keys));
-        IdentityData ret = new IdentityData(node_id);
-        local_identities[node_id.id] = ret;
+        assert(! (nodeid.id in local_identities.keys));
+        IdentityData ret = new IdentityData(nodeid);
+        local_identities[nodeid.id] = ret;
         return ret;
     }
 
-    IdentityData? find_local_identity(NodeID node_id)
+    IdentityData? find_local_identity(NodeID nodeid)
     {
         assert(local_identities != null);
-        if (node_id.id in local_identities.keys) return local_identities[node_id.id];
+        if (nodeid.id in local_identities.keys) return local_identities[nodeid.id];
         return null;
     }
 
-    void remove_local_identity(NodeID node_id)
+    void remove_local_identity(NodeID nodeid)
     {
         assert(local_identities != null);
-        assert(node_id.id in local_identities.keys);
-        local_identities.unset(node_id.id);
+        assert(nodeid.id in local_identities.keys);
+        local_identities.unset(nodeid.id);
     }
 
     const int max_paths = 5;
@@ -129,38 +129,38 @@ namespace SystemPeer
         }
 
         // first id
-        NodeID first_id = fake_random_nodeid(pid, 0);
-        print(@"INFO: nodeid for $(pid)_0 is $(first_id.id).\n");
-        var first_identity_data = create_local_identity(first_id);
+        NodeID first_nodeid = fake_random_nodeid(pid, 0);
+        print(@"INFO: nodeid for $(pid)_0 is $(first_nodeid.id).\n");
+        var first_identity_data = create_local_identity(first_nodeid);
 
         // public Naddr(int[] pos, int[] sizes)
-        Naddr my_naddr = new Naddr({0,0,0}, {2,2,2}); // TODO
+        first_identity_data.my_naddr = new Naddr({0,0,0}, {2,2,2}); // TODO
         // public Fingerprint(int[] elderships, int64 id=-1)
-        Fingerprint my_fp = new Fingerprint({0,0,0}); // TODO
+        first_identity_data.my_fp = new Fingerprint({0,0,0}); // TODO
 
         // First qspn manager
-        QspnManager qspn_mgr = new QspnManager.create_net(
-            my_naddr,
-            my_fp,
+        first_identity_data.qspn_mgr = new QspnManager.create_net(
+            first_identity_data.my_naddr,
+            first_identity_data.my_fp,
             new QspnStubFactory(first_identity_data));
-        first_identity_data.qspn_mgr = qspn_mgr;  // weak ref
-
         // immediately after creation, connect to signals.
-        qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
-        qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);
-        qspn_mgr.changed_nodes_inside.connect(first_identity_data.changed_nodes_inside);
-        qspn_mgr.destination_added.connect(first_identity_data.destination_added);
-        qspn_mgr.destination_removed.connect(first_identity_data.destination_removed);
-        qspn_mgr.gnode_splitted.connect(first_identity_data.gnode_splitted);
-        qspn_mgr.path_added.connect(first_identity_data.path_added);
-        qspn_mgr.path_changed.connect(first_identity_data.path_changed);
-        qspn_mgr.path_removed.connect(first_identity_data.path_removed);
-        qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
-        qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
-        qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
+        first_identity_data.qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
+        first_identity_data.qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);
+        first_identity_data.qspn_mgr.changed_nodes_inside.connect(first_identity_data.changed_nodes_inside);
+        first_identity_data.qspn_mgr.destination_added.connect(first_identity_data.destination_added);
+        first_identity_data.qspn_mgr.destination_removed.connect(first_identity_data.destination_removed);
+        first_identity_data.qspn_mgr.gnode_splitted.connect(first_identity_data.gnode_splitted);
+        first_identity_data.qspn_mgr.path_added.connect(first_identity_data.path_added);
+        first_identity_data.qspn_mgr.path_changed.connect(first_identity_data.path_changed);
+        first_identity_data.qspn_mgr.path_removed.connect(first_identity_data.path_removed);
+        first_identity_data.qspn_mgr.presence_notified.connect(first_identity_data.presence_notified);
+        first_identity_data.qspn_mgr.qspn_bootstrap_complete.connect(first_identity_data.qspn_bootstrap_complete);
+        first_identity_data.qspn_mgr.remove_identity.connect(first_identity_data.remove_identity);
 
         // First identity is immediately bootstrapped.
-        while (! qspn_mgr.is_bootstrap_complete()) tasklet.ms_wait(1);
+        while (! first_identity_data.qspn_mgr.is_bootstrap_complete()) tasklet.ms_wait(1);
+
+        first_identity_data = null;
 
         foreach (string task in tasks)
         {
@@ -191,6 +191,59 @@ namespace SystemPeer
         }
 
         // TODO
+
+        // Remove connectivity identities.
+        ArrayList<IdentityData> local_identities_copy = new ArrayList<IdentityData>();
+        local_identities_copy.add_all(local_identities.values);
+        foreach (IdentityData identity_data in local_identities_copy)
+        {
+            if (! identity_data.main_id)
+            {
+                // ... send "destroy" message.
+                identity_data.qspn_mgr.destroy();
+                // ... disconnect signal handlers of qspn_mgr.
+                identity_data.qspn_mgr.arc_removed.disconnect(identity_data.arc_removed);
+                identity_data.qspn_mgr.changed_fp.disconnect(identity_data.changed_fp);
+                identity_data.qspn_mgr.changed_nodes_inside.disconnect(identity_data.changed_nodes_inside);
+                identity_data.qspn_mgr.destination_added.disconnect(identity_data.destination_added);
+                identity_data.qspn_mgr.destination_removed.disconnect(identity_data.destination_removed);
+                identity_data.qspn_mgr.gnode_splitted.disconnect(identity_data.gnode_splitted);
+                identity_data.qspn_mgr.path_added.disconnect(identity_data.path_added);
+                identity_data.qspn_mgr.path_changed.disconnect(identity_data.path_changed);
+                identity_data.qspn_mgr.path_removed.disconnect(identity_data.path_removed);
+                identity_data.qspn_mgr.presence_notified.disconnect(identity_data.presence_notified);
+                identity_data.qspn_mgr.qspn_bootstrap_complete.disconnect(identity_data.qspn_bootstrap_complete);
+                identity_data.qspn_mgr.remove_identity.disconnect(identity_data.remove_identity);
+                identity_data.qspn_mgr.stop_operations();
+
+                remove_local_identity(identity_data.nodeid);
+            }
+        }
+        local_identities_copy = null;
+
+        // For main identity...
+        assert(local_identities.keys.size == 1);
+        IdentityData last_identity_data = local_identities.values.to_array()[0];
+        assert(last_identity_data.main_id);
+
+        // ... send "destroy" message.
+        last_identity_data.qspn_mgr.destroy();
+        // ... disconnect signal handlers of qspn_mgr.
+        last_identity_data.qspn_mgr.arc_removed.disconnect(last_identity_data.arc_removed);
+        last_identity_data.qspn_mgr.changed_fp.disconnect(last_identity_data.changed_fp);
+        last_identity_data.qspn_mgr.changed_nodes_inside.disconnect(last_identity_data.changed_nodes_inside);
+        last_identity_data.qspn_mgr.destination_added.disconnect(last_identity_data.destination_added);
+        last_identity_data.qspn_mgr.destination_removed.disconnect(last_identity_data.destination_removed);
+        last_identity_data.qspn_mgr.gnode_splitted.disconnect(last_identity_data.gnode_splitted);
+        last_identity_data.qspn_mgr.path_added.disconnect(last_identity_data.path_added);
+        last_identity_data.qspn_mgr.path_changed.disconnect(last_identity_data.path_changed);
+        last_identity_data.qspn_mgr.path_removed.disconnect(last_identity_data.path_removed);
+        last_identity_data.qspn_mgr.presence_notified.disconnect(last_identity_data.presence_notified);
+        last_identity_data.qspn_mgr.qspn_bootstrap_complete.disconnect(last_identity_data.qspn_bootstrap_complete);
+        last_identity_data.qspn_mgr.remove_identity.disconnect(last_identity_data.remove_identity);
+        last_identity_data.qspn_mgr.stop_operations();
+
+        remove_local_identity(last_identity_data.nodeid);
 
         // Call stop_rpc.
         ArrayList<string> final_devs = new ArrayList<string>();
@@ -294,7 +347,12 @@ namespace SystemPeer
         public int connectivity_to_level;
         public IdentityData? copy_of_identity;
 
-        public weak QspnManager qspn_mgr;
+        public QspnManager qspn_mgr;
+        public bool main_id {
+            get {
+                return connectivity_from_level == 0;
+            }
+        }
 
         public ArrayList<IdentityArc> identity_arcs;
 

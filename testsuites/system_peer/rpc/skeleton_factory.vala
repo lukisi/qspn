@@ -54,28 +54,58 @@ namespace SystemPeer
 
         private IAddressManagerSkeleton? get_dispatcher(StreamCallerInfo caller_info)
         {
-            error("not implemented yet");
+            // in this test we have only IdentityAwareSourceID and IdentityAwareUnicastID
+            if (! (caller_info.source_id is IdentityAwareSourceID)) abort_tasklet(@"Bad caller_info.source_id");
+            IdentityAwareSourceID _source_id = (IdentityAwareSourceID)caller_info.source_id;
+            NodeID source_nodeid = _source_id.id;
+            if (! (caller_info.unicast_id is IdentityAwareUnicastID)) abort_tasklet(@"Bad caller_info.unicast_id");
+            IdentityAwareUnicastID _unicast_id = (IdentityAwareUnicastID)caller_info.unicast_id;
+            NodeID unicast_nodeid = _unicast_id.id;
+            if (! (caller_info.src_nic is NeighbourSrcNic)) abort_tasklet(@"Bad caller_info.src_nic");
+            string peer_mac = ((NeighbourSrcNic)caller_info.src_nic).mac;
+            return get_identity_skeleton(source_nodeid, unicast_nodeid, peer_mac);
         }
 
         private Gee.List<IAddressManagerSkeleton> get_dispatcher_set(DatagramCallerInfo caller_info)
         {
-            error("not implemented yet");
+            // in this test we have only IdentityAwareSourceID and IdentityAwareBroadcastID
+            if (! (caller_info.source_id is IdentityAwareSourceID)) abort_tasklet(@"Bad caller_info.source_id");
+            IdentityAwareSourceID _source_id = (IdentityAwareSourceID)caller_info.source_id;
+            NodeID source_nodeid = _source_id.id;
+            if (! (caller_info.broadcast_id is IdentityAwareBroadcastID)) abort_tasklet(@"Bad caller_info.broadcast_id");
+            IdentityAwareBroadcastID _broadcast_set = (IdentityAwareBroadcastID)caller_info.broadcast_id;
+            Gee.List<NodeID> broadcast_set = _broadcast_set.id_set;
+            if (! (caller_info.src_nic is NeighbourSrcNic)) abort_tasklet(@"Bad caller_info.src_nic");
+            string peer_mac = ((NeighbourSrcNic)caller_info.src_nic).mac;
+            if (! (caller_info.listener is DatagramSystemListener)) abort_tasklet(@"Bad caller_info.listener");
+            string caller_listen_pathname = ((DatagramSystemListener)caller_info.listener).listen_pathname;
+            string my_dev = null;
+            foreach (string dev in pseudonic_map.keys)
+            {
+                if (pseudonic_map[dev].listen_pathname == caller_listen_pathname)
+                {
+                    my_dev = dev;
+                    break;
+                }
+            }
+            if (my_dev == null) abort_tasklet(@"Bad caller_info.listener.listen_pathname=$(caller_listen_pathname)");
+            return get_identity_skeleton_set(source_nodeid, broadcast_set, peer_mac, my_dev);
         }
 
         private IAddressManagerSkeleton?
         get_identity_skeleton(
-            NodeID source_id,
-            NodeID unicast_id,
+            NodeID source_nodeid,
+            NodeID unicast_nodeid,
             string peer_mac)
         {
-            IdentityData local_identity_data = find_local_identity(unicast_id);
+            IdentityData local_identity_data = find_local_identity(unicast_nodeid);
             if (local_identity_data == null) return null;
 
             foreach (IdentityArc ia in local_identity_data.identity_arcs)
             {
                 if (ia.arc.peer_mac == peer_mac)
                 {
-                    if (ia.peer_nodeid.equals(source_id))
+                    if (ia.peer_nodeid.equals(source_nodeid))
                     {
                         return new IdentitySkeleton(local_identity_data);
                     }
@@ -87,7 +117,7 @@ namespace SystemPeer
 
         private Gee.List<IAddressManagerSkeleton>
         get_identity_skeleton_set(
-            NodeID source_id,
+            NodeID source_nodeid,
             Gee.List<NodeID> broadcast_set,
             string peer_mac,
             string my_dev)
@@ -103,7 +133,7 @@ namespace SystemPeer
                         if (ia.arc.peer_mac == peer_mac
                             && ia.arc.my_nic.dev == my_dev)
                         {
-                            if (ia.peer_nodeid.equals(source_id))
+                            if (ia.peer_nodeid.equals(source_nodeid))
                             {
                                 ret.add(new IdentitySkeleton(local_identity_data));
                             }

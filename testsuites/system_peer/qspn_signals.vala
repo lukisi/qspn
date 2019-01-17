@@ -35,21 +35,6 @@ namespace SystemPeer
         warning("per_identity_qspn_path_removed: not implemented yet");
     }
 
-    void per_identity_qspn_map_update(IdentityData id, IQspnNodePath p)
-    {
-        warning("per_identity_qspn_map_update: not implemented yet");
-    }
-
-    void per_identity_qspn_map_update_hc(IdentityData id, HCoord hc)
-    {
-        warning("per_identity_qspn_map_update_hc: not implemented yet");
-    }
-
-    void per_identity_qspn_map_update_hc_reserve(IdentityData id, HCoord hc)
-    {
-        warning("per_identity_qspn_map_update_hc_reserve: not implemented yet");
-    }
-
     void per_identity_qspn_changed_fp(IdentityData id, int l)
     {
         warning("per_identity_qspn_changed_fp: not implemented yet");

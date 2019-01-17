@@ -1,2 +1,31 @@
 #!/bin/bash
 
+eth_domain -i 1_eth0 -i 2_eth0 &
+ETH_PID=$!
+sleep 0.3
+
+./system_peer -i eth0 -p 1 > test_two_nodes_pid1_out.txt 2>&1 &
+PEER_1_PID=$!
+./system_peer -i eth0 -p 2 > test_two_nodes_pid2_out.txt 2>&1 &
+PEER_2_PID=$!
+
+sleep 2
+
+# interrupt peer
+kill $PEER_1_PID
+# wait for peer and note down its retval
+wait $PEER_1_PID
+PEER_1_RET=$?
+
+# interrupt peer
+kill $PEER_2_PID
+# wait for peer and note down its retval
+wait $PEER_2_PID
+PEER_2_RET=$?
+
+# kill proxy demons
+kill $ETH_PID
+
+# check testers retval
+test $PEER_1_RET -eq 0 || exit 1
+test $PEER_2_RET -eq 0 || exit 2
