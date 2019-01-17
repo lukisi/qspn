@@ -17,6 +17,7 @@ namespace SystemPeer
     SkeletonFactory skeleton_factory;
     StubFactory stub_factory;
     HashMap<string,PseudoNetworkInterface> pseudonic_map;
+    ArrayList<PseudoArc> arc_list;
 
     IdentityData create_local_identity(NodeID node_id)
     {
@@ -99,6 +100,7 @@ namespace SystemPeer
         stub_factory = new StubFactory();
 
         pseudonic_map = new HashMap<string,PseudoNetworkInterface>();
+        arc_list = new ArrayList<PseudoArc>();
         foreach (string dev in devs)
         {
             assert(!(dev in pseudonic_map.keys));
@@ -130,6 +132,11 @@ namespace SystemPeer
         NodeID first_id = fake_random_nodeid(pid, 0);
         print(@"INFO: nodeid for $(pid)_0 is $(first_id.id).\n");
         var first_identity_data = create_local_identity(first_id);
+
+        // public Naddr(int[] pos, int[] sizes)
+        Naddr my_naddr = new Naddr({0,0,0}, {2,2,2}); // TODO
+        // public Fingerprint(int[] elderships, int64 id=-1)
+        Fingerprint my_fp = new Fingerprint({0,0,0}); // TODO
 
         // First qspn manager
         QspnManager qspn_mgr = new QspnManager.create_net(
@@ -225,6 +232,24 @@ namespace SystemPeer
         public string dev {get; private set;}
         public string linklocal {get; set;}
         public string st_listen_pathname {get; set;}
+    }
+
+    class PseudoArc : Object
+    {
+        public PseudoArc(string my_dev, int peer_pid, string peer_mac, string peer_linklocal, long cost)
+        {
+            assert(pseudonic_map.has_key(my_dev));
+            my_nic = pseudonic_map[my_dev];
+            this.peer_pid = peer_pid;
+            this.peer_mac = peer_mac;
+            this.peer_linklocal = peer_linklocal;
+            this.cost = cost;
+        }
+        public PseudoNetworkInterface my_nic {get; private set;}
+        public int peer_pid {get; private set;}
+        public string peer_mac {get; private set;}
+        public string peer_linklocal {get; private set;}
+        public long cost {get; set;}
     }
 
     string fake_random_mac(int pid, string dev)
@@ -339,46 +364,28 @@ namespace SystemPeer
     class IdentityArc : Object
     {
         public weak IdentityData identity_data;
-        public string my_dev;
-        public int peer_pid;
-        public string peer_dev;
-        public int peer_index;
+        public PseudoArc arc;
+        public NodeID peer_nodeid;
+        public string id_peer_mac;
+        public string id_peer_linklocal;
 
-        private string _peer_mac;
-        public string peer_mac {
-            get {
-                if (_peer_mac == null) _peer_mac = fake_random_mac(peer_pid, peer_dev);
-                return _peer_mac;
-            }
-        }
+        public QspnArc? qspn_arc;
+        public int64? network_id;
+        public string? prev_peer_mac;
+        public string? prev_peer_linklocal;
 
-        private string _peer_linklocal;
-        public string peer_linklocal {
-            get {
-                if (_peer_linklocal == null) _peer_linklocal = fake_random_linklocal(peer_mac);
-                return _peer_linklocal;
-            }
-        }
-
-        private NodeID _peer_nodeid;
-        public NodeID peer_nodeid {
-            get {
-                if (_peer_nodeid == null) _peer_nodeid = fake_random_nodeid(peer_pid, peer_index);
-                return _peer_nodeid;
-            }
-        }
-
-        //public QspnArc? qspn_arc;
-
-        public IdentityArc(IdentityData identity_data, string my_dev, int peer_pid, string peer_dev, int peer_index)
+        public IdentityArc(IdentityData identity_data, PseudoArc arc, NodeID peer_nodeid, string id_peer_mac, string id_peer_linklocal)
         {
             this.identity_data = identity_data;
-            this.my_dev = my_dev;
-            this.peer_pid = peer_pid;
-            this.peer_dev = peer_dev;
-            this.peer_index = peer_index;
+            this.arc = arc;
+            this.peer_nodeid = peer_nodeid;
+            this.id_peer_mac = id_peer_mac;
+            this.id_peer_linklocal = id_peer_linklocal;
 
-            //qspn_arc = null;
+            qspn_arc = null;
+            network_id = null;
+            prev_peer_mac = null;
+            prev_peer_linklocal = null;
         }
     }
 }

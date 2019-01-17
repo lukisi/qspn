@@ -73,7 +73,7 @@ namespace SystemPeer
 
             foreach (IdentityArc ia in local_identity_data.identity_arcs)
             {
-                if (ia.peer_mac == peer_mac)
+                if (ia.arc.peer_mac == peer_mac)
                 {
                     if (ia.peer_nodeid.equals(source_id))
                     {
@@ -100,8 +100,8 @@ namespace SystemPeer
                 {
                     foreach (IdentityArc ia in local_identity_data.identity_arcs)
                     {
-                        if (ia.peer_mac == peer_mac
-                            && ia.my_dev == my_dev)
+                        if (ia.arc.peer_mac == peer_mac
+                            && ia.arc.my_nic.dev == my_dev)
                         {
                             if (ia.peer_nodeid.equals(source_id))
                             {

@@ -15,6 +15,7 @@ testsuites/test_serializables/test_serializables.c
 testsuites/system_peer/system_peer.c
 testsuites/system_peer/rngen.c
 testsuites/system_peer/serializables.c
+testsuites/system_peer/qspn_helpers.c
 testsuites/system_peer/qspn_signals.c
 testsuites/system_peer/rpc/module_stubs.c
 testsuites/system_peer/rpc/skeleton_factory.c

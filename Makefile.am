@@ -91,6 +91,7 @@ system_peer_SOURCES =  \
 	testsuites/system_peer/system_peer.vala \
 	testsuites/system_peer/rngen.vala \
 	testsuites/system_peer/serializables.vala \
+	testsuites/system_peer/qspn_helpers.vala \
 	testsuites/system_peer/qspn_signals.vala \
 	testsuites/system_peer/rpc/module_stubs.vala \
 	testsuites/system_peer/rpc/skeleton_factory.vala \
