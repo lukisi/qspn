@@ -15,12 +15,14 @@ namespace SystemPeer
         return ret;
     }
 
+    string topology;
+    int pid;
     [CCode (array_length = false, array_null_terminated = true)]
     string[] interfaces;
     [CCode (array_length = false, array_null_terminated = true)]
+    string[] arcs;
+    [CCode (array_length = false, array_null_terminated = true)]
     string[] _tasks;
-    int pid;
-    string topology;
 
     ITasklet tasklet;
     HashMap<int,IdentityData> local_identities;
@@ -64,11 +66,12 @@ namespace SystemPeer
         pid = 0; // default
         topology = "2,1,1,1"; // default
         OptionContext oc = new OptionContext("<options>");
-        OptionEntry[] entries = new OptionEntry[5];
+        OptionEntry[] entries = new OptionEntry[6];
         int index = 0;
+        entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits, reversed. Default: 2,1,1,1", null};
         entries[index++] = {"pid", 'p', 0, OptionArg.INT, ref pid, "Fake PID (e.g. -p 1234).", null};
         entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface (e.g. -i eth1). You can use it multiple times.", null};
-        entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits, reversed. Default: 2,1,1,1", null};
+        entries[index++] = {"arcs", 'a', 0, OptionArg.STRING_ARRAY, ref arcs, "Arc my_dev,peer_pid,peer_dev,cost (e.g. -a eth1,5678,eth0,300). You can use it multiple times.", null};
         entries[index++] = {"tasks", 't', 0, OptionArg.STRING_ARRAY, ref _tasks, "Tasks (e.g. -t addarc,2,eth0,5,eth1 means: after 2 secs add an arc from my nic eth0 to the nic eth1 of pid5). You can use it multiple times.", null};
         entries[index++] = { null };
         oc.add_main_entries(entries, null);
@@ -99,10 +102,31 @@ namespace SystemPeer
         }
         levels = gsizes.size;
 
-        ArrayList<string> devs;
         // Names of the network interfaces to do RPC.
-        devs = new ArrayList<string>();
+        ArrayList<string> devs = new ArrayList<string>();
         foreach (string dev in interfaces) devs.add(dev);
+
+        // Definitions of the node-arcs.
+        ArrayList<string> pseudo_arc_mydev_list = new ArrayList<string>();
+        ArrayList<int> pseudo_arc_peerpid_list = new ArrayList<int>();
+        ArrayList<string> pseudo_arc_peerdev_list = new ArrayList<string>();
+        ArrayList<long> pseudo_arc_cost_list = new ArrayList<long>();
+        foreach (string arc in arcs)
+        {
+            string[] arc_items = arc.split(",");
+            if (arc_items.length != 4) error("bad args num in '--arcs'");
+            string arc_item_my_dev = arc_items[0];
+            if (! (arc_item_my_dev in devs)) error("bad arg my_dev in '--arcs'");
+            int64 _arc_item_peer_pid;
+            if (! int64.try_parse(arc_items[1], out _arc_item_peer_pid)) error("bad arg peer_pid in '--arcs'");
+            string arc_item_peer_dev = arc_items[2];
+            int64 _arc_item_cost;
+            if (! int64.try_parse(arc_items[3], out _arc_item_cost)) error("bad arg cost in '--arcs'");
+            pseudo_arc_mydev_list.add(arc_item_my_dev);
+            pseudo_arc_peerpid_list.add((int)_arc_item_peer_pid);
+            pseudo_arc_peerdev_list.add(arc_item_peer_dev);
+            pseudo_arc_cost_list.add((long)_arc_item_cost);
+        }
 
         ArrayList<string> tasks = new ArrayList<string>();
         foreach (string task in _tasks) tasks.add(task);
@@ -168,6 +192,18 @@ namespace SystemPeer
             skeleton_factory.start_stream_system_listen(pseudonic.st_listen_pathname);
             tasklet.ms_wait(1);
             print(@"started stream_system_listen $(pseudonic.st_listen_pathname).\n");
+        }
+        for (int i = 0; i < pseudo_arc_mydev_list.size; i++)
+        {
+            string my_dev = pseudo_arc_mydev_list[i];
+            int peer_pid = pseudo_arc_peerpid_list[i];
+            string peer_dev = pseudo_arc_peerdev_list[i];
+            long cost = pseudo_arc_cost_list[i];
+            string peer_mac = fake_random_mac(peer_pid, peer_dev);
+            string peer_linklocal = fake_random_linklocal(peer_mac);
+            PseudoArc pseudoarc = new PseudoArc(my_dev, peer_pid, peer_mac, peer_linklocal, cost);
+            arc_list.add(pseudoarc);
+            print(@"INFO: arc #$(i) from $(my_dev) to pid$(peer_pid)+$(peer_dev)=$(peer_linklocal)\n");
         }
 
         // first id
