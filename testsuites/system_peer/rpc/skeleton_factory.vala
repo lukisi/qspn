@@ -151,7 +151,71 @@ namespace SystemPeer
         public IdentityArc?
         from_caller_get_identityarc(CallerInfo rpc_caller, IdentityData identity_data)
         {
-            error("not implemented yet"); // see ntkd
+            if (rpc_caller is StreamCallerInfo)
+            {
+                StreamCallerInfo caller_info = (StreamCallerInfo)rpc_caller;
+
+                // in this test we have only IdentityAwareSourceID and IdentityAwareUnicastID
+                if (! (caller_info.source_id is IdentityAwareSourceID)) abort_tasklet(@"Bad caller_info.source_id");
+                IdentityAwareSourceID _source_id = (IdentityAwareSourceID)caller_info.source_id;
+                NodeID source_nodeid = _source_id.id;
+                if (! (caller_info.src_nic is NeighbourSrcNic)) abort_tasklet(@"Bad caller_info.src_nic");
+                string peer_mac = ((NeighbourSrcNic)caller_info.src_nic).mac;
+
+                foreach (IdentityArc ia in identity_data.identity_arcs)
+                {
+                    if (ia.arc.peer_mac == peer_mac)
+                    {
+                        if (ia.peer_nodeid.equals(source_nodeid))
+                        {
+                            return ia;
+                        }
+                    }
+                }
+
+                return null;
+            }
+            else if (rpc_caller is DatagramCallerInfo)
+            {
+                DatagramCallerInfo caller_info = (DatagramCallerInfo)rpc_caller;
+
+                // in this test we have only IdentityAwareSourceID and IdentityAwareBroadcastID
+                if (! (caller_info.source_id is IdentityAwareSourceID)) abort_tasklet(@"Bad caller_info.source_id");
+                IdentityAwareSourceID _source_id = (IdentityAwareSourceID)caller_info.source_id;
+                NodeID source_nodeid = _source_id.id;
+                if (! (caller_info.src_nic is NeighbourSrcNic)) abort_tasklet(@"Bad caller_info.src_nic");
+                string peer_mac = ((NeighbourSrcNic)caller_info.src_nic).mac;
+                if (! (caller_info.listener is DatagramSystemListener)) abort_tasklet(@"Bad caller_info.listener");
+                string caller_listen_pathname = ((DatagramSystemListener)caller_info.listener).listen_pathname;
+                string my_dev = null;
+                foreach (string dev in pseudonic_map.keys)
+                {
+                    if (pseudonic_map[dev].listen_pathname == caller_listen_pathname)
+                    {
+                        my_dev = dev;
+                        break;
+                    }
+                }
+                if (my_dev == null) abort_tasklet(@"Bad caller_info.listener.listen_pathname=$(caller_listen_pathname)");
+
+                foreach (IdentityArc ia in identity_data.identity_arcs)
+                {
+                    if (ia.arc.peer_mac == peer_mac
+                        && ia.arc.my_nic.dev == my_dev)
+                    {
+                        if (ia.peer_nodeid.equals(source_nodeid))
+                        {
+                            return ia;
+                        }
+                    }
+                }
+
+                return null;
+            }
+            else
+            {
+                error(@"Unexpected class $(rpc_caller.get_type().name())");
+            }
         }
 
         private class ServerErrorHandler : Object, IErrorHandler
