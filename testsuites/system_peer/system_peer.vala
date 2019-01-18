@@ -6,11 +6,21 @@ using TaskletSystem;
 
 namespace SystemPeer
 {
+    string json_string_object(Object obj)
+    {
+        Json.Node n = Json.gobject_serialize(obj);
+        Json.Generator g = new Json.Generator();
+        g.root = n;
+        string ret = g.to_data(null);
+        return ret;
+    }
+
     [CCode (array_length = false, array_null_terminated = true)]
     string[] interfaces;
     [CCode (array_length = false, array_null_terminated = true)]
     string[] _tasks;
     int pid;
+    string topology;
 
     ITasklet tasklet;
     HashMap<int,IdentityData> local_identities;
@@ -18,6 +28,9 @@ namespace SystemPeer
     StubFactory stub_factory;
     HashMap<string,PseudoNetworkInterface> pseudonic_map;
     ArrayList<PseudoArc> arc_list;
+    ArrayList<int> gsizes;
+    ArrayList<int> g_exp;
+    int levels;
 
     IdentityData create_local_identity(NodeID nodeid)
     {
@@ -49,11 +62,13 @@ namespace SystemPeer
     int main(string[] _args)
     {
         pid = 0; // default
+        topology = "2,1,1,1"; // default
         OptionContext oc = new OptionContext("<options>");
-        OptionEntry[] entries = new OptionEntry[4];
+        OptionEntry[] entries = new OptionEntry[5];
         int index = 0;
         entries[index++] = {"pid", 'p', 0, OptionArg.INT, ref pid, "Fake PID (e.g. -p 1234).", null};
         entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface (e.g. -i eth1). You can use it multiple times.", null};
+        entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits, reversed. Default: 2,1,1,1", null};
         entries[index++] = {"tasks", 't', 0, OptionArg.STRING_ARRAY, ref _tasks, "Tasks (e.g. -t addarc,2,eth0,5,eth1 means: after 2 secs add an arc from my nic eth0 to the nic eth1 of pid5). You can use it multiple times.", null};
         entries[index++] = { null };
         oc.add_main_entries(entries, null);
@@ -66,6 +81,23 @@ namespace SystemPeer
         }
 
         ArrayList<string> args = new ArrayList<string>.wrap(_args);
+
+        // Topoplogy of the network.
+        gsizes = new ArrayList<int>();
+        g_exp = new ArrayList<int>();
+        string[] topology_bits_array = topology.split(",");
+        foreach (string s_topology_bits in topology_bits_array)
+        {
+            int64 topology_bits;
+            if (! int64.try_parse(s_topology_bits, out topology_bits)) error("Bad arg topology");
+            int _g_exp = (int)topology_bits;
+
+            if (_g_exp < 1 || _g_exp > 16) error(@"Bad g_exp $(_g_exp): must be between 1 and 16");
+            int gsize = 1 << _g_exp;
+            g_exp.insert(0, _g_exp);
+            gsizes.insert(0, gsize);
+        }
+        levels = gsizes.size;
 
         ArrayList<string> devs;
         // Names of the network interfaces to do RPC.
@@ -84,13 +116,23 @@ namespace SystemPeer
 
         // Initialize modules that have remotable methods (serializable classes need to be registered).
         QspnManager.init(tasklet, max_paths, max_common_hops_ratio, arc_timeout, new ThresholdCalculator());
-        //typeof(WholeNodeSourceID).class_peek();
+        typeof(IdentityAwareSourceID).class_peek();
+        typeof(IdentityAwareUnicastID).class_peek();
+        typeof(IdentityAwareBroadcastID).class_peek();
+        typeof(Naddr).class_peek();
+        typeof(Fingerprint).class_peek();
+        typeof(Cost).class_peek();
 
         // Initialize pseudo-random number generators.
         string _seed = @"$(pid)";
         uint32 seed_prn = (uint32)_seed.hash();
         PRNGen.init_rngen(null, seed_prn);
         QspnManager.init_rngen(null, seed_prn);
+
+        // First network: the node on its own. Address of the node.
+        ArrayList<int> naddr = new ArrayList<int>();
+        for (int i = 0; i < levels; i++)
+            naddr.add((int)PRNGen.int_range(0, gsizes[i]));
 
         // Pass tasklet system to the RPC library (ntkdrpc)
         init_tasklet_system(tasklet);
@@ -107,7 +149,7 @@ namespace SystemPeer
             string listen_pathname = @"recv_$(pid)_$(dev)";
             string send_pathname = @"send_$(pid)_$(dev)";
             string mac = fake_random_mac(pid, dev);
-            // @"fe:aa:aa:$(PRNGen.int_range(10, 99)):$(PRNGen.int_range(10, 99)):$(PRNGen.int_range(10, 99))";
+            // @"fe:aa:aa:$(PRNGen.int_range(10, 100)):$(PRNGen.int_range(10, 100)):$(PRNGen.int_range(10, 100))";
             print(@"INFO: mac for $(pid),$(dev) is $(mac).\n");
             PseudoNetworkInterface pseudonic = new PseudoNetworkInterface(dev, listen_pathname, send_pathname, mac);
             pseudonic_map[dev] = pseudonic;
@@ -119,7 +161,7 @@ namespace SystemPeer
 
             // Start listen stream on linklocal
             string linklocal = fake_random_linklocal(mac);
-            // @"169.254.$(PRNGen.int_range(0, 255)).$(PRNGen.int_range(0, 255))";
+            // @"169.254.$(PRNGen.int_range(1, 255)).$(PRNGen.int_range(1, 255))";
             print(@"INFO: linklocal for $(mac) is $(linklocal).\n");
             pseudonic.linklocal = linklocal;
             pseudonic.st_listen_pathname = @"conn_$(linklocal)";
@@ -133,10 +175,12 @@ namespace SystemPeer
         print(@"INFO: nodeid for $(pid)_0 is $(first_nodeid.id).\n");
         var first_identity_data = create_local_identity(first_nodeid);
 
-        // public Naddr(int[] pos, int[] sizes)
-        first_identity_data.my_naddr = new Naddr({0,0,0}, {2,2,2}); // TODO
-        // public Fingerprint(int[] elderships, int64 id=-1)
-        first_identity_data.my_fp = new Fingerprint({0,0,0}); // TODO
+        first_identity_data.my_naddr = new Naddr(naddr.to_array(), gsizes.to_array());
+        ArrayList<int> elderships = new ArrayList<int>();
+        for (int i = 0; i < levels; i++) elderships.add(0);
+        first_identity_data.my_fp = new Fingerprint(elderships.to_array());
+        print(@"INFO: $(pid)_0 has address $(json_string_object(first_identity_data.my_naddr))");
+        print(@" and fp $(json_string_object(first_identity_data.my_fp)).\n");
 
         // First qspn manager
         first_identity_data.qspn_mgr = new QspnManager.create_net(
@@ -310,14 +354,14 @@ namespace SystemPeer
         string _seed = @"$(pid)_$(dev)";
         uint32 seed_prn = (uint32)_seed.hash();
         Rand _rand = new Rand.with_seed(seed_prn);
-        return @"fe:aa:aa:$(_rand.int_range(10, 99)):$(_rand.int_range(10, 99)):$(_rand.int_range(10, 99))";
+        return @"fe:aa:aa:$(_rand.int_range(10, 100)):$(_rand.int_range(10, 100)):$(_rand.int_range(10, 100))";
     }
 
     string fake_random_linklocal(string mac)
     {
         uint32 seed_prn = (uint32)mac.hash();
         Rand _rand = new Rand.with_seed(seed_prn);
-        return @"169.254.$(_rand.int_range(0, 255)).$(_rand.int_range(0, 255))";
+        return @"169.254.$(_rand.int_range(1, 255)).$(_rand.int_range(1, 255))";
     }
 
     NodeID fake_random_nodeid(int pid, int node_index)
@@ -325,7 +369,7 @@ namespace SystemPeer
         string _seed = @"$(pid)_$(node_index)";
         uint32 seed_prn = (uint32)_seed.hash();
         Rand _rand = new Rand.with_seed(seed_prn);
-        return new NodeID((int)(_rand.int_range(1, 99999)));
+        return new NodeID((int)(_rand.int_range(1, 100000)));
     }
 
     class IdentityData : Object
