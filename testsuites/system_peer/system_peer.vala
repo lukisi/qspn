@@ -119,6 +119,7 @@ namespace SystemPeer
             if (! (arc_item_my_dev in devs)) error("bad arg my_dev in '--arcs'");
             int64 _arc_item_peer_pid;
             if (! int64.try_parse(arc_items[1], out _arc_item_peer_pid)) error("bad arg peer_pid in '--arcs'");
+            if ((int)_arc_item_peer_pid == pid) error("bad arg peer_pid in '--arcs'");
             string arc_item_peer_dev = arc_items[2];
             int64 _arc_item_cost;
             if (! int64.try_parse(arc_items[3], out _arc_item_cost)) error("bad arg cost in '--arcs'");
@@ -244,18 +245,12 @@ namespace SystemPeer
 
         foreach (string task in tasks)
         {
-/*
-            if      (schedule_task_addarc(task)) {}
-            else if (schedule_task_prepare_add_identity(task)) {}
-            else if (schedule_task_add_identity(task)) {}
-            else if (schedule_task_addtag(task)) {}
-            else if (schedule_task_removearc(task)) {}
-            else if (schedule_task_remove_identity(task)) {}
-            else if (schedule_task_addinterface(task)) {}
-            else if (schedule_task_removeinterface(task)) {}
+            if      (schedule_task_add_idarc(task)) {}
+            else if (schedule_task_enter_net(task)) {}
+            else if (schedule_task_migrate(task)) {}
+            else if (schedule_task_change_idarc(task)) {}
+            else if (schedule_task_remove_idarc(task)) {}
             else error(@"unknown task $(task)");
-*/
-            error(@"unknown task $(task)");
         }
 
         // TODO

@@ -96,6 +96,9 @@ system_peer_SOURCES =  \
 	testsuites/system_peer/rpc/module_stubs.vala \
 	testsuites/system_peer/rpc/skeleton_factory.vala \
 	testsuites/system_peer/rpc/stub_factory.vala \
+	testsuites/system_peer/task_idarc.vala \
+	testsuites/system_peer/task_enter_net.vala \
+	testsuites/system_peer/task_migrate.vala \
 	qspn.vapi \
 	$(NULL)
 
