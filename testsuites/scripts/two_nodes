@@ -4,12 +4,14 @@ eth_domain -i 1_eth0 -i 2_eth0 &
 ETH_PID=$!
 sleep 0.3
 
-./system_peer -i eth0 -p 1 > test_two_nodes_pid1_out.txt 2>&1 &
+./system_peer -i eth0 -p 1 -a eth0,2,eth0,2000 \
+              -t enter_net,1000,0,0,1:1:0:3,1:0:0:0,0+0 > test_two_nodes_pid1_out.txt 2>&1 &
 PEER_1_PID=$!
-./system_peer -i eth0 -p 2 > test_two_nodes_pid2_out.txt 2>&1 &
+./system_peer -i eth0 -p 2 -a eth0,1,eth0,2000 \
+              -t add_idarc,1500,0,0,1 > test_two_nodes_pid2_out.txt 2>&1 &
 PEER_2_PID=$!
 
-sleep 2
+sleep 3
 
 # interrupt peer
 kill $PEER_1_PID

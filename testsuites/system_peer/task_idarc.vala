@@ -12,16 +12,16 @@ namespace SystemPeer
             string remain = task.substring("add_idarc,".length);
             string[] args = remain.split(",");
             if (args.length != 4) error("bad args num in task 'add_idarc'");
-            int64 s_wait;
-            if (! int64.try_parse(args[0], out s_wait)) error("bad args s_wait in task 'add_idarc'");
+            int64 ms_wait;
+            if (! int64.try_parse(args[0], out ms_wait)) error("bad args ms_wait in task 'add_idarc'");
             int64 arc_index;
-            if (! int64.try_parse(args[0], out arc_index)) error("bad args arc_index in task 'add_idarc'");
+            if (! int64.try_parse(args[1], out arc_index)) error("bad args arc_index in task 'add_idarc'");
             int64 my_id_index;
-            if (! int64.try_parse(args[0], out my_id_index)) error("bad args my_id_index in task 'add_idarc'");
+            if (! int64.try_parse(args[2], out my_id_index)) error("bad args my_id_index in task 'add_idarc'");
             int64 peer_id_index;
-            if (! int64.try_parse(args[0], out peer_id_index)) error("bad args peer_id_index in task 'add_idarc'");
-            print(@"INFO: in $(s_wait) seconds will add id_arc on arc #$(arc_index) from my id #$(my_id_index) to peer id #$(peer_id_index).\n");
-            AddIdArcTasklet s = new AddIdArcTasklet((int)(s_wait*1000), (int)arc_index, (int)my_id_index, (int)peer_id_index);
+            if (! int64.try_parse(args[3], out peer_id_index)) error("bad args peer_id_index in task 'add_idarc'");
+            print(@"INFO: in $(ms_wait) ms will add id_arc on arc #$(arc_index) from my id #$(my_id_index) to peer id #$(peer_id_index).\n");
+            AddIdArcTasklet s = new AddIdArcTasklet((int)(ms_wait), (int)arc_index, (int)my_id_index, (int)peer_id_index);
             tasklet.spawn(s);
             return true;
         }
@@ -46,20 +46,19 @@ namespace SystemPeer
         {
             tasklet.ms_wait(ms_wait);
 
-/*
+            // arc #arc_index
+            PseudoArc pseudoarc = arc_list[arc_index];
             // id #my_id_index
             NodeID my_nodeid = fake_random_nodeid(pid, my_id_index);
-            IdentityData? identity_data = find_local_identity(nodeid_index);
+            IdentityData? identity_data = find_local_identity(my_nodeid);
             assert(identity_data != null);
-            PseudoArc pseudoarc = arc_list[arc_index];
+            // peer id #peer_id_index
             NodeID peer_nodeid = fake_random_nodeid(pseudoarc.peer_pid, peer_id_index);
-            string id_peer_mac = fake_random_mac(
 
-            IdentityArc ia = new IdentityArc(identity_data, pseudoarc, peer_nodeid, string id_peer_mac, string id_peer_linklocal);
+            IdentityArc ia = new IdentityArc(identity_data, pseudoarc, peer_nodeid);
             identity_data.identity_arcs.add(ia);
-            IQspnArc arc = new QspnArc(NodeID sourceid, NodeID destid, IdentityArc ia);
+            IQspnArc arc = new QspnArc(ia);
             identity_data.qspn_mgr.arc_add(arc);
-*/
 
             return null;
         }

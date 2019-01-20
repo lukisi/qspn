@@ -32,7 +32,9 @@ namespace SystemPeer
 
         public void start_datagram_system_listen(string listen_pathname, string send_pathname, ISrcNic src_nic)
         {
-            IErrorHandler datagram_system_err = new ServerErrorHandler(@"for datagram_system_listen $(listen_pathname) $(send_pathname) TODO SrcNic.tostring()");
+            string s_src_nic = "";
+            if (src_nic is NeighbourSrcNic) s_src_nic = @"((NeighbourSrcNic)src_nic).mac";
+            IErrorHandler datagram_system_err = new ServerErrorHandler(@"for datagram_system_listen $(listen_pathname) $(send_pathname) $(s_src_nic)");
             if (handles_by_listen_pathname == null) handles_by_listen_pathname = new HashMap<string,IListenerHandle>();
             handles_by_listen_pathname[listen_pathname] = datagram_system_listen(dlg, datagram_system_err, listen_pathname, send_pathname, src_nic);
         }

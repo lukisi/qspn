@@ -87,18 +87,18 @@ namespace SystemPeer
 
     class QspnArc : Object, IQspnArc
     {
-        public QspnArc(NodeID sourceid, NodeID destid, IdentityArc ia)
+        public QspnArc(IdentityArc ia)
         {
-            this.sourceid = sourceid;
-            this.destid = destid;
             this.ia = ia;
             cost_seed = PRNGen.int_range(0, 1000);
             arc = (PseudoArc)ia.arc;
+            sourceid = ia.identity_data.nodeid;
+            destid = ia.peer_nodeid;
         }
-        public weak PseudoArc arc;
+        public weak IdentityArc ia;
+        public PseudoArc arc;
         public NodeID sourceid;
         public NodeID destid;
-        public weak IdentityArc ia;
         private int cost_seed;
 
         public IQspnCost i_qspn_get_cost()

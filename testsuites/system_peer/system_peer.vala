@@ -30,6 +30,7 @@ namespace SystemPeer
     StubFactory stub_factory;
     HashMap<string,PseudoNetworkInterface> pseudonic_map;
     ArrayList<PseudoArc> arc_list;
+    int next_local_identity_index = 0;
     ArrayList<int> gsizes;
     ArrayList<int> g_exp;
     int levels;
@@ -64,15 +65,19 @@ namespace SystemPeer
     int main(string[] _args)
     {
         pid = 0; // default
-        topology = "2,1,1,1"; // default
+        topology = "1,1,1,2"; // default
         OptionContext oc = new OptionContext("<options>");
         OptionEntry[] entries = new OptionEntry[6];
         int index = 0;
-        entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits, reversed. Default: 2,1,1,1", null};
+        entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits. Default: 1,1,1,2", null};
         entries[index++] = {"pid", 'p', 0, OptionArg.INT, ref pid, "Fake PID (e.g. -p 1234).", null};
         entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface (e.g. -i eth1). You can use it multiple times.", null};
         entries[index++] = {"arcs", 'a', 0, OptionArg.STRING_ARRAY, ref arcs, "Arc my_dev,peer_pid,peer_dev,cost (e.g. -a eth1,5678,eth0,300). You can use it multiple times.", null};
-        entries[index++] = {"tasks", 't', 0, OptionArg.STRING_ARRAY, ref _tasks, "Tasks (e.g. -t addarc,2,eth0,5,eth1 means: after 2 secs add an arc from my nic eth0 to the nic eth1 of pid5). You can use it multiple times.", null};
+        entries[index++] = {"tasks", 't', 0, OptionArg.STRING_ARRAY, ref _tasks,
+                "Task. You can use it multiple times.\n\t\t\t " +
+                "E.g.: -t add_idarc,2000,1,0,1 means: after 2000 ms add an identity-arc\n\t\t\t " +
+                "on arc #1 from my identity #0 to peer's identity #1.\n\t\t\t " +
+                "See readme for docs on each task.", null};
         entries[index++] = { null };
         oc.add_main_entries(entries, null);
         try {
@@ -97,8 +102,8 @@ namespace SystemPeer
 
             if (_g_exp < 1 || _g_exp > 16) error(@"Bad g_exp $(_g_exp): must be between 1 and 16");
             int gsize = 1 << _g_exp;
-            g_exp.insert(0, _g_exp);
-            gsizes.insert(0, gsize);
+            g_exp.add(_g_exp);
+            gsizes.add(gsize);
         }
         levels = gsizes.size;
 
@@ -208,15 +213,17 @@ namespace SystemPeer
         }
 
         // first id
-        NodeID first_nodeid = fake_random_nodeid(pid, 0);
-        print(@"INFO: nodeid for $(pid)_0 is $(first_nodeid.id).\n");
+        NodeID first_nodeid = fake_random_nodeid(pid, next_local_identity_index);
+        string first_identity_name = @"$(pid)_$(next_local_identity_index)";
+        print(@"INFO: nodeid for $(first_identity_name) is $(first_nodeid.id).\n");
         var first_identity_data = create_local_identity(first_nodeid);
+        next_local_identity_index++;
 
         first_identity_data.my_naddr = new Naddr(naddr.to_array(), gsizes.to_array());
         ArrayList<int> elderships = new ArrayList<int>();
         for (int i = 0; i < levels; i++) elderships.add(0);
         first_identity_data.my_fp = new Fingerprint(elderships.to_array());
-        print(@"INFO: $(pid)_0 has address $(json_string_object(first_identity_data.my_naddr))");
+        print(@"INFO: $(first_identity_name) has address $(json_string_object(first_identity_data.my_naddr))");
         print(@" and fp $(json_string_object(first_identity_data.my_fp)).\n");
 
         // First qspn manager
@@ -499,26 +506,16 @@ namespace SystemPeer
         public weak IdentityData identity_data;
         public PseudoArc arc;
         public NodeID peer_nodeid;
-        public string id_peer_mac;
-        public string id_peer_linklocal;
 
         public QspnArc? qspn_arc;
-        public int64? network_id;
-        public string? prev_peer_mac;
-        public string? prev_peer_linklocal;
 
-        public IdentityArc(IdentityData identity_data, PseudoArc arc, NodeID peer_nodeid, string id_peer_mac, string id_peer_linklocal)
+        public IdentityArc(IdentityData identity_data, PseudoArc arc, NodeID peer_nodeid)
         {
             this.identity_data = identity_data;
             this.arc = arc;
             this.peer_nodeid = peer_nodeid;
-            this.id_peer_mac = id_peer_mac;
-            this.id_peer_linklocal = id_peer_linklocal;
 
             qspn_arc = null;
-            network_id = null;
-            prev_peer_mac = null;
-            prev_peer_linklocal = null;
         }
     }
 }
