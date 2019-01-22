@@ -1,3 +1,5 @@
+# Modulo QSPN - Tests
+
 ## system_peer
 
 Un programma per realizzare una testsuite con una script.
@@ -15,12 +17,12 @@ broadcast in datagram.
 ### Compiti del sistema di RPC
 
 Ogni processo `system_peer` dovrà stare in ascolto su un numero di interfacce
-di rete per messaggi datagram e su un eguale numero di indirizzi ip linklocal
+di rete per messaggi datagram e su un eguale numero di indirizzi IP linklocal
 per connessioni.
 
 Le interfacce di rete sono passate all'avvio
 al `system_peer` con `-i`. Viene passato solo il nome. Il MAC e il linklocal
-sono ottenuti con `fake_random_linklocal(fake_random_mac(peer_pid, peer_dev))`
+sono ottenuti con `fake_random_linklocal(fake_random_mac(pid, dev))`
 cioè basandosi sul pid e sul nome dell'interfaccia.  
 In questo modo anche le interfacce di un peer si potranno indicare dalla
 linea di comando semplicemente con `peer_pid+peer_dev`. E il `system_peer` sarà
@@ -70,6 +72,8 @@ Sul comando `system_peer` sono passati:
 *   interfaces: Una serie di nomi di pseudo-nic.
 *   arcs: Una serie di archi di nodo. In questo caso d'uso non servono.
 
+E.g. `system_peer -p 1 -i eth0 -i eth1`. Avvia un sistema con due interfacce di rete e nessun arco.
+
 Tutto ciò che dovrebbe essere random viene creato in modo pseudo-random inizializzando
 il RNG sulla base del `pid`. Alcune cose (come spiegato sopra i NodeID, i MAC, i linklocal...)
 siccome andrebbero comunicate agli altri sistemi attraverso altri moduli, oppure perché
@@ -108,8 +112,14 @@ Riportiamo un elenco delle informazioni contenute in una istanza di IdentityData
 *   `copy_of_identity`: Riferimento all'istanza da cui è stata generata. Per la prima è null.
 *   `connectivity_from_level`: Vale 0 se è l'identità principale.
 *   `connectivity_to_level`: Vale 0 se è l'identità principale.
-*   `identity_arcs`: Lista di archi-identità.
+*   `identity_arcs`: Lista 0-based di archi-identità (istanze di IdentityArc).
 *   `qspn_mgr`: Istanza di QspnManager.
+
+Riportiamo un elenco delle informazioni contenute in una istanza di Identityarc:
+
+*   `arc`: Arco di nodo.
+*   `peer_nodeid`: Identità nel peer.
+*   `qspn_arc`: Istanza di IQspnArc.
 
 Dopo aver creato la prima identità, il `system_peer` crea la relativa istanza di `qspn_mgr`
 con il costruttore `create_net`, a cui passa:
@@ -137,95 +147,161 @@ che uno dei due cerca di entrare nella rete dell'altro. Diciamo che sia *a*.
 Il nodo *a0* (che costituisce *w* da solo, con *k* = 0) entra nel g-nodo *g* di
 livello *hl* = 1 che contiene *b0*.
 
+Assumiamo che il sistema *a* e il sistema *b* hanno entrambi una interfaccia (eth0) e un arco
+è stato definito tra le due. Tale arco è indicato con #0 sia in *a* che in *b*.  
+Cioè assumiamo che lo script abbia avviato i due processi `system_peer` che rappresentano
+*a* e *b* indicando negli argomenti del comando l'interfaccia e l'arco.
+
+I.e.
 
 ```
-Il sistema *a e il sistema *b hanno entrambi una interfaccia (eth0) e un arco
-è stato definito tra le due. Tale arco è indicato con #0 sia in *a che in *b.
+system_peer -p 1 -i eth0 -a eth0,2,eth0,2000
+system_peer -p 2 -i eth0 -a eth0,1,eth0,2000
+# l'ultimo parametro è il costo dell'arco in usec.
+```
 
-Lo script sa che occorre creare un *a1 (a partire da *a0 senza archi-identità).
-Poi occorre aggiungere un arco-identità su *a basato sull'arco #0 che unisce *a1 a *b0.
-Allo stesso tempo aggiungere un arco-identità su *b basato sull'arco #0 che unisce *b0 a *a1.
+Lo script sa che in seguito (ad esempio dopo 1000 msec dall'avvio del `system_peer`) occorre
+creare in *a* una nuova identità *a1* a partire da *a0*, la quale non aveva archi-identità.  
+Poi occorrerà aggiungere in *a* un arco-identità basato sull'arco #0 che unisce *a1* a *b0*.  
+Allo stesso tempo occorrerà aggiungere un arco-identità su *b* basato sull'arco #0 che unisce *b0* a *a1*.
 
-Lo script sa quale indirizzo ha *g (il g-nodo di livello hl=1 che contiene *b0)
-e quale posizione in *g viene assegnata al futuro *a1.
-Analogamente sa quale anzianità ha *g e i suoi superiori e quale anzianità
-in *g viene assegnata al futuro *a1.
-Comunica questi dati al system_peer di *a dicendo di operare su *a0 con guest_level=0.
+Dopo che questa nuova identità (*a1* in *a*) e questi nuovi archi-identità (*a1-b0* in *a* e *b0-a1* in *b*)
+sono stati creati si potrà proseguire.  
+Notare che queste operazioni (creazione di identità e archi-identità) non hanno comportato
+alcuna operazione sul modulo Qspn. In particolare non c'è stata alcuna comunicazione avviata
+dal modulo Qspn sui socket locali costruiti dal sistema RPC.
 
-Il system_peer di *a completa con gli altri dati che già conosce di *a0:
-* le posizioni dell'indirizzo Netsukuku dal livello 0 fino al livello hl - 1 escluso. In questo caso nessuna.
-* l'identificativo del fingerprint a livello 0.
-* le anzianità dal livello 0 fino al livello k escluso. In questo caso nessuna.
+Quindi, solo in seguito (ad esempio dopo 1500 msec dall'avvio del `system_peer`) lo script
+avvierà le operazioni, che adesso vedremo, che influiscono sulle istanze di QspnManager.
 
-Il system_peer di *a costruisce l'indirizzo Netsukuku e il fingerprint a livello 0 per *a1.
-Per l'identificativo del fingerprint a livello 0, usa lo stesso che aveva *a0. Per le posizioni dell'indirizzo Netsukuku:
-* ai livelli maggiori o uguali a *hl - 1 usa le posizioni di *g e la posizione assegnata in *g.
-* ai livelli minori di *hl - 1 usa le posizioni che aveva *a0.
+Lo script sa quale indirizzo ha *g* (il g-nodo di livello 1 che contiene *b0*)
+e quale posizione in *g* viene assegnata al futuro *a1*.  
+Analogamente sa quale anzianità ha *g* e i suoi superiori e quale anzianità
+in *g* viene assegnata al futuro *a1*.  
+Comunica questi dati al `system_peer` di *a* dicendo di operare su *a0* con `guest_level=0`.
+
+Il `system_peer` di *a* completa con gli altri dati che già conosce di *a0*:
+
+*   le posizioni dell'indirizzo Netsukuku dal livello 0 fino al livello *hl* - 1 escluso. In questo caso nessuna.
+*   l'identificativo del fingerprint a livello 0.
+*   le anzianità dal livello 0 fino al livello *k* escluso. In questo caso nessuna.
+
+Il `system_peer` di *a* costruisce l'indirizzo Netsukuku e il fingerprint a livello 0 per *a1*.
+Per l'identificativo del fingerprint a livello 0, usa lo stesso che aveva *a0*. Per le posizioni dell'indirizzo Netsukuku:
+
+*   ai livelli maggiori o uguali a *hl* - 1 usa le posizioni di *g* e la posizione assegnata in *g*.
+*   ai livelli minori di *hl* - 1 usa le posizioni che aveva *a0*.
+
 Per le anzianità del fingerprint:
-* ai livelli maggiori o uguali a *hl - 1 usa le anzianità di *g e l'anzianità assegnata in *g.
-* ai livelli maggiori o uguali a *k e minori di *hl - 1 usa zero (nel senso che è il primo g-nodo).
-* ai livelli minori di *k usa le anzianità che erano dei g-nodi a cui apparteneva *a0.
 
-Poi il system_peer di *a costruisce le istanze degli archi. In questo caso banale abbiamo
-un solo arco-identità su #0 che collega *a1 a *b0 (vedremo in seguito che possono esserci diversi
-casi da gestire in modo diverso). Non esisteva per esso un IQspnArc di *a0. Il system_peer di *a
-costruisce per esso un IQspnArc da passare a *a1.
+*   ai livelli maggiori o uguali a *hl* - 1 usa le anzianità di *g* e l'anzianità assegnata in *g*.
+*   ai livelli maggiori o uguali a *k* e minori di *hl* - 1 usa zero (nel senso che è il primo g-nodo).
+*   ai livelli minori di *k* usa le anzianità che erano dei g-nodi a cui apparteneva *a0*.
 
-Infine il system_peer di *a prepara una istanza di IQspnStubFactory.
+Poi il `system_peer` di *a* costruisce le istanze degli archi. In questo caso banale abbiamo
+un solo arco-identità sull'arco #0 che collega *a1* a *b0* (vedremo in seguito che possono esserci diversi
+casi da gestire in modo diverso). Non esisteva per esso un IQspnArc di *a0*. Il `system_peer` di *a*
+costruisce per esso un IQspnArc da passare all'istanza di QspnManager di *a1*.
 
-Il system_peer di *a costruisce una istanza di QspnManager per *a1
-con il costruttore enter_net e passa:
-* internal_arc_set: lista vuota
-* internal_arc_prev_arc_set: lista vuota
-* internal_arc_peer_naddr_set: lista vuota
-* external_arc_set: lista con l'arco IQspnArc su #0 che congiunge la nuova identità con *b0.
-* my_naddr: vedi sopra.
-* my_fingerprint: vedi sopra.
-* update_internal_fingerprints: funzione callback (non sarà chiamata in questo caso)
-* stub_factory
-* guest_gnode_level: 0
-* host_gnode_level: 1
-* previous_identity: *a0
+Infine il `system_peer` di *a* prepara una istanza di IQspnStubFactory.
 
-Il task per *a è
- -t enter_net,1,0,0,1:1:0:3,1:0:0:0,0+0
+Finiti i preparativi, ora il `system_peer` di *a* costruisce una istanza di QspnManager per *a1*
+con il costruttore `enter_net` e passa:
+
+*   `internal_arc_set`: lista vuota
+*   `internal_arc_prev_arc_set`: lista vuota
+*   `internal_arc_peer_naddr_set`: lista vuota
+*   `external_arc_set`: lista con l'arco IQspnArc sull'arco #0 che congiunge la nuova identità *a1* con *b0*.
+*   `my_naddr`: vedi sopra.
+*   `my_fingerprint`: vedi sopra.
+*   `update_internal_fingerprints`: funzione callback (non sarà chiamata in questo caso)
+*   `stub_factory`
+*   `guest_gnode_level`: 0
+*   `host_gnode_level`: 1
+*   `previous_identity`: *a0*
+
+Contemporaneamente, il `system_peer` di *b* costruisce, per l'arco-identità (creato di recente) sull'arco #0
+che collega *b0* a *a1*, un IQspnArc e lo passa all'istanza di QspnManager di *b0* con il
+metodo `add_arc`.
+
+Quindi, ricapitolando le informazioni che lo script deve passare ai vari processi `system_peer`
+che lancia, i task per *a* sono:
+
+```
+ -t add_identity,1000,0,0+0
+ -t enter_net,1500,0,1,0,1:1:0:3,1:0:0:0,0+0
+```
+
 cioè:
- s_wait: aspetta 1 secondo
- my_old_id: 0 è l'indice della mia identità vecchia
- guest_level: 0 è il livello del g-nodo che entra
- in_g_naddr: indirizzo di *g + posizione assegnata. 1:1:0:3 significa che *g ha posizione 1:0:3 (host_level = 4-3 = 1) e in *g la nuova posizione assegnata è 1.
- in_g_elderships: anzianità di *g + anzianità assegnata.
- external_arc_list: separati da ';' ogni arco-identità è fatto di arc_num+peer_id
 
-Il task per *b è
- -t add_idarc,1,0,0,1
+*   passo 1:
+    *   `ms_wait`: aspetta 1000 msec.
+    *   `my_old_id`: 0 è l'indice della mia identità vecchia, sulla quale verrà creata la
+        nuova identità con indice 1.
+    *   `arc_list`: lista di archi-identità da aggiungere alla nuova identità. Separati da `;`.
+        Ogni arco-identità è fatto di `arc_num+peer_id`.
+*   passo 2:
+    *   `ms_wait`: aspetta 1500 msec.
+    *   `my_old_id` e `my_new_id`: 0 è l'indice della mia identità vecchia, 1 è l'indice della
+        mia identità nuova.
+    *   `guest_level`: 0 è il livello del g-nodo *w* che entra in *g*.
+    *   `in_g_naddr`: indirizzo di *g* e nuova posizione assegnata.  
+        1:1:0:3 significa che *g* ha posizione 1:0:3 (è implicitamente indicato `host_level` = 4-3 = 1)
+        e in *g* la nuova posizione assegnata è 1.
+    *   `in_g_elderships`: anzianità di *g* e nuova anzianità assegnata.
+    *   `external_arc_list`: lista di archi-identità della nuova identità che sono archi esterni a *w*.
+        Separati da `;`. Ogni arco-identità è indicato con `arc_num+peer_id`.
+
+I task per *b* sono:
+
+```
+ -t add_identityarc,1000,0,0+1
+ -t add_qspnarc,1500,0,0+1
+```
+
 cioè:
- s_wait: aspetta 1 secondo
- arc_index: 0 è l'indice dell'arco
- my_id_index: 0 è l'indice della mia identità
- int peer_id_index: indice dell'identità nel sistema peer
 
+*   passo 1:
+    *   `ms_wait`: aspetta 1000 msec.
+    *   `my_id`: 0 è l'indice della mia identità.
+    *   `arc_num+peer_id`: 0 è l'indice dell'arco. 1 è l'indice dell'identità nel sistema peer.
+*   passo 2:
+    *   `ms_wait`: aspetta 1500 msec.
+    *   `my_id`: 0 è l'indice della mia identità.
+    *   `arc_num+peer_id`: 0 è l'indice dell'arco. 1 è l'indice dell'identità nel sistema peer.
 
-** Dismissione della precedente identità **
-Una volta costruita la nuova istanza, il system_peer di *a potrà dismettere
-(rimuovere ogni riferimento che deteneva) la vecchia istanza di QspnManager
-che era di *a0. Ma non può farlo immediatamente: infatti potrebbe darsi che
-gli altri nodi del g-nodo *w non hanno ancora finito di costruire la nuova
-istanza e il costruttore enter_net ha bisogno della previous_identity per dare
-uno sguardo ai suoi archi-identità (che sono gli archi-identità vecchi).
+#### Dismissione della precedente identità
+
+Dopo aver creato l'identità *a1* e la sua istanza di QspnManager, si potrebbe in questo caso
+dismettere immediatamente la vecchia istanza di QspnManager dell'identità *a0*. Però in
+generale, quando a fare ingresso è un g-nodo, potrebbe darsi che
+gli altri nodi del g-nodo *w* non hanno ancora finito di costruire la nuova
+istanza e il costruttore `enter_net` ha bisogno della `previous_identity` per dare
+uno sguardo ai suoi archi-identità (che sono gli archi-identità vecchi).  
 Quindi occorre, prima aspettare un po' per essere sicuri che i nodi diretti
 vicini siano pronti, e poi rimuovere la vecchia istanza di QspnManager
-che era di *a0.
+che era di *a0*.
 
-Prima di dismettere *a0, il system_peer di *a chiama sull'istanza di QspnManager
-di *a0 il metodo destroy per segnalare ai suoi diretti vicini esterni a *w
-che sta uscendo dalla rete.
+Lo script sa, quindi, che in seguito (ad esempio dopo 2000 msec dall'avvio
+del `system_peer`) occorre rimuovere il QspnManager dell'identità *a0*.
+
+Il task per *a* è:
 
 ```
+ -t remove_qspn,2000,0
+```
+
+cioè: dopo 2000 msec rimuovi il QspnManager dell'identità #0.
+
+Prima di dismettere il QspnManager di *a0*, il system_peer di *a* chiama sull'istanza di QspnManager
+di *a0* il metodo `destroy` per segnalare ai suoi diretti vicini esterni a *w*
+che sta uscendo dalla rete.
 
 
 
 
+
+***
 
 #### Annotazioni
 
