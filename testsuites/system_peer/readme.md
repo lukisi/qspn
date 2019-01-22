@@ -53,7 +53,13 @@ Il modulo Identities crea anche gli archi-identità sopra gli archi di nodo. Que
 va simulato nel programma `system_peer`.  
 Siccome le identità successive alla prima non sono create all'avvio del programma ma
 in seguito (con una modalità `task`, come vedremo dopo) anche gli archi-identità vanno
-creati in seguito. **TODO** dobbiamo ancora capire il metodo migliore per fare ciò.
+creati in seguito.  
+Il comando di creazione di una nuova identità viene impartito al `system_peer` come task
+all'avvio nella forma `-t add_identity` come verrà dettagliato in seguito. In questo
+comando si specificano anche gli archi-identità che la nuova identità avrà da subito.  
+Il comando di creazione di un nuovo arco-identità su una vecchia identità viene impartito
+al `system_peer` come task all'avvio nella forma `-t add_identityarc` come verrà
+dettagliato in seguito.
 
 La creazione di nuove identità (e la conseguente creazione di nuovi archi-identità)
 è demandata al modulo Identities durante le operazioni `enter_net` e `migrate`. Queste
@@ -61,7 +67,12 @@ a loro volta sono orchestrate dal modulo Hooking che raccoglie le informazioni n
 alla costruzione dell'istanza di QspnManager (indirizzo, anzianità, ...). Inoltre
 contemporaneamente il modulo Hooking provvede anche a segnalare i nuovi archi-qspn alle
 istanze dei diretti vicini. Anche tutto questo va simulato nel programma `system_peer`.  
-**TODO**
+Il comando di creazione di una nuova istanza di QspnManager (nel caso `enter_net` o `migrate`)
+viene impartito al `system_peer` come task all'avvio nella forma `-t enter_net` o `-t migrate`
+come verrà dettagliato in seguito.  
+Il comando di creazione di un nuovo arco-qspn su una vecchia istanza di QspnManager viene
+impartito al `system_peer` come task all'avvio nella forma `-t add_qspnarc` come verrà
+dettagliato in seguito.
 
 
 ### Caso d'uso: avvio di un sistema
@@ -234,13 +245,13 @@ che lancia, i task per *a* sono:
 
 cioè:
 
-*   passo 1:
+*   passo 1: crea una nuova identità con il suo arco-identità.
     *   `ms_wait`: aspetta 1000 msec.
     *   `my_old_id`: 0 è l'indice della mia identità vecchia, sulla quale verrà creata la
         nuova identità con indice 1.
     *   `arc_list`: lista di archi-identità da aggiungere alla nuova identità. Separati da `;`.
         Ogni arco-identità è fatto di `arc_num+peer_id`.
-*   passo 2:
+*   passo 2: crea una istanza di QspnManager per la nuova identità che fa ingresso.
     *   `ms_wait`: aspetta 1500 msec.
     *   `my_old_id` e `my_new_id`: 0 è l'indice della mia identità vecchia, 1 è l'indice della
         mia identità nuova.
@@ -261,11 +272,11 @@ I task per *b* sono:
 
 cioè:
 
-*   passo 1:
+*   passo 1: crea un nuovo arco-identità.
     *   `ms_wait`: aspetta 1000 msec.
     *   `my_id`: 0 è l'indice della mia identità.
     *   `arc_num+peer_id`: 0 è l'indice dell'arco. 1 è l'indice dell'identità nel sistema peer.
-*   passo 2:
+*   passo 2: crea un nuovo arco-qspn.
     *   `ms_wait`: aspetta 1500 msec.
     *   `my_id`: 0 è l'indice della mia identità.
     *   `arc_num+peer_id`: 0 è l'indice dell'arco. 1 è l'indice dell'identità nel sistema peer.

@@ -90,8 +90,9 @@ namespace SystemPeer
         public QspnArc(IdentityArc ia)
         {
             this.ia = ia;
-            cost_seed = PRNGen.int_range(0, 1000);
             arc = (PseudoArc)ia.arc;
+            int cost_seed = PRNGen.int_range(0, 1000);
+            cost = new Cost(arc.cost + cost_seed);
             sourceid = ia.identity_data.nodeid;
             destid = ia.peer_nodeid;
         }
@@ -99,16 +100,16 @@ namespace SystemPeer
         public PseudoArc arc;
         public NodeID sourceid;
         public NodeID destid;
-        private int cost_seed;
+        private Cost cost
 
         public IQspnCost i_qspn_get_cost()
         {
-            return new Cost(arc.cost + cost_seed);
+            return cost;
         }
 
         public bool i_qspn_equals(IQspnArc other)
         {
-            return other == this;
+            return other.ia == ia;
         }
 
         public bool i_qspn_comes_from(CallerInfo rpc_caller)
