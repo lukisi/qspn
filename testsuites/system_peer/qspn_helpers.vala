@@ -100,7 +100,7 @@ namespace SystemPeer
         public PseudoArc arc;
         public NodeID sourceid;
         public NodeID destid;
-        private Cost cost
+        private Cost cost;
 
         public IQspnCost i_qspn_get_cost()
         {
@@ -109,7 +109,8 @@ namespace SystemPeer
 
         public bool i_qspn_equals(IQspnArc other)
         {
-            return other.ia == ia;
+            if (! (other is QspnArc)) return false;
+            return ((QspnArc)other).ia == ia;
         }
 
         public bool i_qspn_comes_from(CallerInfo rpc_caller)

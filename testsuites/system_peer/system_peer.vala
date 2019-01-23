@@ -252,11 +252,15 @@ namespace SystemPeer
 
         foreach (string task in tasks)
         {
-            if      (schedule_task_add_idarc(task)) {}
+            if      (schedule_task_add_identity(task)) {}
             else if (schedule_task_enter_net(task)) {}
             else if (schedule_task_migrate(task)) {}
-            else if (schedule_task_change_idarc(task)) {}
-            else if (schedule_task_remove_idarc(task)) {}
+            else if (schedule_task_add_identityarc(task)) {}
+            else if (schedule_task_add_qspnarc(task)) {}
+            // else if (schedule_task_change_qspnarc(task)) {}
+            // else if (schedule_task_remove_qspnarc(task)) {}
+            // else if (schedule_task_remove_identityarc(task)) {}
+            else if (schedule_task_remove_qspn(task)) {}
             else error(@"unknown task $(task)");
         }
 
@@ -437,6 +441,14 @@ namespace SystemPeer
         }
 
         public ArrayList<IdentityArc> identity_arcs;
+        public IdentityArc? identity_arcs_find(PseudoArc arc, NodeID peer_nodeid)
+        {
+            assert(identity_arcs != null);
+            foreach (IdentityArc ia in identity_arcs)
+                if (ia.arc == arc && ia.peer_nodeid.equals(peer_nodeid))
+                return ia;
+            return null;
+        }
 
         // handle signals from qspn_manager
 

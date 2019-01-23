@@ -5,7 +5,7 @@ using TaskletSystem;
 
 namespace SystemPeer
 {
-    bool schedule_task_migrate(string task)
+    bool old_schedule_task_migrate(string task)
     {
         if (task.has_prefix("migrate,"))
         {
@@ -14,9 +14,9 @@ namespace SystemPeer
         else return false;
     }
 
-    class MigrateTasklet : Object, ITaskletSpawnable
+    class OldMigrateTasklet : Object, ITaskletSpawnable
     {
-        public MigrateTasklet(int ms_wait)
+        public OldMigrateTasklet(int ms_wait)
         {
             this.ms_wait = ms_wait;
             // this.my_dev = my_dev;
