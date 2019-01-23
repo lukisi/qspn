@@ -18,16 +18,18 @@ PEER_2_PID=$!
 sleep 3
 
 # interrupt peer
-kill $PEER_1_PID
-# wait for peer and note down its retval
-wait $PEER_1_PID
-PEER_1_RET=$?
-
-# interrupt peer
 kill $PEER_2_PID
 # wait for peer and note down its retval
 wait $PEER_2_PID
 PEER_2_RET=$?
+
+sleep 1
+
+# interrupt peer
+kill $PEER_1_PID
+# wait for peer and note down its retval
+wait $PEER_1_PID
+PEER_1_RET=$?
 
 # kill proxy demons
 kill $ETH_PID

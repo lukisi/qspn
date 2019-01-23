@@ -76,12 +76,12 @@ namespace SystemPeer
             NodeID another_nodeid = fake_random_nodeid(pid, next_local_identity_index);
             string another_identity_name = @"$(pid)_$(next_local_identity_index)";
             print(@"INFO: nodeid for $(another_identity_name) is $(another_nodeid.id).\n");
-            var another_identity_data = create_local_identity(another_nodeid);
+            IdentityData another_identity_data = create_local_identity(another_nodeid);
             next_local_identity_index++;
 
             // find old_id
             NodeID old_nodeid = fake_random_nodeid(pid, my_old_id);
-            var old_identity_data = find_local_identity(old_nodeid);
+            IdentityData old_identity_data = find_local_identity(old_nodeid);
             assert(old_identity_data != null);
             another_identity_data.connectivity_from_level = old_identity_data.connectivity_from_level;
             another_identity_data.connectivity_to_level = old_identity_data.connectivity_to_level;

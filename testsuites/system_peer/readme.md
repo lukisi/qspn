@@ -293,23 +293,13 @@ Quindi occorre, prima aspettare un po' per essere sicuri che i nodi diretti
 vicini siano pronti, e poi rimuovere la vecchia istanza di QspnManager
 che era di *a0*.
 
-Lo script sa, quindi, che in seguito (ad esempio dopo 2000 msec dall'avvio
-del `system_peer`) occorre rimuovere il QspnManager dell'identità *a0*.
-
-Il task per *a* è:
-
-```
- -t remove_qspn,2000,0
-```
-
-cioè: dopo 2000 msec rimuovi il QspnManager dell'identità #0.
+Per questo il `system_peer` nel task `enter_net`, dopo aver creato l'istanza
+di QspnManager per la nuova identità che fa ingresso, attende 500 msec e poi
+rimuove il QspnManager della vecchia identità.
 
 Prima di dismettere il QspnManager di *a0*, il system_peer di *a* chiama sull'istanza di QspnManager
 di *a0* il metodo `destroy` per segnalare ai suoi diretti vicini esterni a *w*
 che sta uscendo dalla rete.
-
-
-
 
 
 ***

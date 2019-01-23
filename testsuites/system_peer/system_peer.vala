@@ -216,7 +216,7 @@ namespace SystemPeer
         NodeID first_nodeid = fake_random_nodeid(pid, next_local_identity_index);
         string first_identity_name = @"$(pid)_$(next_local_identity_index)";
         print(@"INFO: nodeid for $(first_identity_name) is $(first_nodeid.id).\n");
-        var first_identity_data = create_local_identity(first_nodeid);
+        IdentityData first_identity_data = create_local_identity(first_nodeid);
         next_local_identity_index++;
 
         first_identity_data.my_naddr = new Naddr(naddr.to_array(), gsizes.to_array());
@@ -416,6 +416,8 @@ namespace SystemPeer
 
     class IdentityData : Object
     {
+        ~IdentityData() {print("~IdentityData()\n");}
+
         public IdentityData(NodeID nodeid)
         {
             this.nodeid = nodeid;

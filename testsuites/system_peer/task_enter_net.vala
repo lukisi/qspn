@@ -127,12 +127,12 @@ namespace SystemPeer
 
             // find old_id
             NodeID old_nodeid = fake_random_nodeid(pid, my_old_id);
-            var old_identity_data = find_local_identity(old_nodeid);
+            IdentityData old_identity_data = find_local_identity(old_nodeid);
             assert(old_identity_data != null);
 
             // find new_id
             NodeID new_nodeid = fake_random_nodeid(pid, my_new_id);
-            var new_identity_data = find_local_identity(new_nodeid);
+            IdentityData new_identity_data = find_local_identity(new_nodeid);
             assert(new_identity_data != null);
 
             ArrayList<int> naddr = new ArrayList<int>();
@@ -198,6 +198,41 @@ namespace SystemPeer
             new_identity_data.qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
             new_identity_data.qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
             new_identity_data.qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
+
+            new_identity_data = null;
+
+            // Since this is a enter_net (not migrate) there is no need to call the method `make_connectivity`
+            // of old_identity_data.qspn_mgr.
+            // The instance old_identity_data.qspn_mgr should be (soon) dismissed (calling the method `destroy`) and
+            // the instance old_identity_data should be removed from the set local_identities.
+            // However, in the meantime, we must assure that this is not confused with the current main_id of this system.
+            // Thus old_identity_data becomes of connectivity from guest_level+1 to levels
+            old_identity_data.connectivity_from_level = guest_level + 1;
+            old_identity_data.connectivity_to_level = levels;
+
+            // wait to safely remove old_identity_data
+            old_identity_data = null;
+            tasklet.ms_wait(4000);
+            old_identity_data = find_local_identity(old_nodeid);
+            assert(old_identity_data != null);
+
+            // remove old identity.
+            old_identity_data.qspn_mgr.destroy();
+            old_identity_data.qspn_mgr.arc_removed.disconnect(old_identity_data.arc_removed);
+            old_identity_data.qspn_mgr.changed_fp.disconnect(old_identity_data.changed_fp);
+            old_identity_data.qspn_mgr.changed_nodes_inside.disconnect(old_identity_data.changed_nodes_inside);
+            old_identity_data.qspn_mgr.destination_added.disconnect(old_identity_data.destination_added);
+            old_identity_data.qspn_mgr.destination_removed.disconnect(old_identity_data.destination_removed);
+            old_identity_data.qspn_mgr.gnode_splitted.disconnect(old_identity_data.gnode_splitted);
+            old_identity_data.qspn_mgr.path_added.disconnect(old_identity_data.path_added);
+            old_identity_data.qspn_mgr.path_changed.disconnect(old_identity_data.path_changed);
+            old_identity_data.qspn_mgr.path_removed.disconnect(old_identity_data.path_removed);
+            old_identity_data.qspn_mgr.presence_notified.disconnect(old_identity_data.presence_notified);
+            old_identity_data.qspn_mgr.qspn_bootstrap_complete.disconnect(old_identity_data.qspn_bootstrap_complete);
+            old_identity_data.qspn_mgr.remove_identity.disconnect(old_identity_data.remove_identity);
+            old_identity_data.qspn_mgr.stop_operations();
+
+            remove_local_identity(old_identity_data.nodeid);
 
             return null;
         }
