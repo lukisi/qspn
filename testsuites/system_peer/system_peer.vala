@@ -34,12 +34,13 @@ namespace SystemPeer
     ArrayList<int> gsizes;
     ArrayList<int> g_exp;
     int levels;
+    ArrayList<string> tester_events;
 
-    IdentityData create_local_identity(NodeID nodeid)
+    IdentityData create_local_identity(NodeID nodeid, int local_identity_index)
     {
         if (local_identities == null) local_identities = new HashMap<int,IdentityData>();
         assert(! (nodeid.id in local_identities.keys));
-        IdentityData ret = new IdentityData(nodeid);
+        IdentityData ret = new IdentityData(nodeid, local_identity_index);
         local_identities[nodeid.id] = ret;
         return ret;
     }
@@ -89,6 +90,7 @@ namespace SystemPeer
         }
 
         ArrayList<string> args = new ArrayList<string>.wrap(_args);
+        tester_events = new ArrayList<string>();
 
         // Topoplogy of the network.
         gsizes = new ArrayList<int>();
@@ -216,7 +218,7 @@ namespace SystemPeer
         NodeID first_nodeid = fake_random_nodeid(pid, next_local_identity_index);
         string first_identity_name = @"$(pid)_$(next_local_identity_index)";
         print(@"INFO: nodeid for $(first_identity_name) is $(first_nodeid.id).\n");
-        IdentityData first_identity_data = create_local_identity(first_nodeid);
+        IdentityData first_identity_data = create_local_identity(first_nodeid, next_local_identity_index);
         next_local_identity_index++;
 
         first_identity_data.my_naddr = new Naddr(naddr.to_array(), gsizes.to_array());
@@ -346,6 +348,9 @@ namespace SystemPeer
 
         PthTaskletImplementer.kill();
 
+        print("Exiting. Event list:\n");
+        foreach (string s in tester_events) print(@"$(s)\n");
+
         return 0;
     }
 
@@ -418,8 +423,9 @@ namespace SystemPeer
     {
         ~IdentityData() {print("~IdentityData()\n");}
 
-        public IdentityData(NodeID nodeid)
+        public IdentityData(NodeID nodeid, int local_identity_index)
         {
+            this.local_identity_index = local_identity_index;
             this.nodeid = nodeid;
             identity_arcs = new ArrayList<IdentityArc>();
             connectivity_from_level = 0;
@@ -427,6 +433,8 @@ namespace SystemPeer
             copy_of_identity = null;
             qspn_mgr = null;
         }
+
+        public int local_identity_index;
 
         public NodeID nodeid;
         public Naddr my_naddr;
