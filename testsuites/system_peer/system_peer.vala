@@ -332,6 +332,7 @@ namespace SystemPeer
         last_identity_data.qspn_mgr.stop_operations();
 
         remove_local_identity(last_identity_data.nodeid);
+        last_identity_data = null;
 
         // Call stop_rpc.
         ArrayList<string> final_devs = new ArrayList<string>();
@@ -345,6 +346,7 @@ namespace SystemPeer
             print(@"stopped datagram_system_listen $(pseudonic.listen_pathname).\n");
             pseudonic_map.unset(dev);
         }
+        skeleton_factory = null;
 
         PthTaskletImplementer.kill();
 
@@ -421,8 +423,6 @@ namespace SystemPeer
 
     class IdentityData : Object
     {
-        ~IdentityData() {print("~IdentityData()\n");}
-
         public IdentityData(NodeID nodeid, int local_identity_index)
         {
             this.local_identity_index = local_identity_index;
@@ -441,7 +441,7 @@ namespace SystemPeer
         public Fingerprint my_fp;
         public int connectivity_from_level;
         public int connectivity_to_level;
-        public IdentityData? copy_of_identity;
+        public weak IdentityData? copy_of_identity;
 
         public QspnManager qspn_mgr;
         public bool main_id {

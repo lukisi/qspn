@@ -240,7 +240,7 @@ namespace SystemPeer
             {
                 this.skeleton_factory = skeleton_factory;
             }
-            private SkeletonFactory skeleton_factory;
+            private weak SkeletonFactory skeleton_factory;
 
             public Gee.List<IAddressManagerSkeleton> get_addr_set(CallerInfo caller_info)
             {

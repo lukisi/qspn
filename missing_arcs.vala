@@ -29,7 +29,7 @@ namespace Netsukuku.Qspn
             this.m = m;
             this.is_full = is_full;
         }
-        public QspnManager mgr;
+        public weak QspnManager mgr;
         public EtpMessage m;
         public bool is_full;
         public void i_qspn_missing(IQspnArc arc)
@@ -45,7 +45,7 @@ namespace Netsukuku.Qspn
         {
             this.mgr = mgr;
         }
-        public QspnManager mgr;
+        public weak QspnManager mgr;
         public void i_qspn_missing(IQspnArc arc)
         {
             IQspnManagerStub stub =
@@ -76,7 +76,7 @@ namespace Netsukuku.Qspn
         {
             this.mgr = mgr;
         }
-        public QspnManager mgr;
+        public weak QspnManager mgr;
         public void i_qspn_missing(IQspnArc arc)
         {
             IQspnManagerStub stub =
