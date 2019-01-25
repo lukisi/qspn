@@ -35,6 +35,7 @@ namespace SystemPeer
     ArrayList<int> g_exp;
     int levels;
     ArrayList<string> tester_events;
+    ArrayList<string> failed_checks_labels;
 
     IdentityData create_local_identity(NodeID nodeid, int local_identity_index)
     {
@@ -91,6 +92,7 @@ namespace SystemPeer
 
         ArrayList<string> args = new ArrayList<string>.wrap(_args);
         tester_events = new ArrayList<string>();
+        failed_checks_labels = new ArrayList<string>();
 
         // Topoplogy of the network.
         gsizes = new ArrayList<int>();
@@ -259,9 +261,7 @@ namespace SystemPeer
             else if (schedule_task_migrate(task)) {}
             else if (schedule_task_add_identityarc(task)) {}
             else if (schedule_task_add_qspnarc(task)) {}
-            // else if (schedule_task_change_qspnarc(task)) {}
-            // else if (schedule_task_remove_qspnarc(task)) {}
-            // else if (schedule_task_remove_identityarc(task)) {}
+            else if (schedule_task_check_destnum(task)) {}
             else if (schedule_task_remove_qspn(task)) {}
             else error(@"unknown task $(task)");
         }
@@ -352,6 +352,12 @@ namespace SystemPeer
 
         print("Exiting. Event list:\n");
         foreach (string s in tester_events) print(@"$(s)\n");
+
+        if (! failed_checks_labels.is_empty)
+        {
+            foreach (string failed_check_label in failed_checks_labels) print(@"Failed check '$(failed_check_label)'.\n");
+            error("Some checks failed.");
+        }
 
         return 0;
     }
