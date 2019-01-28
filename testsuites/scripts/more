@@ -1,0 +1,88 @@
+#!/bin/bash
+
+eth_domain -i 1_eth0 -i 2_eth1 &
+ETH0_PID=$!
+eth_domain -i 2_eth0 -i 3_eth1 &
+ETH1_PID=$!
+eth_domain -i 3_eth0 -i 4_eth1 &
+ETH2_PID=$!
+eth_domain -i 4_eth0 -i 1_eth1 &
+ETH3_PID=$!
+sleep 0.3
+
+echo Starting launches at `date +%T.%N`
+./system_peer --topology 1,3 -p 1 -i eth0 -i eth1 -a eth0,2,eth1,2000 -a eth1,4,eth0,2000 \
+              -t add_identityarc,1000,0,0+1 \
+              -t add_identityarc,1000,0,1+1 \
+              -t add_qspnarc,1500,0,0+1 \
+              -t add_qspnarc,1500,0,1+1 \
+              -t addtag,1600,1600 \
+              > test_more_pid1_out.txt 2>&1 &
+PEER_1_PID=$!
+./system_peer --topology 1,3 -p 2 -i eth0 -i eth1 -a eth0,3,eth1,2000 -a eth1,1,eth0,2000 \
+              -t add_identity,1000,0,1+0 \
+              -t enter_net,1500,0,1,0,5,1,1+0 \
+              -t addtag,1600,1600 \
+              -t add_identityarc,2000,1,0+1 \
+              -t add_qspnarc,2500,1,0+1 \
+              > test_more_pid2_out.txt 2>&1 &
+PEER_2_PID=$!
+./system_peer --topology 1,3 -p 3 -i eth0 -i eth1 -a eth0,4,eth1,2000 -a eth1,2,eth0,2000 \
+              -t addtag,1600,1600 \
+              -t add_identity,2000,0,0+1_1+1 \
+              -t enter_net,2500,0,1,0,3,3,0+1_1+1 \
+              > test_more_pid3_out.txt 2>&1 &
+PEER_3_PID=$!
+./system_peer --topology 1,3 -p 4 -i eth0 -i eth1 -a eth0,1,eth1,2000 -a eth1,3,eth0,2000 \
+              -t add_identity,1000,0,0+0 \
+              -t enter_net,1500,0,1,0,4,2,0+0 \
+              -t addtag,1600,1600 \
+              -t add_identityarc,2000,1,1+1 \
+              -t add_qspnarc,2500,1,1+1 \
+              > test_more_pid4_out.txt 2>&1 &
+PEER_4_PID=$!
+echo Done launches at `date +%T.%N`
+
+sleep 5
+
+# interrupt peer
+kill $PEER_1_PID
+# wait for peer and note down its retval
+wait $PEER_1_PID
+PEER_1_RET=$?
+
+sleep 0.2
+
+# interrupt peer
+kill $PEER_2_PID
+# wait for peer and note down its retval
+wait $PEER_2_PID
+PEER_2_RET=$?
+
+sleep 0.2
+
+# interrupt peer
+kill $PEER_3_PID
+# wait for peer and note down its retval
+wait $PEER_3_PID
+PEER_3_RET=$?
+
+sleep 0.2
+
+# interrupt peer
+kill $PEER_4_PID
+# wait for peer and note down its retval
+wait $PEER_4_PID
+PEER_4_RET=$?
+
+# kill proxy demons
+kill $ETH0_PID
+kill $ETH1_PID
+kill $ETH2_PID
+kill $ETH3_PID
+
+# check testers retval
+test $PEER_1_RET -eq 0 || exit 1
+test $PEER_2_RET -eq 0 || exit 2
+test $PEER_3_RET -eq 0 || exit 3
+test $PEER_4_RET -eq 0 || exit 4

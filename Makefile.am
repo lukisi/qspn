@@ -8,6 +8,7 @@ noinst_LTLIBRARIES = \
 TESTS = \
 	test_serializables \
 	two_nodes \
+	more \
 	$(NULL)
 
 check_PROGRAMS = \
@@ -99,6 +100,7 @@ system_peer_SOURCES =  \
 	testsuites/system_peer/task_identities.vala \
 	testsuites/system_peer/task_qspn.vala \
 	testsuites/system_peer/task_check_destinations.vala \
+	testsuites/system_peer/task_addtag.vala \
 	qspn.vapi \
 	$(NULL)
 

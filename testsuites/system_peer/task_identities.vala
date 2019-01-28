@@ -20,7 +20,7 @@ namespace SystemPeer
             ArrayList<int> arc_list_arc_num = new ArrayList<int>();
             ArrayList<int> arc_list_peer_id_num = new ArrayList<int>();
             {
-                string[] parts = args[2].split(";");
+                string[] parts = args[2].split("_");
                 for (int i = 0; i < parts.length; i++)
                 {
                     string[] parts2 = parts[i].split("+");

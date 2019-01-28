@@ -23,6 +23,7 @@ testsuites/system_peer/rpc/stub_factory.c
 testsuites/system_peer/task_identities.c
 testsuites/system_peer/task_qspn.c
 testsuites/system_peer/task_check_destinations.c
+testsuites/system_peer/task_addtag.c
 
 Makefile.in
 Makefile

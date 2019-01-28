@@ -47,7 +47,7 @@ namespace SystemPeer
             ArrayList<int> external_arc_list_arc_num = new ArrayList<int>();
             ArrayList<int> external_arc_list_peer_id_num = new ArrayList<int>();
             {
-                string[] parts = args[6].split(";");
+                string[] parts = args[6].split("_");
                 for (int i = 0; i < parts.length; i++)
                 {
                     string[] parts2 = parts[i].split("+");
@@ -274,7 +274,7 @@ namespace SystemPeer
                 peer_id = (int)element;
             }
 
-            print(@"INFO: in $(ms_wait) ms will add identityarc '$(args[2])' to my identity #$(my_id).\n");
+            print(@"INFO: in $(ms_wait) ms will add qspn-arc '$(args[2])' to my identity #$(my_id).\n");
             AddQspnArcTasklet s = new AddQspnArcTasklet(
                 (int)(ms_wait),
                 (int)my_id,

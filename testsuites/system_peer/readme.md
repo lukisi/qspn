@@ -249,7 +249,7 @@ cioè:
     *   `ms_wait`: aspetta 1000 msec.
     *   `my_old_id`: 0 è l'indice della mia identità vecchia, sulla quale verrà creata la
         nuova identità con indice 1.
-    *   `arc_list`: lista di archi-identità da aggiungere alla nuova identità. Separati da `;`.
+    *   `arc_list`: lista di archi-identità da aggiungere alla nuova identità. Separati da `_`.
         Ogni arco-identità è fatto di `arc_num+peer_id`.
 *   passo 2: crea una istanza di QspnManager per la nuova identità che fa ingresso.
     *   `ms_wait`: aspetta 1500 msec.
@@ -261,7 +261,7 @@ cioè:
         e in *g* la nuova posizione assegnata è 1.
     *   `in_g_elderships`: anzianità di *g* e nuova anzianità assegnata.
     *   `external_arc_list`: lista di archi-identità della nuova identità che sono archi esterni a *w*.
-        Separati da `;`. Ogni arco-identità è indicato con `arc_num+peer_id`.
+        Separati da `_`. Ogni arco-identità è indicato con `arc_num+peer_id`.
 
 I task per *b* sono:
 
