@@ -301,6 +301,54 @@ Prima di dismettere il QspnManager di *a0*, il system_peer di *a* chiama sull'is
 di *a0* il metodo `destroy` per segnalare ai suoi diretti vicini esterni a *w*
 che sta uscendo dalla rete.
 
+### Caso d'uso: TODO...
+
+...
+
+### Lista tasks
+
+Segue un elenco dei comandi di tipo task che si possono dare al programma al suo
+avvio perché siano eseguiti dopo un dato tempo.
+
+*   `add_identity`: Aggiunge una identità, come è stato illustrato in precedenza. I parametri sono:
+    *   `ms_wait`.
+    *   `my_old_id`.
+    *   `identity_arc_list`.
+*   `add_identityarc`: Aggiunge un arco-identità, come è stato illustrato in precedenza.
+    I parametri sono:
+    *   `ms_wait`.
+    *   `my_id`.
+    *   `identity_arc`.
+*   `enter_net`: Crea una nuova istanza di QspnManager per fare ingresso in una nuova rete, come
+    è stato illustrato in precedenza. I parametri sono:
+    *   `ms_wait`.
+    *   `my_old_id`.
+    *   `my_new_id`.
+    *   `guest_level`.
+    *   `in_g_naddr`.
+    *   `in_g_elderships`.
+    *   `external_identity_arc_list`.
+*   `migrate`: Crea una nuova istanza di QspnManager per fare una migrazione nella rete, come
+    è stato illustrato in precedenza. I parametri sono:
+    *   `ms_wait`.
+    *   ... TODO.
+*   `add_qspnarc`: Aggiunge un arco-qspn ad una istanza di QspnManager, come è stato illustrato in precedenza.
+    I parametri sono:
+    *   `ms_wait`.
+    *   `my_id`.
+    *   `identity_arc`.
+*   `remove_qspn`: Rimuove (forzatamente) una istanza di QspnManager, come è stato illustrato in precedenza.
+    I parametri sono:
+    *   `ms_wait`.
+    *   ... TODO.
+*   `addtag`: Aggiunge una label alla lista degli eventi. I parametri sono:
+    *   `ms_wait`.
+    *   `label`.
+*   `check_destnum`: Verifica il numero di destinazioni note ad una data istanza di QspnManager.
+    *   `ms_wait`.
+    *   `my_id`.
+    *   `expected`.
+    *   `label`.
 
 ***
 
