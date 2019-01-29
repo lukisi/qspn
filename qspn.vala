@@ -2042,6 +2042,7 @@ namespace Netsukuku.Qspn
           */
         public Gee.List<HCoord> get_known_destinations(int lvl) throws QspnBootstrapInProgressError
         {
+            assert(lvl < levels);
             if (lvl >= guest_gnode_level)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             var ret = new ArrayList<HCoord>((a, b) => a.equals(b));
@@ -2054,6 +2055,7 @@ namespace Netsukuku.Qspn
           */
         public bool is_known_destination(HCoord d) throws QspnBootstrapInProgressError
         {
+            assert(d.lvl < levels);
             int lvl = d.lvl;
             if (lvl >= guest_gnode_level)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
@@ -2072,6 +2074,7 @@ namespace Netsukuku.Qspn
           */
         public Gee.List<IQspnNodePath> get_paths_to(HCoord d) throws QspnBootstrapInProgressError
         {
+            assert(d.lvl < levels);
             if (d.lvl >= guest_gnode_level)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             var ret = new ArrayList<IQspnNodePath>();
@@ -2104,6 +2107,7 @@ namespace Netsukuku.Qspn
           */
         public int get_nodes_inside(int level) throws QspnBootstrapInProgressError
         {
+            assert(level <= levels);
             if (level >= guest_gnode_level+1)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             return my_nodes_inside[level];
@@ -2113,6 +2117,7 @@ namespace Netsukuku.Qspn
           */
         public IQspnFingerprint get_fingerprint(int level) throws QspnBootstrapInProgressError
         {
+            assert(level <= levels);
             if (level >= guest_gnode_level+1)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             return my_fingerprints[level];
@@ -2683,7 +2688,6 @@ namespace Netsukuku.Qspn
 
         ~QspnManager()
         {
-            print("~QspnManager()\n");
             stop_operations();
         }
     }

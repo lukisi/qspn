@@ -235,6 +235,13 @@ namespace SystemPeer
             first_identity_data.my_naddr,
             first_identity_data.my_fp,
             new QspnStubFactory(first_identity_data));
+        string addr = ""; string addrnext = "";
+        for (int i = 0; i < levels; i++)
+        {
+            addr = @"$(addr)$(addrnext)$(first_identity_data.my_naddr.pos[i])";
+            addrnext = ",";
+        }
+        tester_events.add(@"Qspn:$(first_identity_data.local_identity_index):create_net:$(addr)");
         // immediately after creation, connect to signals.
         first_identity_data.qspn_mgr.arc_removed.connect(first_identity_data.arc_removed);
         first_identity_data.qspn_mgr.changed_fp.connect(first_identity_data.changed_fp);

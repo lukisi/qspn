@@ -185,6 +185,13 @@ namespace SystemPeer
                 guest_level,
                 host_level,
                 old_identity_data.qspn_mgr);
+            string addr = ""; string addrnext = "";
+            for (int i = 0; i < levels; i++)
+            {
+                addr = @"$(addr)$(addrnext)$(new_identity_data.my_naddr.pos[i])";
+                addrnext = ",";
+            }
+            tester_events.add(@"Qspn:$(new_identity_data.local_identity_index):create_net:$(addr)");
             // immediately after creation, connect to signals.
             new_identity_data.qspn_mgr.arc_removed.connect(new_identity_data.arc_removed);
             new_identity_data.qspn_mgr.changed_fp.connect(new_identity_data.changed_fp);
