@@ -17,7 +17,8 @@ echo Starting launches at `date +%T.%N`
               -t add_qspnarc,1500,0,0+1 \
               -t add_qspnarc,1500,0,1+1 \
               -t addtag,1600,1600 \
-              > test_more_pid1_out.txt 2>&1 &
+              --check-four-nodes \
+              > test_four_nodes_pid1_out.txt 2>&1 &
 PEER_1_PID=$!
 ./system_peer --topology 1,3 -p 2 -i eth0 -i eth1 -a eth0,3,eth1,2000 -a eth1,1,eth0,2000 \
               -t add_identity,1000,0,1+0 \
@@ -25,13 +26,15 @@ PEER_1_PID=$!
               -t addtag,1600,1600 \
               -t add_identityarc,2000,1,0+1 \
               -t add_qspnarc,2500,1,0+1 \
-              > test_more_pid2_out.txt 2>&1 &
+              --check-four-nodes \
+              > test_four_nodes_pid2_out.txt 2>&1 &
 PEER_2_PID=$!
 ./system_peer --topology 1,3 -p 3 -i eth0 -i eth1 -a eth0,4,eth1,2000 -a eth1,2,eth0,2000 \
               -t addtag,1600,1600 \
               -t add_identity,2000,0,0+1_1+1 \
               -t enter_net,2500,0,1,0,3,3,0+1_1+1 \
-              > test_more_pid3_out.txt 2>&1 &
+              --check-four-nodes \
+              > test_four_nodes_pid3_out.txt 2>&1 &
 PEER_3_PID=$!
 ./system_peer --topology 1,3 -p 4 -i eth0 -i eth1 -a eth0,1,eth1,2000 -a eth1,3,eth0,2000 \
               -t add_identity,1000,0,0+0 \
@@ -39,7 +42,8 @@ PEER_3_PID=$!
               -t addtag,1600,1600 \
               -t add_identityarc,2000,1,1+1 \
               -t add_qspnarc,2500,1,1+1 \
-              > test_more_pid4_out.txt 2>&1 &
+              --check-four-nodes \
+              > test_four_nodes_pid4_out.txt 2>&1 &
 PEER_4_PID=$!
 echo Done launches at `date +%T.%N`
 
@@ -80,6 +84,9 @@ kill $ETH0_PID
 kill $ETH1_PID
 kill $ETH2_PID
 kill $ETH3_PID
+
+# delay for removal of local sockets (e.g. send_1_eth0)
+sleep 1
 
 # check testers retval
 test $PEER_1_RET -eq 0 || exit 1

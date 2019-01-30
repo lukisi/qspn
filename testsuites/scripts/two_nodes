@@ -36,6 +36,9 @@ PEER_1_RET=$?
 # kill proxy demons
 kill $ETH_PID
 
+# delay for removal of local sockets (e.g. send_1_eth0)
+sleep 1
+
 # check testers retval
 test $PEER_1_RET -eq 0 || exit 1
 test $PEER_2_RET -eq 0 || exit 2

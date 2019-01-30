@@ -8,7 +8,7 @@ noinst_LTLIBRARIES = \
 TESTS = \
 	test_serializables \
 	two_nodes \
-	more \
+	four_nodes \
 	$(NULL)
 
 check_PROGRAMS = \
@@ -101,6 +101,7 @@ system_peer_SOURCES =  \
 	testsuites/system_peer/task_qspn.vala \
 	testsuites/system_peer/task_check_destinations.vala \
 	testsuites/system_peer/task_addtag.vala \
+	testsuites/system_peer/checks_four_nodes.vala \
 	qspn.vapi \
 	$(NULL)
 
@@ -140,7 +141,3 @@ system_peer_LDADD = \
 MAINTAINERCLEANFILES = \
 	$(srcdir)/qspn.vapi \
 	$(NULL)
-
-qspn.vapi: libqspn_la_vala.stamp
-	$(NULL)
-

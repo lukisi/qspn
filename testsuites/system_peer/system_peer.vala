@@ -23,6 +23,7 @@ namespace SystemPeer
     string[] arcs;
     [CCode (array_length = false, array_null_terminated = true)]
     string[] _tasks;
+    bool check_four_nodes;
 
     ITasklet tasklet;
     HashMap<int,IdentityData> local_identities;
@@ -68,8 +69,9 @@ namespace SystemPeer
     {
         pid = 0; // default
         topology = "1,1,1,2"; // default
+        check_four_nodes = false; // default
         OptionContext oc = new OptionContext("<options>");
-        OptionEntry[] entries = new OptionEntry[6];
+        OptionEntry[] entries = new OptionEntry[7];
         int index = 0;
         entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits. Default: 1,1,1,2", null};
         entries[index++] = {"pid", 'p', 0, OptionArg.INT, ref pid, "Fake PID (e.g. -p 1234).", null};
@@ -80,6 +82,7 @@ namespace SystemPeer
                 "E.g.: -t add_idarc,2000,1,0,1 means: after 2000 ms add an identity-arc\n\t\t\t " +
                 "on arc #1 from my identity #0 to peer's identity #1.\n\t\t\t " +
                 "See readme for docs on each task.", null};
+        entries[index++] = {"check-four-nodes", '\0', 0, OptionArg.NONE, ref check_four_nodes, "Final check for test four_nodes.", null};
         entries[index++] = { null };
         oc.add_main_entries(entries, null);
         try {
@@ -365,6 +368,13 @@ namespace SystemPeer
         {
             foreach (string failed_check_label in failed_checks_labels) print(@"Failed check '$(failed_check_label)'.\n");
             error("Some checks failed.");
+        }
+
+        if (check_four_nodes)
+        {
+            print("Doing check_four_nodes...\n");
+            if (pid == 1) do_check_four_nodes_pid1();
+            else if (pid == 4) do_check_four_nodes_pid4();
         }
 
         return 0;
