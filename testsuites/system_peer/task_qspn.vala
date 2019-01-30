@@ -144,8 +144,6 @@ namespace SystemPeer
             for (int i = guest_level; i < host_level-1; i++)  elderships.add(0);
             for (int i = host_level-1; i < levels; i++) elderships.add(in_g_elderships[i-(host_level-1)]);
             new_identity_data.my_fp = new Fingerprint(elderships.to_array(), old_identity_data.my_fp.id);
-            print(@"INFO: New identity $(new_nodeid.id) has address $(json_string_object(new_identity_data.my_naddr))");
-            print(@" and fp $(json_string_object(new_identity_data.my_fp)).\n");
 
             // Another qspn manager
             ArrayList<IQspnArc> internal_arc_set = new ArrayList<IQspnArc>();
@@ -189,9 +187,15 @@ namespace SystemPeer
             for (int i = 0; i < levels; i++)
             {
                 addr = @"$(addr)$(addrnext)$(new_identity_data.my_naddr.pos[i])";
-                addrnext = ",";
+                addrnext = ":";
             }
-            tester_events.add(@"Qspn:$(new_identity_data.local_identity_index):create_net:$(addr)");
+            string s_elderships = ""; string eldershipsnext = "";
+            for (int i = 0; i < levels; i++)
+            {
+                s_elderships = @"$(s_elderships)$(eldershipsnext)$(new_identity_data.my_fp.elderships[i])";
+                eldershipsnext = ":";
+            }
+            tester_events.add(@"Qspn:$(new_identity_data.local_identity_index):enter_net:$(addr),$(s_elderships)");
             // immediately after creation, connect to signals.
             new_identity_data.qspn_mgr.arc_removed.connect(new_identity_data.arc_removed);
             new_identity_data.qspn_mgr.changed_fp.connect(new_identity_data.changed_fp);
@@ -205,6 +209,9 @@ namespace SystemPeer
             new_identity_data.qspn_mgr.presence_notified.connect(new_identity_data.presence_notified);
             new_identity_data.qspn_mgr.qspn_bootstrap_complete.connect(new_identity_data.qspn_bootstrap_complete);
             new_identity_data.qspn_mgr.remove_identity.connect(new_identity_data.remove_identity);
+
+            print(@"INFO: New identity $(new_nodeid.id) entered with address $(json_string_object(new_identity_data.my_naddr))");
+            print(@" and fp $(json_string_object(new_identity_data.my_fp)).\n");
 
             new_identity_data = null;
 

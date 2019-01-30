@@ -9,6 +9,7 @@ TESTS = \
 	test_serializables \
 	two_nodes \
 	four_nodes \
+	nodes_inside_variations \
 	$(NULL)
 
 check_PROGRAMS = \

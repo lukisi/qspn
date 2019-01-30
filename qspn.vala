@@ -2462,7 +2462,7 @@ namespace Netsukuku.Qspn
                 }
                 if (arc != null) break;
                 if (t.is_expired()) break;
-                tasklet.ms_wait(arc_timeout / 10);
+                tasklet.ms_wait(10);
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
@@ -2525,7 +2525,7 @@ namespace Netsukuku.Qspn
                 }
                 if (arc != null) break;
                 if (t.is_expired()) break;
-                tasklet.ms_wait(arc_timeout / 10);
+                tasklet.ms_wait(10);
             }
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
@@ -2677,7 +2677,7 @@ namespace Netsukuku.Qspn
                 }
                 if (arc != null) break;
                 if (t.is_expired()) break;
-                tasklet.ms_wait(arc_timeout / 10);
+                tasklet.ms_wait(10);
             }
             if (arc == null) tasklet.exit_tasklet(null);
 

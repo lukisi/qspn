@@ -15,7 +15,7 @@ namespace SystemPeer
             int64 ms_wait;
             if (! int64.try_parse(args[0], out ms_wait)) error("bad args ms_wait in task 'addtag'");
             string label = args[1];
-            print(@"INFO: in $(ms_wait) seconds will add tag '$(label)' to event list.\n");
+            print(@"INFO: in $(ms_wait) ms will add tag '$(label)' to event list.\n");
             AddTagTasklet s = new AddTagTasklet((int)(ms_wait), label);
             tasklet.spawn(s);
             return true;

@@ -35,5 +35,6 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_LINKS([two_nodes:testsuites/scripts/two_nodes])
 AC_CONFIG_LINKS([four_nodes:testsuites/scripts/four_nodes])
+AC_CONFIG_LINKS([nodes_inside_variations:testsuites/scripts/nodes_inside_variations])
 AC_OUTPUT
 

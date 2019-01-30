@@ -242,7 +242,7 @@ namespace SystemPeer
         for (int i = 0; i < levels; i++)
         {
             addr = @"$(addr)$(addrnext)$(first_identity_data.my_naddr.pos[i])";
-            addrnext = ",";
+            addrnext = ":";
         }
         tester_events.add(@"Qspn:$(first_identity_data.local_identity_index):create_net:$(addr)");
         // immediately after creation, connect to signals.

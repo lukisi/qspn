@@ -75,7 +75,6 @@ namespace SystemPeer
             // another id
             NodeID another_nodeid = fake_random_nodeid(pid, next_local_identity_index);
             string another_identity_name = @"$(pid)_$(next_local_identity_index)";
-            print(@"INFO: nodeid for $(another_identity_name) is $(another_nodeid.id).\n");
             IdentityData another_identity_data = create_local_identity(another_nodeid, next_local_identity_index);
             next_local_identity_index++;
 
@@ -98,6 +97,7 @@ namespace SystemPeer
                 another_identity_data.identity_arcs.add(ia);
             }
 
+            print(@"INFO: added identity $(another_identity_name), whose nodeid is $(another_nodeid.id).\n");
             return null;
         }
     }

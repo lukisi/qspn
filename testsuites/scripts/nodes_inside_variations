@@ -1,0 +1,82 @@
+#!/bin/bash
+
+radio_domain -i 1_wl0 -o 2_wl0 -o 3_wl0 &
+RADIO_1_PID=$!
+radio_domain -i 2_wl0 -o 1_wl0 -o 4_wl0 &
+RADIO_2_PID=$!
+radio_domain -i 3_wl0 -o 1_wl0 -o 4_wl0 -o 5_wl0 &
+RADIO_3_PID=$!
+radio_domain -i 4_wl0 -o 2_wl0 -o 3_wl0 &
+RADIO_4_PID=$!
+#radio_domain -i 5_wl0 -o 3_wl0 -o 6_wl0 &
+radio_domain -i 5_wl0 -o 3_wl0 &
+RADIO_5_PID=$!
+
+
+sleep 0.3
+
+echo Starting launches at `date +%T.%N`
+./system_peer --topology 2,2,2 -p 1 -i wl0 -a wl0,2,wl0,2000 -a wl0,3,wl0,2000 \
+              -t add_identityarc,200,0,0+1 \
+              -t add_qspnarc,240,0,0+1 \
+              -t add_identityarc,300,0,1+1 \
+              -t add_qspnarc,340,0,1+1 \
+              > test_nodes_inside_variations_pid1_out.txt 2>&1 &
+PEER_1_PID=$!
+./system_peer --topology 2,2,2 -p 2 -i wl0 -a wl0,1,wl0,2000 -a wl0,4,wl0,2000 \
+              -t add_identity,200,0,0+0 \
+              -t enter_net,230,0,1,0,1,1,0+0 \
+              -t add_identityarc,400,1,1+1 \
+              -t add_qspnarc,440,1,1+1 \
+              > test_nodes_inside_variations_pid2_out.txt 2>&1 &
+PEER_2_PID=$!
+./system_peer --topology 2,2,2 -p 3 -i wl0 -a wl0,1,wl0,2000 -a wl0,4,wl0,2000 -a wl0,5,wl0,2000 \
+              -t add_identity,300,0,0+0 \
+              -t enter_net,330,0,1,0,0,2,0+0 \
+              -t add_identityarc,400,1,1+1 \
+              -t add_qspnarc,440,1,1+1 \
+              -t add_identityarc,500,1,2+1 \
+              -t add_qspnarc,540,1,2+1 \
+              > test_nodes_inside_variations_pid3_out.txt 2>&1 &
+PEER_3_PID=$!
+./system_peer --topology 2,2,2 -p 4 -i wl0 -a wl0,2,wl0,2000 -a wl0,3,wl0,2000 \
+              -t add_identity,400,0,0+1_1+1 \
+              -t enter_net,430,0,1,0,2,3,0+1_1+1 \
+              > test_nodes_inside_variations_pid4_out.txt 2>&1 &
+PEER_4_PID=$!
+./system_peer --topology 2,2,2 -p 5 -i wl0 -a wl0,3,wl0,2000 -a wl0,6,wl0,2000 \
+              -t add_identity,500,0,0+1 \
+              -t enter_net,530,0,1,0,1:1:0,1:0:2,0+1 \
+              > test_nodes_inside_variations_pid5_out.txt 2>&1 &
+PEER_5_PID=$!
+echo Done launches at `date +%T.%N`
+
+sleep 5
+
+# interrupt peers
+kill $PEER_1_PID $PEER_2_PID $PEER_3_PID $PEER_4_PID $PEER_5_PID
+
+# wait for peers and note down its retval
+wait $PEER_1_PID
+PEER_1_RET=$?
+wait $PEER_2_PID
+PEER_2_RET=$?
+wait $PEER_3_PID
+PEER_3_RET=$?
+wait $PEER_4_PID
+PEER_4_RET=$?
+wait $PEER_5_PID
+PEER_5_RET=$?
+
+# kill proxy demons
+kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID $RADIO_5_PID
+
+# delay for removal of local sockets (e.g. send_1_wl0)
+sleep 1
+
+# check testers retval
+test $PEER_1_RET -eq 0 || exit 1
+test $PEER_2_RET -eq 0 || exit 2
+test $PEER_3_RET -eq 0 || exit 3
+test $PEER_4_RET -eq 0 || exit 4
+test $PEER_5_RET -eq 0 || exit 5
