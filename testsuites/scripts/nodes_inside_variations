@@ -8,53 +8,107 @@ radio_domain -i 3_wl0 -o 1_wl0 -o 4_wl0 -o 5_wl0 &
 RADIO_3_PID=$!
 radio_domain -i 4_wl0 -o 2_wl0 -o 3_wl0 &
 RADIO_4_PID=$!
-#radio_domain -i 5_wl0 -o 3_wl0 -o 6_wl0 &
-radio_domain -i 5_wl0 -o 3_wl0 &
+radio_domain -i 5_wl0 -o 3_wl0 -o 6_wl0 &
 RADIO_5_PID=$!
+radio_domain -i 6_wl0 -o 5_wl0 -o 7_wl0 &
+RADIO_6_PID=$!
+radio_domain -i 7_wl0 -o 6_wl0 -o 8_wl0 &
+RADIO_7_PID=$!
+radio_domain -i 8_wl0 -o 7_wl0 -o 9_wl0 &
+RADIO_8_PID=$!
+radio_domain -i 9_wl0 -o 8_wl0 -o 10_wl0 &
+RADIO_9_PID=$!
 
 
 sleep 0.3
 
 echo Starting launches at `date +%T.%N`
 ./system_peer --topology 2,2,2 -p 1 -i wl0 -a wl0,2,wl0,2000 -a wl0,3,wl0,2000 \
+              -t addtag,190,190_goingtoaddarc_1_2 \
               -t add_identityarc,200,0,0+1 \
               -t add_qspnarc,240,0,0+1 \
+              -t addtag,280,280_addedarc_1_2 \
+              -t addtag,290,290_goingtoaddarc_1_3 \
               -t add_identityarc,300,0,1+1 \
               -t add_qspnarc,340,0,1+1 \
+              -t addtag,380,380_addedarc_1_3 \
               > test_nodes_inside_variations_pid1_out.txt 2>&1 &
 PEER_1_PID=$!
 ./system_peer --topology 2,2,2 -p 2 -i wl0 -a wl0,1,wl0,2000 -a wl0,4,wl0,2000 \
+              -t addtag,190,190_goingtoenter_2_witharcs_1 \
               -t add_identity,200,0,0+0 \
               -t enter_net,230,0,1,0,1,1,0+0 \
+              -t addtag,280,280_doneenter_2_witharcs_1 \
+              -t addtag,390,390_goingtoaddarc_2_4 \
               -t add_identityarc,400,1,1+1 \
               -t add_qspnarc,440,1,1+1 \
+              -t addtag,480,480_addedarc_2_4 \
               > test_nodes_inside_variations_pid2_out.txt 2>&1 &
 PEER_2_PID=$!
 ./system_peer --topology 2,2,2 -p 3 -i wl0 -a wl0,1,wl0,2000 -a wl0,4,wl0,2000 -a wl0,5,wl0,2000 \
+              -t addtag,290,290_goingtoenter_3_witharcs_1 \
               -t add_identity,300,0,0+0 \
               -t enter_net,330,0,1,0,0,2,0+0 \
+              -t addtag,380,380_doneenter_3_witharcs_1 \
+              -t addtag,390,390_goingtoaddarc_3_4 \
               -t add_identityarc,400,1,1+1 \
               -t add_qspnarc,440,1,1+1 \
+              -t addtag,480,480_addedarc_3_4 \
+              -t addtag,490,490_goingtoaddarc_3_5 \
               -t add_identityarc,500,1,2+1 \
               -t add_qspnarc,540,1,2+1 \
+              -t addtag,580,580_addedarc_3_5 \
               > test_nodes_inside_variations_pid3_out.txt 2>&1 &
 PEER_3_PID=$!
 ./system_peer --topology 2,2,2 -p 4 -i wl0 -a wl0,2,wl0,2000 -a wl0,3,wl0,2000 \
+              -t addtag,390,390_goingtoenter_4_witharcs_2_3 \
               -t add_identity,400,0,0+1_1+1 \
               -t enter_net,430,0,1,0,2,3,0+1_1+1 \
+              -t addtag,480,480_doneenter_4_witharcs_2_3 \
               > test_nodes_inside_variations_pid4_out.txt 2>&1 &
 PEER_4_PID=$!
 ./system_peer --topology 2,2,2 -p 5 -i wl0 -a wl0,3,wl0,2000 -a wl0,6,wl0,2000 \
+              -t addtag,490,490_goingtoenter_5_witharcs_3 \
               -t add_identity,500,0,0+1 \
               -t enter_net,530,0,1,0,1:1:0,1:0:2,0+1 \
+              -t addtag,580,580_doneenter_5_witharcs_3 \
+              -t addtag,590,590_goingtoaddarc_5_6 \
+              -t add_identityarc,600,1,1+1 \
+              -t add_qspnarc,640,1,1+1 \
+              -t addtag,680,680_addedarc_5_6 \
               > test_nodes_inside_variations_pid5_out.txt 2>&1 &
 PEER_5_PID=$!
+./system_peer --topology 2,2,2 -p 6 -i wl0 -a wl0,5,wl0,2000 -a wl0,7,wl0,2000 \
+              -t addtag,590,590_goingtoenter_6_witharcs_5 \
+              -t add_identity,600,0,0+1 \
+              -t enter_net,630,0,1,0,3:1:0,2:0:2,0+1 \
+              -t addtag,680,680_doneenter_6_witharcs_5 \
+              -t addtag,690,690_goingtoaddarc_6_7 \
+              -t add_identityarc,700,1,1+1 \
+              -t add_qspnarc,740,1,1+1 \
+              -t addtag,780,780_addedarc_6_7 \
+              > test_nodes_inside_variations_pid6_out.txt 2>&1 &
+PEER_6_PID=$!
+./system_peer --topology 2,2,2 -p 7 -i wl0 -a wl0,6,wl0,2000 -a wl0,8,wl0,2000 \
+              -t addtag,690,690_goingtoenter_7_witharcs_6 \
+              -t add_identity,700,0,0+1 \
+              -t enter_net,730,0,1,0,0:1:0,3:0:2,0+1 \
+              -t addtag,780,780_doneenter_7_witharcs_6 \
+              > test_nodes_inside_variations_pid7_out.txt 2>&1 &
+PEER_7_PID=$!
+./system_peer --topology 2,2,2 -p 8 -i wl0 -a wl0,7,wl0,2000 -a wl0,9,wl0,2000 \
+              > test_nodes_inside_variations_pid8_out.txt 2>&1 &
+PEER_8_PID=$!
+./system_peer --topology 2,2,2 -p 9 -i wl0 -a wl0,8,wl0,2000 -a wl0,10,wl0,2000 \
+              > test_nodes_inside_variations_pid9_out.txt 2>&1 &
+PEER_9_PID=$!
 echo Done launches at `date +%T.%N`
 
 sleep 5
 
 # interrupt peers
-kill $PEER_1_PID $PEER_2_PID $PEER_3_PID $PEER_4_PID $PEER_5_PID
+kill $PEER_1_PID $PEER_2_PID $PEER_3_PID $PEER_4_PID $PEER_5_PID $PEER_6_PID \
+     $PEER_7_PID $PEER_8_PID $PEER_9_PID
 
 # wait for peers and note down its retval
 wait $PEER_1_PID
@@ -67,9 +121,18 @@ wait $PEER_4_PID
 PEER_4_RET=$?
 wait $PEER_5_PID
 PEER_5_RET=$?
+wait $PEER_6_PID
+PEER_6_RET=$?
+wait $PEER_7_PID
+PEER_7_RET=$?
+wait $PEER_8_PID
+PEER_8_RET=$?
+wait $PEER_9_PID
+PEER_9_RET=$?
 
 # kill proxy demons
-kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID $RADIO_5_PID
+kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID $RADIO_5_PID \
+     $RADIO_6_PID $RADIO_7_PID $RADIO_8_PID $RADIO_9_PID
 
 # delay for removal of local sockets (e.g. send_1_wl0)
 sleep 1
@@ -80,3 +143,7 @@ test $PEER_2_RET -eq 0 || exit 2
 test $PEER_3_RET -eq 0 || exit 3
 test $PEER_4_RET -eq 0 || exit 4
 test $PEER_5_RET -eq 0 || exit 5
+test $PEER_6_RET -eq 0 || exit 6
+test $PEER_7_RET -eq 0 || exit 7
+test $PEER_8_RET -eq 0 || exit 8
+test $PEER_9_RET -eq 0 || exit 9
