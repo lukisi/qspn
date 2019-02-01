@@ -1,5 +1,49 @@
 #!/bin/bash
 
+# Questo script produce una rete di questo tipo:
+#
+#     1
+#    / \
+#   2   3 - 5 - 6 - 7 - 8 - 9 - 10 - 11 - 12 - 13 - 14
+#    \ /
+#     4
+#
+# dove ogni numero indica il pid di un processo (cioè un nodo)
+# e i collegamenti sono realizzati con l'iterfaccia radio wl0.
+# Il nodo 1 prende indirizzo (pseudorandom) :0:2:3, con anzianità :0:0:0
+# (notare che il primo numero indica il livello 0 e man mano si sale)
+# e crea una rete nella quale gli altri nodi, uno alla volta, fanno ingresso.
+# Il nodo 2 prende un g-nodo di livello 2 vuoto, il :1 con anzianità :0:0:1.
+# Il nodo 3 prende un g-nodo di livello 2 vuoto, il :0 con anzianità :0:0:2.
+# Il nodo 4 prende un g-nodo di livello 2 vuoto, il :2 con anzianità :0:0:3.
+# I successivi entreranno in :0, avendo collegamento diretto col nodo 3.
+# Il nodo 3 aveva preso (pseudorandom) le altre posizioni :2:1:0.
+# I nodi successivi prendono queste posizioni e anzianità:
+#
+#   5  :1:1:0   :1:0:2
+#   6  :3:1:0   :2:0:2
+#   7  :0:1:0   :3:0:2
+#
+#   8  :0:2:0   :0:1:2
+#   9  :1:2:0   :1:1:2
+#  10  :2:2:0   :2:1:2
+#  11  :3:2:0   :3:1:2
+#
+#  12  :0:3:0   :0:2:2
+#  13  :1:3:0   :1:2:2
+#  14  :2:3:0   :2:2:2
+#
+# Cose interessanti da notare:
+#
+# 1. I percorsi disgiunti: Il nodo 3 (ha indirizzo :2:1:0) riceve per la destination
+#    del nodo 2 (ha indirizzo :1, quindi per il nodo 3 ha coordinate (2,1)) i due
+#    path: uno che passa per (2,3) (il nodo 1) e uno che passa per (2,2) (il nodo 4).
+#    Il nodo 5 riceverà per la destination (2,1) i due path: (0,2)_(2,3)_(2,1) e
+#    (0,2)_(2,2)_(2,1).
+#    Il nodo 6 già non vede più due percorsi distinti, perché sono troppo congiunti.
+#
+# 2. Variazioni importanti di nodes_inside:
+
 radio_domain -i 1_wl0 -o 2_wl0 -o 3_wl0 &
 RADIO_1_PID=$!
 radio_domain -i 2_wl0 -o 1_wl0 -o 4_wl0 &
@@ -18,6 +62,16 @@ radio_domain -i 8_wl0 -o 7_wl0 -o 9_wl0 &
 RADIO_8_PID=$!
 radio_domain -i 9_wl0 -o 8_wl0 -o 10_wl0 &
 RADIO_9_PID=$!
+radio_domain -i 10_wl0 -o 9_wl0 -o 11_wl0 &
+RADIO_10_PID=$!
+radio_domain -i 11_wl0 -o 10_wl0 -o 12_wl0 &
+RADIO_11_PID=$!
+radio_domain -i 12_wl0 -o 11_wl0 -o 13_wl0 &
+RADIO_12_PID=$!
+radio_domain -i 13_wl0 -o 12_wl0 -o 14_wl0 &
+RADIO_13_PID=$!
+radio_domain -i 14_wl0 -o 13_wl0 -o 15_wl0 &
+RADIO_14_PID=$!
 
 
 sleep 0.3
@@ -94,21 +148,46 @@ PEER_6_PID=$!
               -t add_identity,700,0,0+1 \
               -t enter_net,730,0,1,0,0:1:0,3:0:2,0+1 \
               -t addtag,780,780_doneenter_7_witharcs_6 \
+              -t addtag,790,790_goingtoaddarc_7_8 \
+              -t add_identityarc,800,1,1+1 \
+              -t add_qspnarc,840,1,1+1 \
+              -t addtag,880,880_addedarc_7_8 \
               > test_nodes_inside_variations_pid7_out.txt 2>&1 &
 PEER_7_PID=$!
 ./system_peer --topology 2,2,2 -p 8 -i wl0 -a wl0,7,wl0,2000 -a wl0,9,wl0,2000 \
+              -t addtag,790,790_goingtoenter_8_witharcs_7 \
+              -t add_identity,800,0,0+1 \
+              -t enter_net,830,0,1,0,0:2:0,0:1:2,0+1 \
+              -t addtag,880,880_doneenter_8_witharcs_7 \
               > test_nodes_inside_variations_pid8_out.txt 2>&1 &
 PEER_8_PID=$!
 ./system_peer --topology 2,2,2 -p 9 -i wl0 -a wl0,8,wl0,2000 -a wl0,10,wl0,2000 \
               > test_nodes_inside_variations_pid9_out.txt 2>&1 &
 PEER_9_PID=$!
+./system_peer --topology 2,2,2 -p 10 -i wl0 -a wl0,9,wl0,2000 -a wl0,11,wl0,2000 \
+              > test_nodes_inside_variations_pid10_out.txt 2>&1 &
+PEER_10_PID=$!
+./system_peer --topology 2,2,2 -p 11 -i wl0 -a wl0,10,wl0,2000 -a wl0,12,wl0,2000 \
+              > test_nodes_inside_variations_pid11_out.txt 2>&1 &
+PEER_11_PID=$!
+./system_peer --topology 2,2,2 -p 12 -i wl0 -a wl0,11,wl0,2000 -a wl0,13,wl0,2000 \
+              > test_nodes_inside_variations_pid12_out.txt 2>&1 &
+PEER_12_PID=$!
+./system_peer --topology 2,2,2 -p 13 -i wl0 -a wl0,12,wl0,2000 -a wl0,14,wl0,2000 \
+              > test_nodes_inside_variations_pid13_out.txt 2>&1 &
+PEER_13_PID=$!
+./system_peer --topology 2,2,2 -p 14 -i wl0 -a wl0,13,wl0,2000 -a wl0,15,wl0,2000 \
+              > test_nodes_inside_variations_pid14_out.txt 2>&1 &
+PEER_14_PID=$!
 echo Done launches at `date +%T.%N`
 
 sleep 5
 
+echo killing...
 # interrupt peers
 kill $PEER_1_PID $PEER_2_PID $PEER_3_PID $PEER_4_PID $PEER_5_PID $PEER_6_PID \
-     $PEER_7_PID $PEER_8_PID $PEER_9_PID
+     $PEER_7_PID $PEER_8_PID $PEER_9_PID $PEER_10_PID $PEER_11_PID $PEER_12_PID \
+     $PEER_13_PID $PEER_14_PID
 
 # wait for peers and note down its retval
 wait $PEER_1_PID
@@ -129,10 +208,21 @@ wait $PEER_8_PID
 PEER_8_RET=$?
 wait $PEER_9_PID
 PEER_9_RET=$?
+wait $PEER_10_PID
+PEER_10_RET=$?
+wait $PEER_11_PID
+PEER_11_RET=$?
+wait $PEER_12_PID
+PEER_12_RET=$?
+wait $PEER_13_PID
+PEER_13_RET=$?
+wait $PEER_14_PID
+PEER_14_RET=$?
 
 # kill proxy demons
 kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID $RADIO_5_PID \
-     $RADIO_6_PID $RADIO_7_PID $RADIO_8_PID $RADIO_9_PID
+     $RADIO_6_PID $RADIO_7_PID $RADIO_8_PID $RADIO_9_PID $RADIO_10_PID \
+     $RADIO_11_PID $RADIO_12_PID $RADIO_13_PID $RADIO_14_PID
 
 # delay for removal of local sockets (e.g. send_1_wl0)
 sleep 1
@@ -147,3 +237,8 @@ test $PEER_6_RET -eq 0 || exit 6
 test $PEER_7_RET -eq 0 || exit 7
 test $PEER_8_RET -eq 0 || exit 8
 test $PEER_9_RET -eq 0 || exit 9
+test $PEER_10_RET -eq 0 || exit 10
+test $PEER_11_RET -eq 0 || exit 11
+test $PEER_12_RET -eq 0 || exit 12
+test $PEER_13_RET -eq 0 || exit 13
+test $PEER_14_RET -eq 0 || exit 14
