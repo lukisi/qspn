@@ -7,33 +7,39 @@ namespace SystemPeer
 {
     class QspnManagerStubHolder : Object, IQspnManagerStub
     {
-        public QspnManagerStubHolder(IAddressManagerStub addr)
+        public QspnManagerStubHolder(IAddressManagerStub addr, IdentityArc ia)
         {
             this.addr = addr;
+            this.ia = ia;
         }
         private IAddressManagerStub addr;
+        private IdentityArc ia;
 
         public IQspnEtpMessage get_full_etp(IQspnAddress requesting_address)
         throws QspnNotAcceptedError, QspnBootstrapInProgressError, StubError, DeserializeError
         {
+            print(@"Qspn: Identity #$(ia.identity_data.local_identity_index): [$(printabletime())] calling unicast get_full_etp to nodeid $(ia.peer_nodeid.id).\n");
             return addr.qspn_manager.get_full_etp(requesting_address);
         }
 
         public void got_destroy()
         throws StubError, DeserializeError
         {
+            print(@"Qspn: Identity #$(ia.identity_data.local_identity_index): [$(printabletime())] calling unicast got_destroy to nodeid $(ia.peer_nodeid.id).\n");
             addr.qspn_manager.got_destroy();
         }
 
         public void got_prepare_destroy()
         throws StubError, DeserializeError
         {
+            print(@"Qspn: Identity #$(ia.identity_data.local_identity_index): [$(printabletime())] calling unicast got_prepare_destroy to nodeid $(ia.peer_nodeid.id).\n");
             addr.qspn_manager.got_prepare_destroy();
         }
 
         public void send_etp(IQspnEtpMessage etp, bool is_full)
         throws QspnNotAcceptedError, StubError, DeserializeError
         {
+            print(@"Qspn: Identity #$(ia.identity_data.local_identity_index): [$(printabletime())] calling unicast send_etp to nodeid $(ia.peer_nodeid.id).\n");
             addr.qspn_manager.send_etp(etp, is_full);
         }
     }

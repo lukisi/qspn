@@ -584,6 +584,7 @@ namespace Netsukuku.Qspn
                     return id;
                 }
             }
+            // FIXME might happen.
             assert_not_reached();
         }
 

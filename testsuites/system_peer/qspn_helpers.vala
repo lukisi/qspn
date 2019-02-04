@@ -54,7 +54,7 @@ namespace SystemPeer
             QspnArc _arc = (QspnArc)arc;
             IdentityArc ia = _arc.ia;
             IAddressManagerStub addrstub = stub_factory.get_stub_identity_aware_unicast_from_ia(ia, wait_reply);
-            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub);
+            QspnManagerStubHolder ret = new QspnManagerStubHolder(addrstub, ia);
             return ret;
         }
     }

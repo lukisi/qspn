@@ -1,12 +1,12 @@
 #!/bin/bash
 
-eth_domain -i 1_eth0 -i 2_eth1 &
+eth_domain -i 1_eth0 -i 2_eth1 -v > test_four_nodes_eth0_domain.txt &
 ETH0_PID=$!
-eth_domain -i 2_eth0 -i 3_eth1 &
+eth_domain -i 2_eth0 -i 3_eth1 -v > test_four_nodes_eth1_domain.txt &
 ETH1_PID=$!
-eth_domain -i 3_eth0 -i 4_eth1 &
+eth_domain -i 3_eth0 -i 4_eth1 -v > test_four_nodes_eth2_domain.txt &
 ETH2_PID=$!
-eth_domain -i 4_eth0 -i 1_eth1 &
+eth_domain -i 4_eth0 -i 1_eth1 -v > test_four_nodes_eth3_domain.txt &
 ETH3_PID=$!
 sleep 0.3
 
@@ -86,7 +86,7 @@ kill $ETH2_PID
 kill $ETH3_PID
 
 # delay for removal of local sockets (e.g. send_1_eth0)
-sleep 1
+sleep 0.3
 
 # check testers retval
 test $PEER_1_RET -eq 0 || exit 1

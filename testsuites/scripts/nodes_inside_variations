@@ -44,7 +44,7 @@
 #
 # 2. Variazioni importanti di nodes_inside:
 
-radio_domain -i 1_wl0 -o 2_wl0 -o 3_wl0 &
+radio_domain -i 1_wl0 -o 2_wl0 -o 3_wl0 -v > test_nodes_inside_variations_radio_1_domain.txt &
 RADIO_1_PID=$!
 radio_domain -i 2_wl0 -o 1_wl0 -o 4_wl0 &
 RADIO_2_PID=$!
@@ -56,9 +56,9 @@ radio_domain -i 5_wl0 -o 3_wl0 -o 6_wl0 &
 RADIO_5_PID=$!
 radio_domain -i 6_wl0 -o 5_wl0 -o 7_wl0 &
 RADIO_6_PID=$!
-radio_domain -i 7_wl0 -o 6_wl0 -o 8_wl0 &
+radio_domain -i 7_wl0 -o 6_wl0 -o 8_wl0 -v > test_nodes_inside_variations_radio_7_domain.txt &
 RADIO_7_PID=$!
-radio_domain -i 8_wl0 -o 7_wl0 -o 9_wl0 &
+radio_domain -i 8_wl0 -o 7_wl0 -o 9_wl0 -v > test_nodes_inside_variations_radio_8_domain.txt &
 RADIO_8_PID=$!
 radio_domain -i 9_wl0 -o 8_wl0 -o 10_wl0 &
 RADIO_9_PID=$!
@@ -225,7 +225,7 @@ kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID $RADIO_5_PID \
      $RADIO_11_PID $RADIO_12_PID $RADIO_13_PID $RADIO_14_PID
 
 # delay for removal of local sockets (e.g. send_1_wl0)
-sleep 1
+sleep 0.3
 
 # check testers retval
 test $PEER_1_RET -eq 0 || exit 1

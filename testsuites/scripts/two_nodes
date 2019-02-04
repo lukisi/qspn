@@ -1,6 +1,6 @@
 #!/bin/bash
 
-eth_domain -i 1_eth0 -i 2_eth0 &
+eth_domain -i 1_eth0 -i 2_eth0 -v > test_two_nodes_eth_domain.txt &
 ETH_PID=$!
 sleep 0.3
 
@@ -37,7 +37,7 @@ PEER_1_RET=$?
 kill $ETH_PID
 
 # delay for removal of local sockets (e.g. send_1_eth0)
-sleep 1
+sleep 0.3
 
 # check testers retval
 test $PEER_1_RET -eq 0 || exit 1
