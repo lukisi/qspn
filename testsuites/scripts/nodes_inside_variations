@@ -157,7 +157,7 @@ PEER_7_PID=$!
 ./system_peer --topology 2,2,2 -p 8 -i wl0 -a wl0,7,wl0,2000 -a wl0,9,wl0,2000 \
               -t addtag,790,790_goingtoenter_8_witharcs_7 \
               -t add_identity,800,0,0+1 \
-              -t enter_net,830,0,1,0,0:2:0,0:1:2,0+1 \
+              -t enter_net,830,0,1,0,2:0,1:2,0+1 \
               -t addtag,880,880_doneenter_8_witharcs_7 \
               > test_nodes_inside_variations_pid8_out.txt 2>&1 &
 PEER_8_PID=$!
