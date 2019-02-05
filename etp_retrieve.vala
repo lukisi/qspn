@@ -144,9 +144,13 @@ namespace Netsukuku.Qspn
         IQspnManagerStub stub = work.stubs[i];
         IQspnEtpMessage? resp = null;
         try {
-            int arc_id = mgr.get_arc_id(work.arcs[i]);
+            int arc_id = mgr.try_retrieve_arc_id(work.arcs[i]);
             debug(@"Requesting ETP from arc $(arc_id)");
             resp = stub.get_full_etp(work.my_naddr);
+        }
+        catch (ArcRemovedError e) {
+            // For some reason the arc is no more. Give up this tasklet.
+            return;
         }
         catch (QspnBootstrapInProgressError e) {
             debug("Got QspnBootstrapInProgressError. Give up.");

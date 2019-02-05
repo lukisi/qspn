@@ -27,6 +27,10 @@ namespace Netsukuku.Qspn
         equal_func_iqspnarc = (a, b) => a.i_qspn_equals(b);
     }
 
+    internal errordomain ArcRemovedError {
+        GENERIC
+    }
+
     internal errordomain AcyclicError {
         GENERIC
     }
@@ -241,7 +245,13 @@ namespace Netsukuku.Qspn
                 assert(c != null);
 
                 // retrieve ID for the arc
-                int arc_id = previous_identity.get_arc_id(internal_arc_prev_arc);
+                int arc_id = 0;
+                try {
+                    arc_id = previous_identity.try_retrieve_arc_id(internal_arc_prev_arc);
+                } catch (ArcRemovedError e) {
+                    // shouldn't happen in constructor.
+                    assert_not_reached();
+                }
                 // memorize
                 assert(! (internal_arc in my_arcs));
                 my_arcs.add(internal_arc);
@@ -368,7 +378,13 @@ namespace Netsukuku.Qspn
                 assert(c != null);
 
                 // retrieve ID for the arc
-                int arc_id = previous_identity.get_arc_id(internal_arc_prev_arc);
+                int arc_id = 0;
+                try {
+                    arc_id = previous_identity.try_retrieve_arc_id(internal_arc_prev_arc);
+                } catch (ArcRemovedError e) {
+                    // shouldn't happen in constructor.
+                    assert_not_reached();
+                }
                 // memorize
                 assert(! (internal_arc in my_arcs));
                 my_arcs.add(internal_arc);
@@ -466,6 +482,12 @@ namespace Netsukuku.Qspn
             while (! queued_arcs.is_empty && ! bootstrap_complete)
             {
                 IQspnArc arc = queued_arcs.remove_at(0);
+                int arc_id = 0;
+                try {
+                    arc_id = try_retrieve_arc_id(arc);
+                } catch (ArcRemovedError e) {
+                    continue;
+                }
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
                 bool bad_answer;
@@ -483,7 +505,6 @@ namespace Netsukuku.Qspn
                 int lvl = my_naddr.i_qspn_get_coord_by_address(etp.node_address).lvl;
                 if (lvl < guest_gnode_level || lvl >= host_gnode_level) continue;
                 // Process etp. No forward is needed.
-                int arc_id = get_arc_id(arc);
                 // Revise the paths in it.
                 Gee.List<NodePath> q;
                 try
@@ -528,8 +549,16 @@ namespace Netsukuku.Qspn
             qspn_bootstrap_complete();
             // Process all arcs.
             queued_arcs.clear();
-            foreach (IQspnArc arc in my_arcs)
+            ArrayList<IQspnArc> my_arcs_copy = new ArrayList<IQspnArc>();
+            my_arcs_copy.add_all(my_arcs);
+            foreach (IQspnArc arc in my_arcs_copy)
             {
+                int arc_id = 0;
+                try {
+                    arc_id = try_retrieve_arc_id(arc);
+                } catch (ArcRemovedError e) {
+                    continue;
+                }
                 EtpMessage? etp;
                 bool bootstrap_in_progress;
                 bool bad_answer;
@@ -545,7 +574,6 @@ namespace Netsukuku.Qspn
                     continue;
                 }
                 // Process etp. No forward is needed.
-                int arc_id = get_arc_id(arc);
                 // Revise the paths in it.
                 Gee.List<NodePath> q;
                 try
@@ -575,7 +603,7 @@ namespace Netsukuku.Qspn
         }
 
         // Helper: get id of arc
-        internal int get_arc_id(IQspnArc arc)
+        internal int try_retrieve_arc_id(IQspnArc arc) throws ArcRemovedError
         {
             foreach (int id in id_arc_map.keys)
             {
@@ -584,8 +612,7 @@ namespace Netsukuku.Qspn
                     return id;
                 }
             }
-            // FIXME might happen.
-            assert_not_reached();
+            throw new ArcRemovedError.GENERIC("The arc might have been just removed.");
         }
 
         // Helper: get arcs for a broadcast message to all.
@@ -778,7 +805,13 @@ namespace Netsukuku.Qspn
             }
 
             // manage my_arcs and id_arc_map
-            int changed_arc_id = get_arc_id(changed_arc);
+            int changed_arc_id = 0;
+            try {
+                changed_arc_id = try_retrieve_arc_id(changed_arc);
+            } catch (ArcRemovedError e) {
+                // shouldn't happen here: just verified the arc is in my_arcs.
+                assert_not_reached();
+            }
             // remove old instance, we do not know if it's the same instance
             my_arcs.remove(changed_arc);
             my_arcs.add(changed_arc);
@@ -813,7 +846,12 @@ namespace Netsukuku.Qspn
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             foreach (PairArcEtp pair in results)
             {
-                int arc_id = get_arc_id(pair.a);
+                int arc_id = 0;
+                try {
+                    arc_id = try_retrieve_arc_id(pair.a);
+                } catch (ArcRemovedError e) {
+                    continue;
+                }
                 try
                 {
                     q.add_all(revise_etp(pair.m, pair.a, arc_id, true));
@@ -859,6 +897,13 @@ namespace Netsukuku.Qspn
                 warning("QspnManager.arc_remove: not in my arcs.");
                 return;
             }
+            int arc_id = 0;
+            try {
+                arc_id = try_retrieve_arc_id(removed_arc);
+            } catch (ArcRemovedError e) {
+                // shouldn't happen here: just verified the arc is in my_arcs.
+                assert_not_reached();
+            }
 
             // during bootstrap remove the arc from queued_arcs and then return
             if (!bootstrap_complete)
@@ -868,7 +913,6 @@ namespace Netsukuku.Qspn
             }
 
             // First, remove the arc...
-            int arc_id = get_arc_id(removed_arc);
             my_arcs.remove(removed_arc);
             arc_to_naddr.unset(removed_arc);
             id_arc_map.unset(arc_id);
@@ -943,7 +987,12 @@ namespace Netsukuku.Qspn
             Gee.List<NodePath> q = new ArrayList<NodePath>((a, b) => a.hops_arcs_equal(b));
             foreach (PairArcEtp pair in results)
             {
-                int arc_m_id = get_arc_id(pair.a);
+                int arc_m_id = 0;
+                try {
+                    arc_m_id = try_retrieve_arc_id(pair.a);
+                } catch (ArcRemovedError e) {
+                    continue;
+                }
                 try
                 {
                     q.add_all(revise_etp(pair.m, pair.a, arc_m_id, true));
@@ -2531,6 +2580,13 @@ namespace Netsukuku.Qspn
             if (arc == null) throw new QspnNotAcceptedError.GENERIC("You are not in my arcs.");
 
             if (! (arc in my_arcs)) return;
+            int arc_id = 0;
+            try {
+                arc_id = try_retrieve_arc_id(arc);
+            } catch (ArcRemovedError e) {
+                // shouldn't happen here: just verified the arc is in my_arcs.
+                assert_not_reached();
+            }
             debug("An incoming ETP is received");
             if (m == null)
             {
@@ -2602,7 +2658,6 @@ namespace Netsukuku.Qspn
             }
 
             debug("Processing incoming ETP");
-            int arc_id = get_arc_id(arc);
             // Revise the paths in it.
             Gee.List<NodePath> q;
             try
