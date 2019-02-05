@@ -78,7 +78,7 @@ namespace SystemPeer
         string cost;
         if (_c is Cost) {cost = @"RTT = $(((Cost)_c).usec_rtt) usec";}
         else {cost = "unknown";}
-        print(@"Qspn: Identity #$(id.local_identity_index): path added.\n");
+        print(@"Qspn: Identity #$(id.local_identity_index): [$(printabletime())] path added.\n");
         print(@"      Destination is ($(dest.lvl), $(dest.pos)), starting with my NIC '$(start_from_dev)'.\n");
         print(@"      Steps are $(steps); cost is $(cost).\n");
         string descr = @"$(start_from_dev)";
@@ -110,7 +110,7 @@ namespace SystemPeer
         string cost;
         if (_c is Cost) {cost = @"RTT = $(((Cost)_c).usec_rtt) usec";}
         else {cost = "unknown";}
-        print(@"Qspn: Identity #$(id.local_identity_index): path changed.\n");
+        print(@"Qspn: Identity #$(id.local_identity_index): [$(printabletime())] path changed.\n");
         print(@"      Destination is ($(dest.lvl), $(dest.pos)), starting with my NIC '$(start_from_dev)'.\n");
         print(@"      Steps are $(steps); cost is $(cost).\n");
         string descr = @"$(start_from_dev)";
@@ -142,7 +142,7 @@ namespace SystemPeer
         string cost;
         if (_c is Cost) {cost = @"RTT = $(((Cost)_c).usec_rtt) usec";}
         else {cost = "unknown";}
-        print(@"Qspn: Identity #$(id.local_identity_index): path removed.\n");
+        print(@"Qspn: Identity #$(id.local_identity_index): [$(printabletime())] path removed.\n");
         print(@"      Destination is ($(dest.lvl), $(dest.pos)), starting with my NIC '$(start_from_dev)'.\n");
         print(@"      Steps are $(steps); cost is $(cost).\n");
         string descr = @"$(start_from_dev)";
