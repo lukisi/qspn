@@ -1662,7 +1662,7 @@ namespace Netsukuku.Qspn
                             all_paths_set.add(prepare_path_for_sending(p1));
                             if (d.lvl == 0)
                             {
-                                sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                                sd.add(new SignalToEmit.path_changed(get_ret_path(p1)));
                             }
                             else
                             {
@@ -1670,7 +1670,7 @@ namespace Netsukuku.Qspn
                                 {
                                     if (fp_d_p.i_qspn_equals(valid_fp_d))
                                     {
-                                        sd.add(new SignalToEmit.path_changed(get_ret_path(p)));
+                                        sd.add(new SignalToEmit.path_changed(get_ret_path(p1)));
                                         p1.exposed = true;
                                     }
                                     else
@@ -1682,7 +1682,7 @@ namespace Netsukuku.Qspn
                                 {
                                     if (fp_d_p.i_qspn_equals(valid_fp_d))
                                     {
-                                        sd.add(new SignalToEmit.path_added(get_ret_path(p)));
+                                        sd.add(new SignalToEmit.path_added(get_ret_path(p1)));
                                         p1.exposed = true;
                                     }
                                 }
