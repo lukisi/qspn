@@ -126,6 +126,7 @@ PEER_3_PID=$!
               -t add_identity,400,0,0+1_1+1 \
               -t enter_net,430,0,1,0,2,3,0+1_1+1 \
               -t addtag,480,480_doneenter_4_witharcs_2_3 \
+              -t check_nodes_inside_variations,2000 \
               > test_nodes_inside_variations_pid4_out.txt 2>&1 &
 PEER_4_PID=$!
 ./system_peer --topology 2,2,2 -p 5 -i wl0 -a wl0,3,wl0,2000 -a wl0,6,wl0,2000 \
@@ -137,6 +138,7 @@ PEER_4_PID=$!
               -t add_identityarc,600,1,1+1 \
               -t add_qspnarc,640,1,1+1 \
               -t addtag,680,680_addedarc_5_6 \
+              -t check_nodes_inside_variations,700 \
               > test_nodes_inside_variations_pid5_out.txt 2>&1 &
 PEER_5_PID=$!
 ./system_peer --topology 2,2,2 -p 6 -i wl0 -a wl0,5,wl0,2000 -a wl0,7,wl0,2000 \
@@ -148,6 +150,7 @@ PEER_5_PID=$!
               -t add_identityarc,700,1,1+1 \
               -t add_qspnarc,740,1,1+1 \
               -t addtag,780,780_addedarc_6_7 \
+              -t check_nodes_inside_variations,800 \
               > test_nodes_inside_variations_pid6_out.txt 2>&1 &
 PEER_6_PID=$!
 ./system_peer --topology 2,2,2 -p 7 -i wl0 -a wl0,6,wl0,2000 -a wl0,8,wl0,2000 \

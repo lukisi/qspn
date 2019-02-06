@@ -25,6 +25,7 @@ testsuites/system_peer/task_qspn.c
 testsuites/system_peer/task_check_destinations.c
 testsuites/system_peer/task_addtag.c
 testsuites/system_peer/checks_four_nodes.c
+testsuites/system_peer/task_check_nodes_inside_variations.c
 
 Makefile.in
 Makefile

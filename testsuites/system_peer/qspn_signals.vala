@@ -89,7 +89,7 @@ namespace SystemPeer
         }
         assert(_c is Cost);
         string cost_rtt_usec = @"$(((Cost)_c).usec_rtt)";
-        descr = @"$(descr)_$(cost_rtt_usec)";
+        descr = @"$(descr)_cost_$(cost_rtt_usec)_nodesinside_$(p.i_qspn_get_nodes_inside())";
         tester_events.add(@"Qspn:$(id.local_identity_index):Signal:path_added:$(descr)");
     }
 
@@ -121,7 +121,7 @@ namespace SystemPeer
         }
         assert(_c is Cost);
         string cost_rtt_usec = @"$(((Cost)_c).usec_rtt)";
-        descr = @"$(descr)_$(cost_rtt_usec)";
+        descr = @"$(descr)_cost_$(cost_rtt_usec)_nodesinside_$(p.i_qspn_get_nodes_inside())";
         tester_events.add(@"Qspn:$(id.local_identity_index):Signal:path_changed:$(descr)");
     }
 

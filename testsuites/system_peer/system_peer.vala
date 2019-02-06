@@ -274,6 +274,7 @@ namespace SystemPeer
             else if (schedule_task_check_destnum(task)) {}
             else if (schedule_task_remove_qspn(task)) {}
             else if (schedule_task_addtag(task)) {}
+            else if (schedule_task_check_nodes_inside_variations(task)) {}
             else error(@"unknown task $(task)");
         }
 
