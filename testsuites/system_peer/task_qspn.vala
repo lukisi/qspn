@@ -353,7 +353,7 @@ namespace SystemPeer
             int64 arc_num;
             if (! int64.try_parse(args[1], out arc_num)) error("bad args arc_num in task 'changecost_arc'");
             int64 usec_rtt;
-            if (! int64.try_parse(args[1], out usec_rtt)) error("bad args usec_rtt in task 'changecost_arc'");
+            if (! int64.try_parse(args[2], out usec_rtt)) error("bad args usec_rtt in task 'changecost_arc'");
             print(@"INFO: in $(ms_wait) ms will change base cost of arc #'$(arc_num)' to RTT = $(usec_rtt) usec.\n");
             ChangeCostArcTasklet s = new ChangeCostArcTasklet(
                 (int)ms_wait,
