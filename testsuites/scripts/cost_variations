@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# Questo script produce una rete di questo tipo:
+#
+#   1 - 2 - 3 - 4
+#
+# dove ogni numero indica il pid di un processo (cioè un nodo)
+# e i collegamenti sono realizzati con l'iterfaccia radio wl0.
+#
+# Il nodo 1 prende indirizzo (pseudorandom) :8:0, con anzianità :0:0
+# (notare che il primo numero indica il livello 0 e man mano si sale)
+# e crea una rete nella quale gli altri nodi, uno alla volta, fanno ingresso.
+# Il nodo 2 prende posizione :1:0 con anzianità :1:0.
+# I nodi successivi prendono queste posizioni e anzianità:
+#   3  :2:0   :2:0
+#   4  :3:0   :3:0
+#
+
+radio_domain -i 1_wl0 -o 2_wl0 &
+RADIO_1_PID=$!
+radio_domain -i 2_wl0 -o 1_wl0 -o 3_wl0 &
+RADIO_2_PID=$!
+radio_domain -i 3_wl0 -o 2_wl0 -o 4_wl0 &
+RADIO_3_PID=$!
+radio_domain -i 4_wl0 -o 3_wl0 -o 5_wl0 &
+RADIO_4_PID=$!
+
+
+sleep 0.3
+
+echo Starting launches at `date +%T.%N`
+./system_peer --topology 4,1 -p 1 -i wl0 -a wl0,2,wl0,2000 \
+              -t addtag,190,190_goingtoaddarc_1_2 \
+              -t add_identityarc,200,0,0+1 \
+              -t add_qspnarc,240,0,0+1 \
+              -t addtag,280,280_addedarc_1_2 \
+              > test_cost_variations_pid1_out.txt 2>&1 &
+PEER_1_PID=$!
+./system_peer --topology 4,1 -p 2 -i wl0 -a wl0,1,wl0,2000 -a wl0,3,wl0,2000 \
+              -t addtag,190,190_goingtoenter_2_witharcs_1 \
+              -t add_identity,200,0,0+0 \
+              -t enter_net,230,0,1,0,1:0,1:0,0+0 \
+              -t addtag,280,280_doneenter_2_witharcs_1 \
+              -t addtag,290,290_goingtoaddarc_2_3 \
+              -t add_identityarc,300,1,1+1 \
+              -t add_qspnarc,340,1,1+1 \
+              -t addtag,380,380_addedarc_2_3 \
+              > test_cost_variations_pid2_out.txt 2>&1 &
+PEER_2_PID=$!
+./system_peer --topology 4,1 -p 3 -i wl0 -a wl0,2,wl0,2000 -a wl0,4,wl0,2000 \
+              -t addtag,290,290_goingtoenter_3_witharcs_2 \
+              -t add_identity,300,0,0+1 \
+              -t enter_net,330,0,1,0,2:0,2:0,0+1 \
+              -t addtag,380,380_doneenter_3_witharcs_2 \
+              -t addtag,390,390_goingtoaddarc_3_4 \
+              -t add_identityarc,400,1,1+1 \
+              -t add_qspnarc,440,1,1+1 \
+              -t addtag,480,480_addedarc_3_4 \
+              > test_cost_variations_pid3_out.txt 2>&1 &
+PEER_3_PID=$!
+./system_peer --topology 4,1 -p 4 -i wl0 -a wl0,3,wl0,2000 -a wl0,5,wl0,2000 \
+              -t addtag,390,390_goingtoenter_4_witharcs_3 \
+              -t add_identity,400,0,0+1 \
+              -t enter_net,430,0,1,0,3:0,3:0,0+1 \
+              -t addtag,480,480_doneenter_4_witharcs_3 \
+              > test_cost_variations_pid4_out.txt 2>&1 &
+PEER_4_PID=$!
+echo Done launches at `date +%T.%N`
+
+sleep 5
+
+echo killing...
+# interrupt peers
+kill $PEER_1_PID $PEER_2_PID $PEER_3_PID $PEER_4_PID
+
+# wait for peers and note down its retval
+wait $PEER_1_PID
+PEER_1_RET=$?
+wait $PEER_2_PID
+PEER_2_RET=$?
+wait $PEER_3_PID
+PEER_3_RET=$?
+wait $PEER_4_PID
+PEER_4_RET=$?
+
+# kill proxy demons
+kill $RADIO_1_PID $RADIO_2_PID $RADIO_3_PID $RADIO_4_PID
+
+# delay for removal of local sockets (e.g. send_1_wl0)
+sleep 0.3
+
+# check testers retval
+test $PEER_1_RET -eq 0 || exit 1
+test $PEER_2_RET -eq 0 || exit 2
+test $PEER_3_RET -eq 0 || exit 3
+test $PEER_4_RET -eq 0 || exit 4

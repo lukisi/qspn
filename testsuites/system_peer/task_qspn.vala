@@ -341,6 +341,68 @@ namespace SystemPeer
         }
     }
 
+    bool schedule_task_changecost_arc(string task)
+    {
+        if (task.has_prefix("changecost_arc,"))
+        {
+            string remain = task.substring("changecost_arc,".length);
+            string[] args = remain.split(",");
+            if (args.length != 3) error("bad args num in task 'changecost_arc'");
+            int64 ms_wait;
+            if (! int64.try_parse(args[0], out ms_wait)) error("bad args ms_wait in task 'changecost_arc'");
+            int64 arc_num;
+            if (! int64.try_parse(args[1], out arc_num)) error("bad args arc_num in task 'changecost_arc'");
+            int64 usec_rtt;
+            if (! int64.try_parse(args[1], out usec_rtt)) error("bad args usec_rtt in task 'changecost_arc'");
+            print(@"INFO: in $(ms_wait) ms will change base cost of arc #'$(arc_num)' to RTT = $(usec_rtt) usec.\n");
+            ChangeCostArcTasklet s = new ChangeCostArcTasklet(
+                (int)ms_wait,
+                (int)arc_num,
+                (int)usec_rtt);
+            tasklet.spawn(s);
+            return true;
+        }
+        else return false;
+    }
+
+    class ChangeCostArcTasklet : Object, ITaskletSpawnable
+    {
+        public ChangeCostArcTasklet(
+            int ms_wait,
+            int arc_num,
+            int usec_rtt)
+        {
+            this.ms_wait = ms_wait;
+            this.arc_num = arc_num;
+            this.usec_rtt = usec_rtt;
+        }
+        private int ms_wait;
+        private int arc_num;
+        private int usec_rtt;
+
+        public void * func()
+        {
+            tasklet.ms_wait(ms_wait);
+
+            // Pseudo arc
+            PseudoArc arc = arc_list[arc_num];
+            arc.cost = usec_rtt;
+
+            foreach (IdentityData my_identity_data in local_identities.values)
+                if (my_identity_data.qspn_mgr != null)
+            {
+                foreach (IdentityArc ia in my_identity_data.identity_arcs)
+                    if (ia.arc == arc)
+                {
+                    ia.qspn_arc = new QspnArc(ia);
+                    my_identity_data.qspn_mgr.arc_is_changed(ia.qspn_arc);
+                }
+            }
+
+            return null;
+        }
+    }
+
     bool schedule_task_remove_qspn(string task)
     {
         if (task.has_prefix("remove_qspn,"))

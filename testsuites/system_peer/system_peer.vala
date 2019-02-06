@@ -216,7 +216,7 @@ namespace SystemPeer
             string peer_linklocal = fake_random_linklocal(peer_mac);
             PseudoArc pseudoarc = new PseudoArc(my_dev, peer_pid, peer_mac, peer_linklocal, cost);
             arc_list.add(pseudoarc);
-            print(@"INFO: arc #$(i) from $(my_dev) to pid$(peer_pid)+$(peer_dev)=$(peer_linklocal)\n");
+            print(@"INFO: arc #$(i) from $(my_dev) to pid$(peer_pid)+$(peer_dev)=$(peer_linklocal) with base cost of RTT = $(cost) usec\n");
         }
 
         // first id
@@ -275,6 +275,7 @@ namespace SystemPeer
             else if (schedule_task_remove_qspn(task)) {}
             else if (schedule_task_addtag(task)) {}
             else if (schedule_task_check_nodes_inside_variations(task)) {}
+            else if (schedule_task_changecost_arc(task)) {}
             else error(@"unknown task $(task)");
         }
 

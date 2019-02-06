@@ -10,6 +10,7 @@ TESTS = \
 	two_nodes \
 	four_nodes \
 	nodes_inside_variations \
+	cost_variations \
 	$(NULL)
 
 check_PROGRAMS = \
