@@ -5,9 +5,11 @@
 # Ad esempio il pid=100 avrà indirizzo :1:0:0 e il pid=532 avrà indirizzo :5:3:2.
 # (notare che il primo numero indica il livello 0 e man mano si sale)
 
-radio_domain -i 100_wl0 -o 200_wl0 &
+radio_domain -i 100_wl0 -o 300_wl0 &
 RADIO_100_PID=$!
-radio_domain -i 200_wl0 -o 100_wl0 &
+radio_domain -i 300_wl0 -o 100_wl0 -o 200_wl0 &
+RADIO_300_PID=$!
+radio_domain -i 200_wl0 -o 300_wl0 &
 RADIO_200_PID=$!
 
 
@@ -16,12 +18,29 @@ sleep 0.3
 echo Starting launches at `date +%T.%N`
 
 ./system_peer --topology 3,2,2 --firstaddr 1,0,0 \
-              -p 100 -i wl0 -a wl0,200,wl0,2000 \
+              -p 100 -i wl0 -a wl0,300,wl0,2000 \
+              -t add_identityarc,200,0,0+1 \
+              -t add_qspnarc,240,0,0+1 \
+              -t addtag,290,aggiunto_300 \
               > test_graph_pid100_out.txt 2>&1 &
 PEER_100_PID=$!
 
 ./system_peer --topology 3,2,2 \
-              -p 200 -i wl0 -a wl0,100,wl0,2000 \
+              -p 300 -i wl0 -a wl0,100,wl0,2000 -a wl0,200,wl0,2000 \
+              -t add_identity,200,0,0+0 \
+              -t enter_net,230,0,1,0,3:0:0,1:0:0,0+0 \
+              -t addtag,290,entrato_300 \
+              -t add_identityarc,300,1,1+1 \
+              -t add_qspnarc,340,1,1+1 \
+              -t addtag,390,aggiunto_200 \
+              > test_graph_pid300_out.txt 2>&1 &
+PEER_300_PID=$!
+
+./system_peer --topology 3,2,2 \
+              -p 200 -i wl0 -a wl0,300,wl0,2000 \
+              -t add_identity,300,0,0+1 \
+              -t enter_net,330,0,1,0,2:0:0,2:0:0,0+1 \
+              -t addtag,390,entrato_200 \
               > test_graph_pid200_out.txt 2>&1 &
 PEER_200_PID=$!
 
@@ -32,20 +51,23 @@ sleep 3
 
 echo killing...
 # interrupt peers
-kill $PEER_100_PID $PEER_200_PID
+kill $PEER_100_PID $PEER_300_PID $PEER_200_PID
 
 # wait for peers and note down its retval
 wait $PEER_100_PID
 PEER_100_RET=$?
+wait $PEER_300_PID
+PEER_300_RET=$?
 wait $PEER_200_PID
 PEER_200_RET=$?
 
 # kill proxy demons
-kill $RADIO_100_PID $RADIO_200_PID
+kill $RADIO_100_PID $RADIO_300_PID $RADIO_200_PID
 
 # delay for removal of local sockets (e.g. send_100_wl0)
 sleep 0.3
 
 # check testers retval
 test $PEER_100_RET -eq 0 || exit 100
+test $PEER_300_RET -eq 0 || exit 300
 test $PEER_200_RET -eq 0 || exit 200
