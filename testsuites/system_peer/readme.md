@@ -93,6 +93,9 @@ ci conviene per poter predeterminare il risultato, sono calcolate con una funzio
 
 Sul comando `system_peer` posso passare la topologia. Altrimenti c'è una topologia di default.
 
+Sul comando `system_peer` posso anche passare il primo indirizzo. Altrimenti viene scelto
+in modo pseudo-random nell'ambito della topologia.
+
 Il programma `system_peer` si mette in ascolto per messaggi datagram sulle interfacce
 di rete specificate (almeno una) e per connessioni sugli indirizzi IP linklocal associati
 ad esse (uno distinto per ogni interfaccia).
@@ -341,6 +344,11 @@ avvio perché siano eseguiti dopo un dato tempo.
     I parametri sono:
     *   `ms_wait`.
     *   ... TODO.
+*   `changecost_arc`: Cambia il costo di un arco, aggiornando gli archi-qspn esistenti.
+    I parametri sono:
+    *   `ms_wait`.
+    *   `arc_num`.
+    *   `usec_rtt`.
 *   `addtag`: Aggiunge una label alla lista degli eventi. I parametri sono:
     *   `ms_wait`.
     *   `label`.
