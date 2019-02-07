@@ -16,6 +16,7 @@ namespace SystemPeer
     }
 
     string topology;
+    string firstaddr;
     int pid;
     [CCode (array_length = false, array_null_terminated = true)]
     string[] interfaces;
@@ -69,11 +70,13 @@ namespace SystemPeer
     {
         pid = 0; // default
         topology = "1,1,1,2"; // default
+        firstaddr = ""; // default
         check_four_nodes = false; // default
         OptionContext oc = new OptionContext("<options>");
-        OptionEntry[] entries = new OptionEntry[7];
+        OptionEntry[] entries = new OptionEntry[8];
         int index = 0;
         entries[index++] = {"topology", '\0', 0, OptionArg.STRING, ref topology, "Topology in bits. Default: 1,1,1,2", null};
+        entries[index++] = {"firstaddr", '\0', 0, OptionArg.STRING, ref firstaddr, "First address. E.g. '0,0,1,3'. Default is random.", null};
         entries[index++] = {"pid", 'p', 0, OptionArg.INT, ref pid, "Fake PID (e.g. -p 1234).", null};
         entries[index++] = {"interfaces", 'i', 0, OptionArg.STRING_ARRAY, ref interfaces, "Interface (e.g. -i eth1). You can use it multiple times.", null};
         entries[index++] = {"arcs", 'a', 0, OptionArg.STRING_ARRAY, ref arcs, "Arc my_dev,peer_pid,peer_dev,cost (e.g. -a eth1,5678,eth0,300). You can use it multiple times.", null};
@@ -113,6 +116,21 @@ namespace SystemPeer
             gsizes.add(gsize);
         }
         levels = gsizes.size;
+        ArrayList<int> naddr = new ArrayList<int>();
+        // If first address is forced:
+        if (firstaddr != "")
+        {
+            string[] firstaddr_array = firstaddr.split(",");
+            if (firstaddr_array.length != levels) error("Bad first address");
+            for (int i = 0; i < levels; i++)
+            {
+                string s_firstaddr_part = firstaddr_array[i];
+                int64 i_firstaddr_part;
+                if (! int64.try_parse(s_firstaddr_part, out i_firstaddr_part)) error("Bad first address");
+                if (i_firstaddr_part < 0 || i_firstaddr_part > gsizes[i]-1) error("Bad first address");
+                naddr.add((int)i_firstaddr_part);
+            }
+        }
 
         // Names of the network interfaces to do RPC.
         ArrayList<string> devs = new ArrayList<string>();
@@ -166,10 +184,10 @@ namespace SystemPeer
         PRNGen.init_rngen(null, seed_prn);
         QspnManager.init_rngen(null, seed_prn);
 
-        // First network: the node on its own. Address of the node.
-        ArrayList<int> naddr = new ArrayList<int>();
-        for (int i = 0; i < levels; i++)
-            naddr.add((int)PRNGen.int_range(0, gsizes[i]));
+        // If first address is random:
+        if (firstaddr == "")
+            for (int i = 0; i < levels; i++)
+                naddr.add((int)PRNGen.int_range(0, gsizes[i]));
 
         // Pass tasklet system to the RPC library (ntkdrpc)
         init_tasklet_system(tasklet);
