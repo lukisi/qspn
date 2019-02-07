@@ -280,7 +280,7 @@ PEER_16_PID=$!
 PEER_17_PID=$!
 echo Done launches at `date +%T.%N`
 
-sleep 5
+sleep 3
 
 echo killing...
 # interrupt peers
