@@ -11,6 +11,7 @@ TESTS = \
 	four_nodes \
 	nodes_inside_variations \
 	cost_variations \
+	graph \
 	$(NULL)
 
 check_PROGRAMS = \

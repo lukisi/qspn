@@ -2,7 +2,7 @@
 
 # Questo script produce una rete di questo tipo:
 #
-#   1 - 2 - 3 - 4
+#   1 - 2 - 3 - 4 - 5 - 6 - 7 - 8 - 9
 #
 # dove ogni numero indica il pid di un processo (cioè un nodo)
 # e i collegamenti sono realizzati con l'iterfaccia radio wl0.
