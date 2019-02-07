@@ -276,6 +276,7 @@ namespace SystemPeer
             else if (schedule_task_addtag(task)) {}
             else if (schedule_task_check_nodes_inside_variations(task)) {}
             else if (schedule_task_changecost_arc(task)) {}
+            else if (schedule_task_check_cost_variations(task)) {}
             else error(@"unknown task $(task)");
         }
 

@@ -72,6 +72,7 @@ PEER_1_PID=$!
               -t addtag,1790,1790_goingtochangecostarc_8_9_8000 \
               -t addtag,1890,1890_goingtochangecostarc_8_9_6000 \
               -t addtag,1990,1990_goingtochangecostarc_8_9_4000 \
+              -t check_cost_variations,2100 \
               > test_cost_variations_pid2_out.txt 2>&1 &
 PEER_2_PID=$!
 ./system_peer --topology 4,1 -p 3 -i wl0 -a wl0,2,wl0,6000 -a wl0,4,wl0,6000 \
@@ -140,6 +141,7 @@ PEER_5_PID=$!
               -t addtag,1790,1790_goingtochangecostarc_8_9_8000 \
               -t addtag,1890,1890_goingtochangecostarc_8_9_6000 \
               -t addtag,1990,1990_goingtochangecostarc_8_9_4000 \
+              -t check_cost_variations,2100 \
               > test_cost_variations_pid6_out.txt 2>&1 &
 PEER_6_PID=$!
 ./system_peer --topology 4,1 -p 7 -i wl0 -a wl0,6,wl0,6000 -a wl0,8,wl0,6000 \
@@ -157,6 +159,7 @@ PEER_6_PID=$!
               -t addtag,1790,1790_goingtochangecostarc_8_9_8000 \
               -t addtag,1890,1890_goingtochangecostarc_8_9_6000 \
               -t addtag,1990,1990_goingtochangecostarc_8_9_4000 \
+              -t check_cost_variations,2100 \
               > test_cost_variations_pid7_out.txt 2>&1 &
 PEER_7_PID=$!
 ./system_peer --topology 4,1 -p 8 -i wl0 -a wl0,7,wl0,6000 -a wl0,9,wl0,6000 \
@@ -186,6 +189,7 @@ PEER_7_PID=$!
               -t addtag,1990,1990_goingtochangecostarc_8_9_4000 \
               -t changecost_arc,2000,1,4000 \
               -t addtag,2080,2080_changedcostarc_8_9 \
+              -t check_cost_variations,2100 \
               > test_cost_variations_pid8_out.txt 2>&1 &
 PEER_8_PID=$!
 ./system_peer --topology 4,1 -p 9 -i wl0 -a wl0,8,wl0,6000 -a wl0,10,wl0,6000 \
