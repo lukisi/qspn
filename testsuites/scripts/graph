@@ -5,12 +5,18 @@
 # Ad esempio il pid=100 avrà indirizzo :1:0:0 e il pid=532 avrà indirizzo :5:3:2.
 # (notare che il primo numero indica il livello 0 e man mano si sale)
 
-radio_domain -i 100_wl0 -o 300_wl0 &
+radio_domain -i 100_wl0 -o 300_wl0 -o 700_wl0 -o 500_wl0 &
 RADIO_100_PID=$!
 radio_domain -i 300_wl0 -o 100_wl0 -o 200_wl0 &
 RADIO_300_PID=$!
-radio_domain -i 200_wl0 -o 300_wl0 &
+radio_domain -i 200_wl0 -o 300_wl0 -o 700_wl0 -o 600_wl0 &
 RADIO_200_PID=$!
+radio_domain -i 700_wl0 -o 100_wl0 -o 200_wl0 -o 600_wl0 &
+RADIO_700_PID=$!
+radio_domain -i 600_wl0 -o 200_wl0 -o 700_wl0 &
+RADIO_600_PID=$!
+radio_domain -i 500_wl0 -o 100_wl0 &
+RADIO_500_PID=$!
 
 
 sleep 0.3
@@ -18,10 +24,13 @@ sleep 0.3
 echo Starting launches at `date +%T.%N`
 
 ./system_peer --topology 3,2,2 --firstaddr 1,0,0 \
-              -p 100 -i wl0 -a wl0,300,wl0,2000 \
+              -p 100 -i wl0 -a wl0,300,wl0,2000 -a wl0,700,wl0,2000 -a wl0,500,wl0,2000 \
               -t add_identityarc,200,0,0+1 \
               -t add_qspnarc,240,0,0+1 \
-              -t addtag,290,aggiunto_300 \
+              -t add_identityarc,400,0,1+1 \
+              -t add_qspnarc,440,0,1+1 \
+              -t add_identityarc,500,0,2+1 \
+              -t add_qspnarc,540,0,2+1 \
               > test_graph_pid100_out.txt 2>&1 &
 PEER_100_PID=$!
 
@@ -29,20 +38,44 @@ PEER_100_PID=$!
               -p 300 -i wl0 -a wl0,100,wl0,2000 -a wl0,200,wl0,2000 \
               -t add_identity,200,0,0+0 \
               -t enter_net,230,0,1,0,3:0:0,1:0:0,0+0 \
-              -t addtag,290,entrato_300 \
               -t add_identityarc,300,1,1+1 \
               -t add_qspnarc,340,1,1+1 \
-              -t addtag,390,aggiunto_200 \
               > test_graph_pid300_out.txt 2>&1 &
 PEER_300_PID=$!
 
 ./system_peer --topology 3,2,2 \
-              -p 200 -i wl0 -a wl0,300,wl0,2000 \
+              -p 200 -i wl0 -a wl0,300,wl0,2000 -a wl0,700,wl0,2000 -a wl0,600,wl0,2000 \
               -t add_identity,300,0,0+1 \
               -t enter_net,330,0,1,0,2:0:0,2:0:0,0+1 \
-              -t addtag,390,entrato_200 \
+              -t add_identityarc,400,1,1+1 \
+              -t add_qspnarc,440,1,1+1 \
+              -t add_identityarc,500,1,2+1 \
+              -t add_qspnarc,540,1,2+1 \
               > test_graph_pid200_out.txt 2>&1 &
 PEER_200_PID=$!
+
+./system_peer --topology 3,2,2 \
+              -p 700 -i wl0 -a wl0,100,wl0,2000 -a wl0,200,wl0,2000 -a wl0,600,wl0,2000 \
+              -t add_identity,400,0,0+0_1+1 \
+              -t enter_net,430,0,1,0,7:0:0,3:0:0,0+0_1+1 \
+              -t add_identityarc,500,1,2+1 \
+              -t add_qspnarc,540,1,2+1 \
+              > test_graph_pid700_out.txt 2>&1 &
+PEER_700_PID=$!
+
+./system_peer --topology 3,2,2 \
+              -p 600 -i wl0 -a wl0,200,wl0,2000 -a wl0,700,wl0,2000 \
+              -t add_identity,500,0,0+1_1+1 \
+              -t enter_net,530,0,1,0,6:0:0,4:0:0,0+1_1+1 \
+              > test_graph_pid600_out.txt 2>&1 &
+PEER_600_PID=$!
+
+./system_peer --topology 3,2,2 \
+              -p 500 -i wl0 -a wl0,100,wl0,2000 \
+              -t add_identity,500,0,0+0 \
+              -t enter_net,530,0,1,0,5:0:0,5:0:0,0+0 \
+              > test_graph_pid500_out.txt 2>&1 &
+PEER_500_PID=$!
 
 
 echo Done launches at `date +%T.%N`
@@ -51,7 +84,8 @@ sleep 3
 
 echo killing...
 # interrupt peers
-kill $PEER_100_PID $PEER_300_PID $PEER_200_PID
+kill $PEER_100_PID $PEER_300_PID $PEER_200_PID $PEER_700_PID $PEER_600_PID \
+     $PEER_500_PID
 
 # wait for peers and note down its retval
 wait $PEER_100_PID
@@ -60,9 +94,16 @@ wait $PEER_300_PID
 PEER_300_RET=$?
 wait $PEER_200_PID
 PEER_200_RET=$?
+wait $PEER_700_PID
+PEER_700_RET=$?
+wait $PEER_600_PID
+PEER_600_RET=$?
+wait $PEER_500_PID
+PEER_500_RET=$?
 
 # kill proxy demons
-kill $RADIO_100_PID $RADIO_300_PID $RADIO_200_PID
+kill $RADIO_100_PID $RADIO_300_PID $RADIO_200_PID $RADIO_700_PID $RADIO_600_PID \
+     $RADIO_500_PID
 
 # delay for removal of local sockets (e.g. send_100_wl0)
 sleep 0.3
@@ -71,3 +112,6 @@ sleep 0.3
 test $PEER_100_RET -eq 0 || exit 100
 test $PEER_300_RET -eq 0 || exit 300
 test $PEER_200_RET -eq 0 || exit 200
+test $PEER_700_RET -eq 0 || exit 700
+test $PEER_600_RET -eq 0 || exit 600
+test $PEER_500_RET -eq 0 || exit 500
