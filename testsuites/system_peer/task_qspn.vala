@@ -88,6 +88,17 @@ namespace SystemPeer
         else return false;
     }
 
+    class IdentityArcPair : Object
+    {
+        public IdentityArcPair(IdentityArc old_id_arc, IdentityArc new_id_arc)
+        {
+            this.old_id_arc = old_id_arc;
+            this.new_id_arc = new_id_arc;
+        }
+        public IdentityArc old_id_arc {get; private set;}
+        public IdentityArc new_id_arc {get; private set;}
+    }
+
     class EnterNetTasklet : Object, ITaskletSpawnable
     {
         public EnterNetTasklet(
@@ -152,7 +163,47 @@ namespace SystemPeer
             if (guest_level > 0)
             {
                 // a g-node of level 0 has no internal arcs.
-                error("not implemented yet");
+
+                // Associate id-arcs of old and new identity.
+                Gee.List<IdentityArcPair> both_arcpairs = new ArrayList<IdentityArcPair>();
+                foreach (IdentityArc w0 in old_identity_data.identity_arcs)
+                {
+                    // find appropriate w1
+                    foreach (IdentityArc w1 in new_identity_data.identity_arcs)
+                    {
+                        if (w1.arc != w0.arc) continue;
+                        both_arcpairs.add(new IdentityArcPair(w0, w1));
+                        break;
+                    }
+                }
+
+                foreach (IdentityArcPair arcpair in both_arcpairs)
+                {
+                    IdentityArc w0 = arcpair.old_id_arc;
+                    IdentityArc w1 = arcpair.new_id_arc;
+
+                    w1.qspn_arc = new QspnArc(w1);
+
+                    // Handle rare (but possible) situation where right in the middle of a duplication
+                    //  some of the qspn-arcs of the old identity are removed for bad-link.
+                    if (w0.qspn_arc != null)
+                    {
+                        IQspnNaddr? _w0_peer_naddr = old_identity_data.qspn_mgr.get_naddr_for_arc(w0.qspn_arc);
+                        if (_w0_peer_naddr != null)
+                        {
+                            Naddr w0_peer_naddr = (Naddr)_w0_peer_naddr;
+                            ArrayList<int> _w1_peer_naddr = new ArrayList<int>();
+                            _w1_peer_naddr.add_all(w0_peer_naddr.pos.slice(0, host_level-1));
+                            _w1_peer_naddr.add_all(new_identity_data.my_naddr.pos.slice(host_level-1, levels));
+                            Naddr w1_peer_naddr = new Naddr(_w1_peer_naddr.to_array(), gsizes.to_array());
+
+                            // Now add: the 3 ArrayList should have same size at the end.
+                            internal_arc_set.add(w1.qspn_arc);
+                            internal_arc_peer_naddr_set.add(w1_peer_naddr);
+                            internal_arc_prev_arc_set.add(w0.qspn_arc);
+                        }
+                    }
+                }
             }
             ArrayList<IQspnArc> external_arc_set = new ArrayList<IQspnArc>();
             for (int i = 0; i < external_arc_list_arc_num.size; i++)
@@ -175,9 +226,23 @@ namespace SystemPeer
                 external_arc_set,
                 new_identity_data.my_naddr,
                 new_identity_data.my_fp,
-                (old_fp) => {
+                (_f) => {
                     assert(guest_level > 0); // a g-node of level 0 has no internal arcs.
-                    error("not implemented yet");
+                    Fingerprint f = (Fingerprint)_f;
+                    for (int l = guest_level; l < levels; l++)
+                    {
+                        // f.elderships has n items, where f.level + n = levels.
+                        // f.elderships[0] refers to l=f.level.
+                        // f.elderships[n-1] refers to l=f.level+n-1=levels-1.
+                        // so, f.elderships[i] refers to l=f.level+i.
+                        int i = l - f.level;
+                        if (i >= 0)
+                            f.elderships[i] = new_identity_data.my_fp.elderships[l];
+                        // f.elderships_seed doesn't need to change.
+                    }
+                    return f;
+                    // Returning the same instance is ok, because the delegate is alway
+                    // called like "x = update_internal_fingerprints(x)"
                 }, // update_internal_fingerprints,
                 new QspnStubFactory(new_identity_data),
                 guest_level,
