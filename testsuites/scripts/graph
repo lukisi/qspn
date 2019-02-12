@@ -190,59 +190,47 @@ echo Done launches at `date +%T.%N`
 
 sleep 10
 
+echo checking status...
+PEER_ABORT=0
+kill -0 $PEER_100_PID || { wait $PEER_100_PID; echo system_peer 100 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_300_PID || { wait $PEER_300_PID; echo system_peer 300 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_200_PID || { wait $PEER_200_PID; echo system_peer 200 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_700_PID || { wait $PEER_700_PID; echo system_peer 700 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_600_PID || { wait $PEER_600_PID; echo system_peer 600 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_500_PID || { wait $PEER_500_PID; echo system_peer 500 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_410_PID || { wait $PEER_410_PID; echo system_peer 410 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_210_PID || { wait $PEER_210_PID; echo system_peer 210 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_310_PID || { wait $PEER_310_PID; echo system_peer 310 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_430_PID || { wait $PEER_430_PID; echo system_peer 430 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_530_PID || { wait $PEER_530_PID; echo system_peer 530 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_630_PID || { wait $PEER_630_PID; echo system_peer 630 prematurely exited with $?; PEER_ABORT=1; }
+kill -0 $PEER_730_PID || { wait $PEER_730_PID; echo system_peer 730 prematurely exited with $?; PEER_ABORT=1; }
+
 echo killing...
 # interrupt peers
 kill $PEER_100_PID $PEER_300_PID $PEER_200_PID $PEER_700_PID $PEER_600_PID \
      $PEER_500_PID $PEER_410_PID $PEER_210_PID $PEER_310_PID $PEER_430_PID \
      $PEER_530_PID $PEER_630_PID $PEER_730_PID
 
-# wait for peers and note down its retval
-wait $PEER_100_PID
-PEER_100_RET=$?
-wait $PEER_300_PID
-PEER_300_RET=$?
-wait $PEER_200_PID
-PEER_200_RET=$?
-wait $PEER_700_PID
-PEER_700_RET=$?
-wait $PEER_600_PID
-PEER_600_RET=$?
-wait $PEER_500_PID
-PEER_500_RET=$?
-wait $PEER_410_PID
-PEER_410_RET=$?
-wait $PEER_210_PID
-PEER_210_RET=$?
-wait $PEER_310_PID
-PEER_310_RET=$?
-wait $PEER_430_PID
-PEER_430_RET=$?
-wait $PEER_530_PID
-PEER_530_RET=$?
-wait $PEER_630_PID
-PEER_630_RET=$?
-wait $PEER_730_PID
-PEER_730_RET=$?
+wait $PEER_100_PID $PEER_300_PID $PEER_200_PID $PEER_700_PID $PEER_600_PID \
+     $PEER_500_PID $PEER_410_PID $PEER_210_PID $PEER_310_PID $PEER_430_PID \
+     $PEER_530_PID $PEER_630_PID $PEER_730_PID
+
+# Ignore errors in this shutdown. Remove any remaining local socket.
+rm -f conn_169.254.*
+rm -f recv_???_wl0
 
 # kill proxy demons
 kill $RADIO_100_PID $RADIO_300_PID $RADIO_200_PID $RADIO_700_PID $RADIO_600_PID \
      $RADIO_500_PID $RADIO_410_PID $RADIO_210_PID $RADIO_310_PID $RADIO_430_PID \
      $RADIO_530_PID $RADIO_630_PID $RADIO_730_PID
 
+wait $RADIO_100_PID $RADIO_300_PID $RADIO_200_PID $RADIO_700_PID $RADIO_600_PID \
+     $RADIO_500_PID $RADIO_410_PID $RADIO_210_PID $RADIO_310_PID $RADIO_430_PID \
+     $RADIO_530_PID $RADIO_630_PID $RADIO_730_PID
+
 # delay for removal of local sockets (e.g. send_100_wl0)
 sleep 0.3
 
-# check testers retval
-test $PEER_100_RET -eq 0 || exit 100
-test $PEER_300_RET -eq 0 || exit 300
-test $PEER_200_RET -eq 0 || exit 200
-test $PEER_700_RET -eq 0 || exit 700
-test $PEER_600_RET -eq 0 || exit 600
-test $PEER_500_RET -eq 0 || exit 500
-test $PEER_410_RET -eq 0 || exit 410
-test $PEER_210_RET -eq 0 || exit 210
-test $PEER_310_RET -eq 0 || exit 310
-test $PEER_430_RET -eq 0 || exit 430
-test $PEER_530_RET -eq 0 || exit 530
-test $PEER_630_RET -eq 0 || exit 630
-test $PEER_730_RET -eq 0 || exit 730
+# check PEER_ABORT
+test $PEER_ABORT -eq 0 || exit 1
