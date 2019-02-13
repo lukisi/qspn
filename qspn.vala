@@ -27,6 +27,29 @@ namespace Netsukuku.Qspn
         equal_func_iqspnarc = (a, b) => a.i_qspn_equals(b);
     }
 
+    internal Gee.EqualDataFunc<PairFingerprints> equal_func_pair_fingerprints;
+    internal void init_equal_func_pair_fingerprints()
+    {
+        equal_func_pair_fingerprints = (a, b) => a.equals(b);
+    }
+
+    internal class PairFingerprints : Object
+    {
+        private IQspnFingerprint fp1;
+        private IQspnFingerprint fp2;
+        public PairFingerprints(IQspnFingerprint fp1, IQspnFingerprint fp2)
+        {
+            this.fp1 = fp1;
+            this.fp2 = fp2;
+        }
+        public bool equals(PairFingerprints o)
+        {
+            var ret = fp1.i_qspn_equals(o.fp1) &&
+                   fp2.i_qspn_equals(o.fp2);
+            return ret;
+        }
+    }
+
     internal errordomain ArcRemovedError {
         GENERIC
     }
@@ -42,8 +65,6 @@ namespace Netsukuku.Qspn
     internal ITasklet tasklet;
     public class QspnManager : Object, IQspnManagerSkeleton
     {
-        internal static Gee.EqualDataFunc<PairFingerprints> equal_func_pair_fingerprints = (a, b) => a.equals(b);
-
         public static void init
                       (ITasklet _tasklet,
                        int _max_paths,
@@ -147,6 +168,7 @@ namespace Netsukuku.Qspn
             connectivity_from_level = 0;
             connectivity_to_level = 0;
             this.stub_factory = stub_factory;
+            init_equal_func_pair_fingerprints();
             pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // empty set of arcs
             init_equal_func_iqspnarc();
@@ -219,6 +241,7 @@ namespace Netsukuku.Qspn
             assert(connectivity_from_level < guest_gnode_level+1);
             if (connectivity_to_level > guest_gnode_level) connectivity_to_level = guest_gnode_level;
             this.stub_factory = stub_factory;
+            init_equal_func_pair_fingerprints();
             pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
             init_equal_func_iqspnarc();
@@ -352,6 +375,7 @@ namespace Netsukuku.Qspn
             assert(connectivity_from_level < guest_gnode_level+1);
             if (connectivity_to_level > guest_gnode_level) connectivity_to_level = guest_gnode_level;
             this.stub_factory = stub_factory;
+            init_equal_func_pair_fingerprints();
             pending_gnode_split = new ArrayList<PairFingerprints>((owned) equal_func_pair_fingerprints);
             // all the arcs
             init_equal_func_iqspnarc();
@@ -1286,21 +1310,6 @@ namespace Netsukuku.Qspn
                 get {
                     return t == 5;
                 }
-            }
-        }
-        private class PairFingerprints : Object
-        {
-            private IQspnFingerprint fp1;
-            private IQspnFingerprint fp2;
-            public PairFingerprints(IQspnFingerprint fp1, IQspnFingerprint fp2)
-            {
-                this.fp1 = fp1;
-                this.fp2 = fp2;
-            }
-            public bool equals(PairFingerprints o)
-            {
-                return fp1.i_qspn_equals(o.fp1) &&
-                       fp2.i_qspn_equals(o.fp2);
             }
         }
         // Helper: update my map from a set of paths collected from a set
