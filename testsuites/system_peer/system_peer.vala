@@ -289,8 +289,8 @@ namespace SystemPeer
             else if (schedule_task_migrate(task)) {}
             else if (schedule_task_add_identityarc(task)) {}
             else if (schedule_task_add_qspnarc(task)) {}
+            else if (schedule_task_remove_qspnarc(task)) {}
             else if (schedule_task_check_destnum(task)) {}
-            else if (schedule_task_remove_qspn(task)) {}
             else if (schedule_task_addtag(task)) {}
             else if (schedule_task_check_nodes_inside_variations(task)) {}
             else if (schedule_task_changecost_arc(task)) {}

@@ -81,7 +81,16 @@ namespace SystemPeer
     {
         public int i_qspn_calculate_threshold(IQspnNodePath p1, IQspnNodePath p2)
         {
-            return 10000;
+            var cost_p1 = p1.i_qspn_get_cost();
+            assert(cost_p1 is Cost);
+            int64 cost_usec_p1 = ((Cost)cost_p1).usec_rtt;
+            var cost_p2 = p2.i_qspn_get_cost();
+            assert(cost_p2 is Cost);
+            int64 cost_usec_p2 = ((Cost)cost_p2).usec_rtt;
+            // this equates circa 50 times the latency
+            int ms_threshold = ((int)(cost_usec_p1 + cost_usec_p2)) / 20;
+            print(@"threshold = $(ms_threshold) msec.\n");
+            return ms_threshold;
         }
     }
 
@@ -90,7 +99,7 @@ namespace SystemPeer
         public QspnArc(IdentityArc ia)
         {
             this.ia = ia;
-            arc = (PseudoArc)ia.arc;
+            arc = ia.arc;
             int cost_seed = PRNGen.int_range(0, 1000);
             cost = new Cost(arc.cost + cost_seed);
             sourceid = ia.identity_data.nodeid;

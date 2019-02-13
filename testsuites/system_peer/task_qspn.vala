@@ -468,12 +468,74 @@ namespace SystemPeer
         }
     }
 
-    bool schedule_task_remove_qspn(string task)
+    bool schedule_task_remove_qspnarc(string task)
     {
-        if (task.has_prefix("remove_qspn,"))
+        if (task.has_prefix("remove_qspnarc,"))
         {
-            error("not implemented yet");
+            string remain = task.substring("remove_qspnarc,".length);
+            string[] args = remain.split(",");
+            if (args.length != 4) error("bad args num in task 'remove_qspnarc'");
+            int64 ms_wait;
+            if (! int64.try_parse(args[0], out ms_wait)) error("bad args ms_wait in task 'remove_qspnarc'");
+            int64 my_id;
+            if (! int64.try_parse(args[1], out my_id)) error("bad args my_id in task 'remove_qspnarc'");
+            int64 arc_num;
+            if (! int64.try_parse(args[2], out arc_num)) error("bad args arc_num in task 'remove_qspnarc'");
+            int64 peer_id;
+            if (! int64.try_parse(args[3], out peer_id)) error("bad args peer_id in task 'remove_qspnarc'");
+            print(@"INFO: in $(ms_wait) ms will remove qspn-arc '$(arc_num)+$(peer_id)' to my identity #$(my_id).\n");
+            RemoveQspnArcTasklet s = new RemoveQspnArcTasklet(
+                (int)ms_wait,
+                (int)my_id,
+                (int)arc_num,
+                (int)peer_id);
+            tasklet.spawn(s);
+            return true;
         }
         else return false;
+    }
+
+    class RemoveQspnArcTasklet : Object, ITaskletSpawnable
+    {
+        public RemoveQspnArcTasklet(
+            int ms_wait,
+            int my_id,
+            int arc_num,
+            int peer_id)
+        {
+            this.ms_wait = ms_wait;
+            this.my_id = my_id;
+            this.arc_num = arc_num;
+            this.peer_id = peer_id;
+        }
+        private int ms_wait;
+        private int my_id;
+        private int arc_num;
+        private int peer_id;
+
+        public void * func()
+        {
+            tasklet.ms_wait(ms_wait);
+
+            // Pseudo arc
+            PseudoArc pseudoarc = arc_list[arc_num];
+            // peer nodeid
+            NodeID peer_nodeid = fake_random_nodeid(pseudoarc.peer_pid, peer_id);
+
+            // find my_id
+            NodeID my_nodeid = fake_random_nodeid(pid, my_id);
+            IdentityData my_identity_data = find_local_identity(my_nodeid);
+            assert(my_identity_data != null);
+
+            IdentityArc? ia = my_identity_data.identity_arcs_find(pseudoarc, peer_nodeid);
+            if (ia == null) error(@"not found IdentityArc for $(arc_num)+$(peer_id)");
+            if (ia.qspn_arc != null)
+            {
+                my_identity_data.qspn_mgr.arc_remove(ia.qspn_arc);
+                ia.qspn_arc = null;
+            }
+
+            return null;
+        }
     }
 }

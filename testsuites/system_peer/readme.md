@@ -340,10 +340,12 @@ avvio perché siano eseguiti dopo un dato tempo.
     *   `ms_wait`.
     *   `my_id`.
     *   `identity_arc`.
-*   `remove_qspn`: Rimuove (forzatamente) una istanza di QspnManager, come è stato illustrato in precedenza.
+*   `remove_qspnarc`: Rimuove (forzatamente) un arco-qspn da una istanza di QspnManager.
     I parametri sono:
     *   `ms_wait`.
-    *   ... TODO.
+    *   `my_id`.
+    *   `arc_num`.
+    *   `peer_id`.
 *   `changecost_arc`: Cambia il costo di un arco, aggiornando gli archi-qspn esistenti.
     I parametri sono:
     *   `ms_wait`.
