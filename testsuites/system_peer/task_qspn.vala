@@ -244,7 +244,7 @@ namespace SystemPeer
                     // Returning the same instance is ok, because the delegate is alway
                     // called like "x = update_internal_fingerprints(x)"
                 }, // update_internal_fingerprints,
-                new QspnStubFactory(new_identity_data),
+                new QspnStubFactory(new_identity_data.local_identity_index),
                 guest_level,
                 host_level,
                 old_identity_data.qspn_mgr);

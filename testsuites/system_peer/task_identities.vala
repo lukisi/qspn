@@ -93,7 +93,7 @@ namespace SystemPeer
                 // peer nodeid
                 NodeID peer_nodeid = fake_random_nodeid(pseudoarc.peer_pid, arc_list_peer_id_num[i]);
 
-                IdentityArc ia = new IdentityArc(another_identity_data, pseudoarc, peer_nodeid);
+                IdentityArc ia = new IdentityArc(another_identity_data.local_identity_index, pseudoarc, peer_nodeid);
                 another_identity_data.identity_arcs.add(ia);
             }
 
@@ -173,7 +173,7 @@ namespace SystemPeer
             // peer nodeid
             NodeID peer_nodeid = fake_random_nodeid(pseudoarc.peer_pid, peer_id);
 
-            IdentityArc ia = new IdentityArc(my_identity_data, pseudoarc, peer_nodeid);
+            IdentityArc ia = new IdentityArc(my_identity_data.local_identity_index, pseudoarc, peer_nodeid);
             my_identity_data.identity_arcs.add(ia);
 
             return null;

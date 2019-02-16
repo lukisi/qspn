@@ -7,11 +7,19 @@ namespace SystemPeer
 {
     class QspnStubFactory : Object, IQspnStubFactory
     {
-        public QspnStubFactory(IdentityData identity_data)
+        public QspnStubFactory(int local_identity_index)
         {
-            this.identity_data = identity_data;
+            this.local_identity_index = local_identity_index;
         }
-        private weak IdentityData identity_data;
+        private int local_identity_index;
+        private IdentityData? _identity_data;
+        public IdentityData identity_data {
+            get {
+                _identity_data = find_local_identity_by_index(local_identity_index);
+                if (_identity_data == null) tasklet.exit_tasklet();
+                return _identity_data;
+            }
+        }
 
         public IQspnManagerStub
                         i_qspn_get_broadcast(

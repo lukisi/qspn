@@ -59,7 +59,7 @@ namespace SystemPeer
             if (identity_missing_handler != null)
             {
                 NodeMissingArcHandlerForIdentityAware node_missing_handler
-                    = new NodeMissingArcHandlerForIdentityAware(identity_missing_handler, identity_data);
+                    = new NodeMissingArcHandlerForIdentityAware(identity_missing_handler, identity_data.local_identity_index);
                 ack_com = new AcknowledgementsCommunicator(this, my_dev, node_missing_handler);
             }
 
@@ -77,13 +77,21 @@ namespace SystemPeer
 
         class NodeMissingArcHandlerForIdentityAware : Object
         {
-            public NodeMissingArcHandlerForIdentityAware(IIdentityAwareMissingArcHandler identity_missing_handler, IdentityData identity_data)
+            public NodeMissingArcHandlerForIdentityAware(IIdentityAwareMissingArcHandler identity_missing_handler, int local_identity_index)
             {
                 this.identity_missing_handler = identity_missing_handler;
-                this.identity_data = identity_data;
+                this.local_identity_index = local_identity_index;
             }
             private IIdentityAwareMissingArcHandler identity_missing_handler;
-            private weak IdentityData identity_data;
+            private int local_identity_index;
+            private IdentityData? _identity_data;
+            public IdentityData identity_data {
+                get {
+                    _identity_data = find_local_identity_by_index(local_identity_index);
+                    if (_identity_data == null) tasklet.exit_tasklet();
+                    return _identity_data;
+                }
+            }
 
             public void missing(PseudoArc arc)
             {

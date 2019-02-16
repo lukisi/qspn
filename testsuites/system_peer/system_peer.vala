@@ -55,6 +55,15 @@ namespace SystemPeer
         return null;
     }
 
+    IdentityData? find_local_identity_by_index(int local_identity_index)
+    {
+        assert(local_identities != null);
+        foreach (IdentityData id in local_identities.values)
+            if (id.local_identity_index == local_identity_index)
+            return id;
+        return null;
+    }
+
     void remove_local_identity(NodeID nodeid)
     {
         assert(local_identities != null);
@@ -255,7 +264,7 @@ namespace SystemPeer
         first_identity_data.qspn_mgr = new QspnManager.create_net(
             first_identity_data.my_naddr,
             first_identity_data.my_fp,
-            new QspnStubFactory(first_identity_data));
+            new QspnStubFactory(first_identity_data.local_identity_index));
         string addr = ""; string addrnext = "";
         for (int i = 0; i < levels; i++)
         {
@@ -570,15 +579,23 @@ namespace SystemPeer
 
     class IdentityArc : Object
     {
-        public weak IdentityData identity_data;
+        private int local_identity_index;
+        private IdentityData? _identity_data;
+        public IdentityData identity_data {
+            get {
+                _identity_data = find_local_identity_by_index(local_identity_index);
+                if (_identity_data == null) tasklet.exit_tasklet();
+                return _identity_data;
+            }
+        }
         public PseudoArc arc;
         public NodeID peer_nodeid;
 
         public QspnArc? qspn_arc;
 
-        public IdentityArc(IdentityData identity_data, PseudoArc arc, NodeID peer_nodeid)
+        public IdentityArc(int local_identity_index, PseudoArc arc, NodeID peer_nodeid)
         {
-            this.identity_data = identity_data;
+            this.local_identity_index = local_identity_index;
             this.arc = arc;
             this.peer_nodeid = peer_nodeid;
 

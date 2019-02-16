@@ -109,7 +109,7 @@ namespace SystemPeer
                 {
                     if (ia.peer_nodeid.equals(source_nodeid))
                     {
-                        return new IdentitySkeleton(local_identity_data);
+                        return new IdentitySkeleton(local_identity_data.local_identity_index);
                     }
                 }
             }
@@ -137,7 +137,7 @@ namespace SystemPeer
                         {
                             if (ia.peer_nodeid.equals(source_nodeid))
                             {
-                                ret.add(new IdentitySkeleton(local_identity_data));
+                                ret.add(new IdentitySkeleton(local_identity_data.local_identity_index));
                             }
                         }
                     }
@@ -268,12 +268,19 @@ namespace SystemPeer
          */
         class IdentitySkeleton : Object, IAddressManagerSkeleton
         {
-            public IdentitySkeleton(IdentityData identity_data)
+            public IdentitySkeleton(int local_identity_index)
             {
-                this.identity_data = identity_data;
+                this.local_identity_index = local_identity_index;
             }
-
-            private weak IdentityData identity_data;
+            private int local_identity_index;
+            private IdentityData? _identity_data;
+            public IdentityData identity_data {
+                get {
+                    _identity_data = find_local_identity_by_index(local_identity_index);
+                    if (_identity_data == null) tasklet.exit_tasklet();
+                    return _identity_data;
+                }
+            }
 
             public unowned INeighborhoodManagerSkeleton
             neighborhood_manager_getter()
