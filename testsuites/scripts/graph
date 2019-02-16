@@ -41,141 +41,141 @@ echo Starting launches at `date +%T.%N`
 
 ./system_peer --topology 3,2,2 --firstaddr 1,0,0 \
               -p 100 -i wl0 -a wl0,300,wl0,2000 -a wl0,700,wl0,2000 -a wl0,500,wl0,2000 \
-              -t add_identityarc,4000,0,0+1 \
-              -t add_qspnarc,4900,0,0+1 \
-              -t add_identityarc,8000,0,1+1 \
-              -t add_qspnarc,8900,0,1+1 \
-              -t add_identityarc,10000,0,2+1 \
-              -t add_qspnarc,10900,0,2+1 \
+              -t add_identityarc,400,0,0+1 \
+              -t add_qspnarc,490,0,0+1 \
+              -t add_identityarc,800,0,1+1 \
+              -t add_qspnarc,890,0,1+1 \
+              -t add_identityarc,1000,0,2+1 \
+              -t add_qspnarc,1090,0,2+1 \
               > test_graph_pid100_out.txt 2>&1 &
 PEER_100_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 300 -i wl0 -a wl0,100,wl0,2000 -a wl0,200,wl0,2000 -a wl0,730,wl0,2000 \
-              -t add_identity,4000,0,0+0 \
-              -t enter_net,4800,0,1,0,3:0:0,1:0:0,0+0 \
-              -t add_identityarc,6000,1,1+1 \
-              -t add_qspnarc,6900,1,1+1 \
-              -t add_identityarc,14000,1,2+2 \
-              -t add_qspnarc,14900,1,2+2 \
+              -t add_identity,400,0,0+0 \
+              -t enter_net,480,0,1,0,3:0:0,1:0:0,0+0 \
+              -t add_identityarc,600,1,1+1 \
+              -t add_qspnarc,690,1,1+1 \
+              -t add_identityarc,1400,1,2+2 \
+              -t add_qspnarc,1490,1,2+2 \
               > test_graph_pid300_out.txt 2>&1 &
 PEER_300_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 200 -i wl0 -a wl0,300,wl0,2000 -a wl0,700,wl0,2000 -a wl0,600,wl0,2000 \
-              -t add_identity,6000,0,0+1 \
-              -t enter_net,6800,0,1,0,2:0:0,2:0:0,0+1 \
-              -t add_identityarc,8000,1,1+1 \
-              -t add_qspnarc,8900,1,1+1 \
-              -t add_identityarc,10000,1,2+1 \
-              -t add_qspnarc,10900,1,2+1 \
+              -t add_identity,600,0,0+1 \
+              -t enter_net,680,0,1,0,2:0:0,2:0:0,0+1 \
+              -t add_identityarc,800,1,1+1 \
+              -t add_qspnarc,890,1,1+1 \
+              -t add_identityarc,1000,1,2+1 \
+              -t add_qspnarc,1090,1,2+1 \
               > test_graph_pid200_out.txt 2>&1 &
 PEER_200_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 700 -i wl0 -a wl0,100,wl0,2000 -a wl0,200,wl0,2000 -a wl0,600,wl0,2000 -a wl0,310,wl0,2000 \
-              -t add_identity,8000,0,0+0_1+1 \
-              -t enter_net,8800,0,1,0,7:0:0,3:0:0,0+0_1+1 \
-              -t add_identityarc,10000,1,2+1 \
-              -t add_qspnarc,10900,1,2+1 \
-              -t add_identityarc,10000,1,3+2 \
-              -t add_qspnarc,10900,1,3+2 \
+              -t add_identity,800,0,0+0_1+1 \
+              -t enter_net,880,0,1,0,7:0:0,3:0:0,0+0_1+1 \
+              -t add_identityarc,1000,1,2+1 \
+              -t add_qspnarc,1090,1,2+1 \
+              -t add_identityarc,1000,1,3+2 \
+              -t add_qspnarc,1090,1,3+2 \
               > test_graph_pid700_out.txt 2>&1 &
 PEER_700_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 600 -i wl0 -a wl0,200,wl0,2000 -a wl0,700,wl0,2000 \
-              -t add_identity,10000,0,0+1_1+1 \
-              -t enter_net,10800,0,1,0,6:0:0,4:0:0,0+1_1+1 \
+              -t add_identity,1000,0,0+1_1+1 \
+              -t enter_net,1080,0,1,0,6:0:0,4:0:0,0+1_1+1 \
               > test_graph_pid600_out.txt 2>&1 &
 PEER_600_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 500 -i wl0 -a wl0,100,wl0,2000 -a wl0,530,wl0,2000 \
-              -t add_identity,10000,0,0+0 \
-              -t enter_net,10800,0,1,0,5:0:0,5:0:0,0+0 \
-              -t add_identityarc,14000,1,1+2 \
-              -t add_qspnarc,14900,1,1+2 \
+              -t add_identity,1000,0,0+0 \
+              -t enter_net,1080,0,1,0,5:0:0,5:0:0,0+0 \
+              -t add_identityarc,1400,1,1+2 \
+              -t add_qspnarc,1490,1,1+2 \
               > test_graph_pid500_out.txt 2>&1 &
 PEER_500_PID=$!
 
 ./system_peer --topology 3,2,2 --firstaddr 4,2,2 \
               -p 410 -i wl0 -a wl0,210,wl0,2000 -a wl0,310,wl0,2000 \
-              -t add_identityarc,4000,0,0+1 \
-              -t add_qspnarc,4900,0,0+1 \
-              -t add_identityarc,6000,0,1+1 \
-              -t add_qspnarc,6900,0,1+1 \
-              -t add_identity,10000,0,0+2_1+2 \
-              -t enter_net,10800,0,1,1,1:0,1:0, \
+              -t add_identityarc,400,0,0+1 \
+              -t add_qspnarc,490,0,0+1 \
+              -t add_identityarc,600,0,1+1 \
+              -t add_qspnarc,690,0,1+1 \
+              -t add_identity,1000,0,0+2_1+2 \
+              -t enter_net,1080,0,1,1,1:0,1:0, \
               > test_graph_pid410_out.txt 2>&1 &
 PEER_410_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 210 -i wl0 -a wl0,410,wl0,2000 -a wl0,430,wl0,2000 \
-              -t add_identity,4000,0,0+0 \
-              -t enter_net,4800,0,1,0,2:2:2,1:0:0,0+0 \
-              -t add_identity,10000,1,0+1 \
-              -t enter_net,10800,1,2,1,1:0,1:0, \
-              -t add_identityarc,14000,2,1+1 \
-              -t add_qspnarc,14900,2,1+1 \
+              -t add_identity,400,0,0+0 \
+              -t enter_net,480,0,1,0,2:2:2,1:0:0,0+0 \
+              -t add_identity,1000,1,0+1 \
+              -t enter_net,1080,1,2,1,1:0,1:0, \
+              -t add_identityarc,1400,2,1+1 \
+              -t add_qspnarc,1490,2,1+1 \
               > test_graph_pid210_out.txt 2>&1 &
 PEER_210_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 310 -i wl0 -a wl0,410,wl0,2000 -a wl0,700,wl0,2000 \
-              -t add_identity,6000,0,0+0 \
-              -t enter_net,6800,0,1,0,3:2:2,2:0:0,0+0 \
-              -t add_identity,10000,1,0+1_1+1 \
-              -t enter_net,10800,1,2,1,1:0,1:0,1+1 \
+              -t add_identity,600,0,0+0 \
+              -t enter_net,680,0,1,0,3:2:2,2:0:0,0+0 \
+              -t add_identity,1000,1,0+1_1+1 \
+              -t enter_net,1080,1,2,1,1:0,1:0,1+1 \
               > test_graph_pid310_out.txt 2>&1 &
 PEER_310_PID=$!
 
 ./system_peer --topology 3,2,2 --firstaddr 4,0,0 \
               -p 430 -i wl0 -a wl0,530,wl0,2000 -a wl0,210,wl0,2000 \
-              -t add_identityarc,4000,0,0+1 \
-              -t add_qspnarc,4900,0,0+1 \
-              -t add_identity,14000,0,0+2_1+2 \
-              -t enter_net,14800,0,1,1,3:0,2:0,1+2 \
-              -t remove_qspnarc,18000,1,0,2 \
+              -t add_identityarc,400,0,0+1 \
+              -t add_qspnarc,490,0,0+1 \
+              -t add_identity,1400,0,0+2_1+2 \
+              -t enter_net,1480,0,1,1,3:0,2:0,1+2 \
+              -t remove_qspnarc,2500,1,0,2 \
               > test_graph_pid430_out.txt 2>&1 &
 PEER_430_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 530 -i wl0 -a wl0,430,wl0,2000 -a wl0,630,wl0,2000 -a wl0,500,wl0,2000 \
-              -t add_identity,4000,0,0+0 \
-              -t enter_net,4800,0,1,0,5:0:0,1:0:0,0+0 \
-              -t add_identityarc,6000,1,1+1 \
-              -t add_qspnarc,6900,1,1+1 \
-              -t add_identity,14000,1,0+1_1+2_2+1 \
-              -t enter_net,14800,1,2,1,3:0,2:0,2+1 \
-              -t remove_qspnarc,18000,2,0,1 \
+              -t add_identity,400,0,0+0 \
+              -t enter_net,480,0,1,0,5:0:0,1:0:0,0+0 \
+              -t add_identityarc,600,1,1+1 \
+              -t add_qspnarc,690,1,1+1 \
+              -t add_identity,1400,1,0+1_1+2_2+1 \
+              -t enter_net,1480,1,2,1,3:0,2:0,2+1 \
+              -t remove_qspnarc,2500,2,0,1 \
               > test_graph_pid530_out.txt 2>&1 &
 PEER_530_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 630 -i wl0 -a wl0,530,wl0,2000 -a wl0,730,wl0,2000 \
-              -t add_identity,6000,0,0+1 \
-              -t enter_net,6800,0,1,0,6:0:0,2:0:0,0+1 \
-              -t add_identityarc,8000,1,1+1 \
-              -t add_qspnarc,8900,1,1+1 \
-              -t add_identity,14000,1,0+2_1+2 \
-              -t enter_net,14800,1,2,1,3:0,2:0, \
+              -t add_identity,600,0,0+1 \
+              -t enter_net,680,0,1,0,6:0:0,2:0:0,0+1 \
+              -t add_identityarc,800,1,1+1 \
+              -t add_qspnarc,890,1,1+1 \
+              -t add_identity,1400,1,0+2_1+2 \
+              -t enter_net,1480,1,2,1,3:0,2:0, \
               > test_graph_pid630_out.txt 2>&1 &
 PEER_630_PID=$!
 
 ./system_peer --topology 3,2,2 \
               -p 730 -i wl0 -a wl0,630,wl0,2000 -a wl0,300,wl0,2000 \
-              -t add_identity,8000,0,0+1 \
-              -t enter_net,8800,0,1,0,7:0:0,3:0:0,0+1 \
-              -t add_identity,14000,1,0+2_1+1 \
-              -t enter_net,14800,1,2,1,3:0,2:0,1+1 \
+              -t add_identity,800,0,0+1 \
+              -t enter_net,880,0,1,0,7:0:0,3:0:0,0+1 \
+              -t add_identity,1400,1,0+2_1+1 \
+              -t enter_net,1480,1,2,1,3:0,2:0,1+1 \
               > test_graph_pid730_out.txt 2>&1 &
 PEER_730_PID=$!
 
 
 echo Done launches at `date +%T.%N`
 
-sleep 22
+sleep 6
 
 echo checking status...
 PEER_ABORT=0
