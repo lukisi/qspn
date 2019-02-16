@@ -297,12 +297,27 @@ vicini siano pronti, e poi rimuovere la vecchia istanza di QspnManager
 che era di *a0*.
 
 Per questo il `system_peer` nel task `enter_net`, dopo aver creato l'istanza
-di QspnManager per la nuova identità che fa ingresso, attende 500 msec e poi
+di QspnManager per la nuova identità che fa ingresso, attende 2 secondi e poi
 rimuove il QspnManager della vecchia identità.
 
 Prima di dismettere il QspnManager di *a0*, il system_peer di *a* chiama sull'istanza di QspnManager
 di *a0* il metodo `destroy` per segnalare ai suoi diretti vicini esterni a *w*
 che sta uscendo dalla rete.
+
+Poi chiama anche il metodo `stop_operations`. In teoria questo
+dovrebbe essere sufficiente a che l'istanza di QspnManager non prenda altre
+iniziative che richiederebbero il coinvolgimento del suo utilizzatore in riferimento a questa
+identità che viene dismessa. Questo potrebbe avvenire in alcune tasklet che il modulo Qspn aveva
+avviato prima della dismissione di questa identità.  
+In pratica invece non sempre avviene questo. Succede invece che
+in alcune tasklet ancora attive il QspnManager chiama
+delle interfacce fornite dal suo utilizzatore (e.g. IQspnStubFactory) che
+sono relative all'identità dismessa.
+
+Per ovviare a questo problema, le classi che implementano queste interfacce
+e sanno di essere relative ad una certa identità, quando accedono alla istanza di IdentityData
+verificano che questa sia presente nella lista `local_identities` (è da lì che viene
+rimossa quando si dismette una identità) e se no eseguono subito `tasklet.exit_tasklet()`.
 
 ### Caso d'uso: TODO...
 

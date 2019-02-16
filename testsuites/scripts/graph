@@ -175,7 +175,7 @@ PEER_730_PID=$!
 
 echo Done launches at `date +%T.%N`
 
-sleep 6
+sleep 4
 
 echo checking status...
 PEER_ABORT=0

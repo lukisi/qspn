@@ -291,7 +291,7 @@ namespace SystemPeer
 
             // wait to safely remove old_identity_data
             old_identity_data = null;
-            tasklet.ms_wait(4000);
+            tasklet.ms_wait(2000);
             old_identity_data = find_local_identity(old_nodeid);
             assert(old_identity_data != null);
 
