@@ -2280,7 +2280,7 @@ namespace Netsukuku.Qspn
             // Re-evaluate informations on our g-nodes.
             bool changes_in_my_gnodes;
             update_clusters(out changes_in_my_gnodes);
-            // remove arcs
+            // Which arcs we must remove?
             ArrayList<IQspnArc> arcs_to_remove = new ArrayList<IQspnArc>((a, b) => a.i_qspn_equals(b));
             foreach (IQspnArc arc in my_arcs)
             {
@@ -2288,11 +2288,34 @@ namespace Netsukuku.Qspn
                 int arc_lvl = my_naddr.i_qspn_get_coord_by_address(arc_to_naddr[arc]).lvl;
                 if (arc_lvl >= lvl) arcs_to_remove.add(arc);
             }
+            // When we remove an arc, we request a full ETP from other arcs. This is dangerous right now
+            //  because my neighbours (in the exiting g-node) might have not yet removed their paths. We whould
+            //  wait a bit.
+            // Send full ETP to the remaining arcs, in the meantime.
+            foreach (IQspnArc arc in my_arcs) if (!(arc in arcs_to_remove))
+                send_etp_uni(this, prepare_full_etp(this), true, arc);
+            // Remove arcs, now we should be safe.
             foreach (IQspnArc arc in arcs_to_remove)
             {
                 arc_remove(arc);
                 arc_removed(arc);
             }
+            // Then again, just to be sure:
+            for (int l = lvl; l < levels; l++)
+            {
+                var dest_to_remove = new ArrayList<Destination>();
+                dest_to_remove.add_all(destinations[l].values);
+                foreach (Destination d in dest_to_remove)
+                {
+                    destinations[d.dest.lvl].unset(d.dest.pos);
+                    foreach (NodePath np in d.paths)
+                    {
+                        path_removed(get_ret_path(np));
+                    }
+                    destination_removed(d.dest);
+                }
+            }
+            update_clusters(out changes_in_my_gnodes);
         }
 
         /** Remove outer arcs from this connectivity identity.
