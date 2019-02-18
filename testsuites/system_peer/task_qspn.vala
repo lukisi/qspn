@@ -538,4 +538,58 @@ namespace SystemPeer
             return null;
         }
     }
+
+    bool schedule_task_exit_network(string task)
+    {
+        if (task.has_prefix("exit_network,"))
+        {
+            string remain = task.substring("exit_network,".length);
+            string[] args = remain.split(",");
+            if (args.length != 3) error("bad args num in task 'exit_network'");
+            int64 ms_wait;
+            if (! int64.try_parse(args[0], out ms_wait)) error("bad args ms_wait in task 'exit_network'");
+            int64 my_id;
+            if (! int64.try_parse(args[1], out my_id)) error("bad args my_id in task 'exit_network'");
+            int64 lvl;
+            if (! int64.try_parse(args[2], out lvl)) error("bad args lvl in task 'exit_network'");
+            print(@"INFO: in $(ms_wait) ms my id $(my_id) will exit network (for split) with my g-node of level $(lvl).\n");
+            ExitNetworkTasklet s = new ExitNetworkTasklet(
+                (int)ms_wait,
+                (int)my_id,
+                (int)lvl);
+            tasklet.spawn(s);
+            return true;
+        }
+        else return false;
+    }
+
+    class ExitNetworkTasklet : Object, ITaskletSpawnable
+    {
+        public ExitNetworkTasklet(
+            int ms_wait,
+            int my_id,
+            int lvl)
+        {
+            this.ms_wait = ms_wait;
+            this.my_id = my_id;
+            this.lvl = lvl;
+        }
+        private int ms_wait;
+        private int my_id;
+        private int lvl;
+
+        public void * func()
+        {
+            tasklet.ms_wait(ms_wait);
+
+            // find my_id
+            NodeID my_nodeid = fake_random_nodeid(pid, my_id);
+            IdentityData my_identity_data = find_local_identity(my_nodeid);
+            assert(my_identity_data != null);
+
+            my_identity_data.qspn_mgr.exit_network(lvl);
+
+            return null;
+        }
+    }
 }
