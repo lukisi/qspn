@@ -60,7 +60,6 @@ PEER_100_PID=$!
               -t add_qspnarc,1490,1,2+2 \
               -t check_destnum,3800,1,7,300_knows_5_plus_2 \
               -t check_signal_gnode_split,3800,1,1 \
-              -t addtag,3700,3700 -t addtag,3800,3800 -t addtag,3900,3900 -t addtag,4000,4000 \
               > test_graph_pid300_out.txt 2>&1 &
 PEER_300_PID=$!
 
@@ -101,7 +100,6 @@ PEER_600_PID=$!
               -t add_qspnarc,1490,1,1+2 \
               -t check_destnum,3800,1,7,500_knows_5_plus_2 \
               -t check_signal_gnode_split,3800,1,1 \
-              -t addtag,3700,3700 -t addtag,3800,3800 -t addtag,3900,3900 -t addtag,4000,4000 \
               > test_graph_pid500_out.txt 2>&1 &
 PEER_500_PID=$!
 
@@ -158,7 +156,7 @@ PEER_430_PID=$!
               -t enter_net,1480,1,2,1,3:0,2:0,2+1 \
               -t remove_qspnarc,2500,2,0,1 \
               -t exit_network,3800,2,1 \
-              -t addtag,3700,3700 -t addtag,3800,3800 -t addtag,3900,3900 -t addtag,4000,4000 \
+              -t check_destnum,4000,2,2,exited \
               > test_graph_pid530_out.txt 2>&1 &
 PEER_530_PID=$!
 
@@ -171,7 +169,7 @@ PEER_530_PID=$!
               -t add_identity,1400,1,0+2_1+2 \
               -t enter_net,1480,1,2,1,3:0,2:0, \
               -t exit_network,3800,2,1 \
-              -t addtag,3700,3700 -t addtag,3800,3800 -t addtag,3900,3900 -t addtag,4000,4000 \
+              -t check_destnum,4000,2,2,exited \
               > test_graph_pid630_out.txt 2>&1 &
 PEER_630_PID=$!
 
@@ -182,14 +180,14 @@ PEER_630_PID=$!
               -t add_identity,1400,1,0+2_1+1 \
               -t enter_net,1480,1,2,1,3:0,2:0,1+1 \
               -t exit_network,3800,2,1 \
-              -t addtag,3700,3700 -t addtag,3800,3800 -t addtag,3900,3900 -t addtag,4000,4000 \
+              -t check_destnum,4000,2,2,exited \
               > test_graph_pid730_out.txt 2>&1 &
 PEER_730_PID=$!
 
 
 echo Done launches at `date +%T.%N`
 
-sleep 5
+sleep 4.2
 
 echo checking status...
 PEER_ABORT=0
