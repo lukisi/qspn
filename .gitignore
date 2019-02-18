@@ -27,6 +27,7 @@ testsuites/system_peer/task_addtag.c
 testsuites/system_peer/checks_four_nodes.c
 testsuites/system_peer/task_check_nodes_inside_variations.c
 testsuites/system_peer/task_check_cost_variations.c
+testsuites/system_peer/task_check_split.c
 
 Makefile.in
 Makefile

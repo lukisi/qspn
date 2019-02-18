@@ -58,6 +58,8 @@ PEER_100_PID=$!
               -t add_qspnarc,690,1,1+1 \
               -t add_identityarc,1400,1,2+2 \
               -t add_qspnarc,1490,1,2+2 \
+              -t check_destnum,3800,1,7,300_knows_5_plus_2 \
+              -t check_signal_gnode_split,3800,1,1 \
               > test_graph_pid300_out.txt 2>&1 &
 PEER_300_PID=$!
 
@@ -96,6 +98,8 @@ PEER_600_PID=$!
               -t enter_net,1080,0,1,0,5:0:0,5:0:0,0+0 \
               -t add_identityarc,1400,1,1+2 \
               -t add_qspnarc,1490,1,1+2 \
+              -t check_destnum,3800,1,7,500_knows_5_plus_2 \
+              -t check_signal_gnode_split,3800,1,1 \
               > test_graph_pid500_out.txt 2>&1 &
 PEER_500_PID=$!
 
@@ -118,6 +122,8 @@ PEER_410_PID=$!
               -t enter_net,1080,1,2,1,1:0,1:0, \
               -t add_identityarc,1400,2,1+1 \
               -t add_qspnarc,1490,2,1+1 \
+              -t check_destnum,3800,2,4,210_knows_2_plus_2 \
+              -t check_signal_gnode_split,3800,2,0 \
               > test_graph_pid210_out.txt 2>&1 &
 PEER_210_PID=$!
 

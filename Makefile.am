@@ -107,6 +107,7 @@ system_peer_SOURCES =  \
 	testsuites/system_peer/checks_four_nodes.vala \
 	testsuites/system_peer/task_check_nodes_inside_variations.vala \
 	testsuites/system_peer/task_check_cost_variations.vala \
+	testsuites/system_peer/task_check_split.vala \
 	qspn.vapi \
 	$(NULL)
 
