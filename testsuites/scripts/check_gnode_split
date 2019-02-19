@@ -2,8 +2,46 @@
 
 # I nodi avranno pid = al proprio indirizzo (nel grafo finale)
 # Gli indirizzi sono nella topologia 3,2,2 cioè 0-7 al livello 0, 0-3 ai livelli 1 e 2.
-# Ad esempio il pid=100 avrà indirizzo :1:0:0 e il pid=532 avrà indirizzo :5:3:2.
+# Ad esempio il pid=100 avrà indirizzo :1:0:0 e il pid=530 avrà indirizzo :5:3:0.
 # (notare che il primo numero indica il livello 0 e man mano si sale)
+
+# La topologia del g-nodo :0:0 è
+#
+# 6 - 7 - 1 - 5
+#   \ |   |
+#     2 - 3
+#
+# Nasce prima 1 con indirizzo :1:0:0.
+# Poi entrano in sequenza come singoli nodi 3, 2, 7.
+# Poi entrano contemporaneamente come singoli nodi 5, 6.
+
+# La topologia del g-nodo :1:0 è
+#
+# 3 - 4 - 2
+#
+# Nasce prima 4 con indirizzo :4:2:2.
+# Poi entrano in sequenza come singoli nodi 2, 3.
+# Poi tutto il g-nodo entra nella rete finale
+#  assumendo indirizzo :1:0
+#  per mezzo dell'arco 700-310.
+
+# La topologia del g-nodo :3:0 è
+#
+# 4 - 5 - 6 - 7
+#
+# Nasce prima 4 con indirizzo :4:0:0.
+# Poi entrano in sequenza come singoli nodi 5, 6, 7.
+# Poi tutto il g-nodo entra nella rete finale
+#  assumendo indirizzo :3:0
+#  per mezzo degli archi 210-430 , 500-530 e 300-730.
+
+# In seguito si rimuove l'arco 430-530 e assistiamo
+#  al rilevamento dello split del g-nodo :3:0
+#  da parte dei nodi vicini 300 e 500.
+
+# Come conseguenza diamo il comando exit_network all'isola meno anziana
+#  meno anziana (cioè 530+630+730) e assistiamo
+#  alla loro rimozione degli archi esterni.
 
 radio_domain -i 100_wl0 -o 300_wl0 -o 700_wl0 -o 500_wl0 &
 RADIO_100_PID=$!
