@@ -5,7 +5,7 @@ ETH_PID=$!
 sleep 0.3
 
 ./system_peer -i eth0 -p 1 -a eth0,2,eth0,2000 \
-              -t add_identity,1000,0,0+0 \
+              -t add_identity,1000,0,1,4,0+0 \
               -t enter_net,1500,0,1,0,1:1:0:3,1:0:0:0,0+0 \
               -t check_destnum,2000,1,1,pid1_id1_dest1 \
               > test_two_nodes_pid1_out.txt 2>&1 &

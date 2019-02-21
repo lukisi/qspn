@@ -59,7 +59,7 @@ echo Starting launches at `date +%T.%N`
 PEER_1_PID=$!
 ./system_peer --topology 4,1 -p 2 -i wl0 -a wl0,1,wl0,6000 -a wl0,3,wl0,6000 \
               -t addtag,190,190_goingtoenter_2_witharcs_1 \
-              -t add_identity,200,0,0+0 \
+              -t add_identity,200,0,1,2,0+0 \
               -t enter_net,230,0,1,0,1:0,1:0,0+0 \
               -t addtag,280,280_doneenter_2_witharcs_1 \
               -t addtag,290,290_goingtoaddarc_2_3 \
@@ -77,7 +77,7 @@ PEER_1_PID=$!
 PEER_2_PID=$!
 ./system_peer --topology 4,1 -p 3 -i wl0 -a wl0,2,wl0,6000 -a wl0,4,wl0,6000 \
               -t addtag,290,290_goingtoenter_3_witharcs_2 \
-              -t add_identity,300,0,0+1 \
+              -t add_identity,300,0,1,2,0+1 \
               -t enter_net,330,0,1,0,2:0,2:0,0+1 \
               -t addtag,380,380_doneenter_3_witharcs_2 \
               -t addtag,390,390_goingtoaddarc_3_4 \
@@ -94,7 +94,7 @@ PEER_2_PID=$!
 PEER_3_PID=$!
 ./system_peer --topology 4,1 -p 4 -i wl0 -a wl0,3,wl0,6000 -a wl0,5,wl0,6000 \
               -t addtag,390,390_goingtoenter_4_witharcs_3 \
-              -t add_identity,400,0,0+1 \
+              -t add_identity,400,0,1,2,0+1 \
               -t enter_net,430,0,1,0,3:0,3:0,0+1 \
               -t addtag,480,480_doneenter_4_witharcs_3 \
               -t addtag,490,490_goingtoaddarc_4_5 \
@@ -111,7 +111,7 @@ PEER_3_PID=$!
 PEER_4_PID=$!
 ./system_peer --topology 4,1 -p 5 -i wl0 -a wl0,4,wl0,6000 -a wl0,6,wl0,6000 \
               -t addtag,490,490_goingtoenter_5_witharcs_4 \
-              -t add_identity,500,0,0+1 \
+              -t add_identity,500,0,1,2,0+1 \
               -t enter_net,530,0,1,0,4:0,4:0,0+1 \
               -t addtag,580,580_doneenter_5_witharcs_4 \
               -t addtag,590,590_goingtoaddarc_5_6 \
@@ -128,7 +128,7 @@ PEER_4_PID=$!
 PEER_5_PID=$!
 ./system_peer --topology 4,1 -p 6 -i wl0 -a wl0,5,wl0,6000 -a wl0,7,wl0,6000 \
               -t addtag,590,590_goingtoenter_6_witharcs_5 \
-              -t add_identity,600,0,0+1 \
+              -t add_identity,600,0,1,2,0+1 \
               -t enter_net,630,0,1,0,5:0,5:0,0+1 \
               -t addtag,680,680_doneenter_6_witharcs_5 \
               -t addtag,690,690_goingtoaddarc_6_7 \
@@ -146,7 +146,7 @@ PEER_5_PID=$!
 PEER_6_PID=$!
 ./system_peer --topology 4,1 -p 7 -i wl0 -a wl0,6,wl0,6000 -a wl0,8,wl0,6000 \
               -t addtag,690,690_goingtoenter_7_witharcs_6 \
-              -t add_identity,700,0,0+1 \
+              -t add_identity,700,0,1,2,0+1 \
               -t enter_net,730,0,1,0,6:0,6:0,0+1 \
               -t addtag,780,780_doneenter_7_witharcs_6 \
               -t addtag,790,790_goingtoaddarc_7_8 \
@@ -164,7 +164,7 @@ PEER_6_PID=$!
 PEER_7_PID=$!
 ./system_peer --topology 4,1 -p 8 -i wl0 -a wl0,7,wl0,6000 -a wl0,9,wl0,6000 \
               -t addtag,790,790_goingtoenter_8_witharcs_7 \
-              -t add_identity,800,0,0+1 \
+              -t add_identity,800,0,1,2,0+1 \
               -t enter_net,830,0,1,0,7:0,7:0,0+1 \
               -t addtag,880,880_doneenter_8_witharcs_7 \
               -t addtag,890,890_goingtoaddarc_8_9 \
@@ -194,7 +194,7 @@ PEER_7_PID=$!
 PEER_8_PID=$!
 ./system_peer --topology 4,1 -p 9 -i wl0 -a wl0,8,wl0,6000 -a wl0,10,wl0,6000 \
               -t addtag,890,890_goingtoenter_9_witharcs_8 \
-              -t add_identity,900,0,0+1 \
+              -t add_identity,900,0,1,2,0+1 \
               -t enter_net,930,0,1,0,0:0,8:0,0+1 \
               -t addtag,980,980_doneenter_9_witharcs_8 \
               > test_cost_variations_pid9_out.txt 2>&1 &

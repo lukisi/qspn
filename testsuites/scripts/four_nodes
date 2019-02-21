@@ -21,7 +21,7 @@ echo Starting launches at `date +%T.%N`
               > test_four_nodes_pid1_out.txt 2>&1 &
 PEER_1_PID=$!
 ./system_peer --topology 1,3 -p 2 -i eth0 -i eth1 -a eth0,3,eth1,2000 -a eth1,1,eth0,2000 \
-              -t add_identity,200,0,1+0 \
+              -t add_identity,200,0,1,2,1+0 \
               -t enter_net,230,0,1,0,5,1,1+0 \
               -t addtag,250,250_firststep \
               -t add_identityarc,300,1,0+1 \
@@ -31,13 +31,13 @@ PEER_1_PID=$!
 PEER_2_PID=$!
 ./system_peer --topology 1,3 -p 3 -i eth0 -i eth1 -a eth0,4,eth1,2000 -a eth1,2,eth0,2000 \
               -t addtag,250,250_firststep \
-              -t add_identity,300,0,0+1_1+1 \
+              -t add_identity,300,0,1,2,0+1_1+1 \
               -t enter_net,330,0,1,0,3,3,0+1_1+1 \
               --check-four-nodes \
               > test_four_nodes_pid3_out.txt 2>&1 &
 PEER_3_PID=$!
 ./system_peer --topology 1,3 -p 4 -i eth0 -i eth1 -a eth0,1,eth1,2000 -a eth1,3,eth0,2000 \
-              -t add_identity,200,0,0+0 \
+              -t add_identity,200,0,1,2,0+0 \
               -t enter_net,230,0,1,0,4,2,0+0 \
               -t addtag,250,250_firststep \
               -t add_identityarc,300,1,1+1 \

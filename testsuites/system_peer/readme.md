@@ -179,6 +179,14 @@ creare in *a* una nuova identità *a1* a partire da *a0*, la quale non aveva arc
 Poi occorrerà aggiungere in *a* un arco-identità basato sull'arco #0 che unisce *a1* a *b0*.  
 Allo stesso tempo occorrerà aggiungere un arco-identità su *b* basato sull'arco #0 che unisce *b0* a *a1*.
 
+La nuova identità *a1* dovrà avere gli stessi *compiti* che aveva *a0* in *a*: cioè essere una
+identità di connettività o la principale. Nel nostro caso *a0* era la principale quindi d'ora
+in poi sarà *a1* la principale. Invece la vecchia identità *a0* diventa una identità di connettività
+per un range di livelli che deve essere specificato dallo script. In questo caso *a0* diventa
+una identità di connettività ai livelli da 1 a *levels*,
+cioè `connectivity_from_level=1` e `connectivity_to_level=4`,
+poiché serve a fare ingresso come singolo nodo in una nuova rete.
+
 Dopo che questa nuova identità (*a1* in *a*) e questi nuovi archi-identità (*a1-b0* in *a* e *b0-a1* in *b*)
 sono stati creati si potrà proseguire.  
 Notare che queste operazioni (creazione di identità e archi-identità) non hanno comportato
@@ -242,7 +250,7 @@ Quindi, ricapitolando le informazioni che lo script deve passare ai vari process
 che lancia, i task per *a* sono:
 
 ```
- -t add_identity,1000,0,0+0
+ -t add_identity,1000,0,1,4,0+0
  -t enter_net,1500,0,1,0,1:1:0:3,1:0:0:0,0+0
 ```
 
@@ -252,6 +260,10 @@ cioè:
     *   `ms_wait`: aspetta 1000 msec.
     *   `my_old_id`: 0 è l'indice della mia identità vecchia, sulla quale verrà creata la
         nuova identità con indice 1.
+    *   `connectivity_from_level`: 1 è il livello di base del range di livelli di cui adesso la
+        vecchia identità è di connettività.
+    *   `connectivity_to_level`: 4 è il livello più alto del range di livelli di cui adesso la
+        vecchia identità è di connettività.
     *   `arc_list`: lista di archi-identità da aggiungere alla nuova identità. Separati da `_`.
         Ogni arco-identità è fatto di `arc_num+peer_id`.
 *   passo 2: crea una istanza di QspnManager per la nuova identità che fa ingresso.
@@ -331,6 +343,8 @@ avvio perché siano eseguiti dopo un dato tempo.
 *   `add_identity`: Aggiunge una identità, come è stato illustrato in precedenza. I parametri sono:
     *   `ms_wait`.
     *   `my_old_id`.
+    *   `connectivity_from_level`.
+    *   `connectivity_to_level`.
     *   `identity_arc_list`.
 *   `add_identityarc`: Aggiunge un arco-identità, come è stato illustrato in precedenza.
     I parametri sono:

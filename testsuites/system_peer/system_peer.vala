@@ -251,6 +251,7 @@ namespace SystemPeer
         string first_identity_name = @"$(pid)_$(next_local_identity_index)";
         print(@"INFO: nodeid for $(first_identity_name) is $(first_nodeid.id).\n");
         IdentityData first_identity_data = create_local_identity(first_nodeid, next_local_identity_index);
+        main_identity_data = first_identity_data;
         next_local_identity_index++;
 
         first_identity_data.my_naddr = new Naddr(naddr.to_array(), gsizes.to_array());
@@ -477,6 +478,7 @@ namespace SystemPeer
         return new NodeID((int)(_rand.int_range(1, 100000)));
     }
 
+    IdentityData main_identity_data;
     class IdentityData : Object
     {
         public IdentityData(NodeID nodeid, int local_identity_index)
@@ -502,7 +504,7 @@ namespace SystemPeer
         public QspnManager qspn_mgr;
         public bool main_id {
             get {
-                return connectivity_from_level == 0;
+                return this == main_identity_data;
             }
         }
 
