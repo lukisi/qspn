@@ -42,7 +42,7 @@ namespace SystemPeer
                 }
             }
 
-            print(@"INFO: in $(ms_wait) ms will add identity from parent identity #$(my_old_id) with arcs '$(args[2])'.\n");
+            print(@"INFO: in $(ms_wait) ms will add identity from parent identity #$(my_old_id) with arcs '$(args[4])'.\n");
             AddIdentityTasklet s = new AddIdentityTasklet(
                 (int)ms_wait,
                 (int)my_old_id,
