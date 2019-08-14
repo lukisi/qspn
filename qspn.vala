@@ -2137,7 +2137,7 @@ namespace Netsukuku.Qspn
             if (d.lvl >= guest_gnode_level)
                 throw new QspnBootstrapInProgressError.GENERIC(@"I am still in bootstrap at level $(guest_gnode_level).");
             var ret = new ArrayList<IQspnNodePath>();
-            if (d.lvl < levels && destinations[d.lvl].has_key(d.pos))
+            if (d.lvl < levels && destinations[d.lvl].has_key(d.pos) && (! destinations[d.lvl][d.pos].paths.is_empty))
             {
                 // prepare known valid paths
                 if (d.lvl == 0)
