@@ -59,7 +59,12 @@ namespace Netsukuku.Qspn
                         p.ignore_outside.add(false);
                         continue;
                     }
-                    else assert_not_reached();
+                    else // assert_not_reached();
+                    {
+                        warning(@"set_ignore_outside_for_sending: sending an ETP with a path to ($(p.hops.last().lvl),$(p.hops.last().pos)) which has problems: hop ($(d_lvl),$(d_pos)) is unknown in my destination map.");
+                        p.ignore_outside.add(false);
+                        continue;
+                    }
                 }
                 Destination d = mgr.destinations[d_lvl][d_pos];
                 NodePath? best_to_arc = null;
