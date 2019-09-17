@@ -941,6 +941,7 @@ namespace Netsukuku.Qspn
             arc_to_naddr.unset(removed_arc);
             id_arc_map.unset(arc_id);
             // ... and all the NodePath from it.
+            ArrayList<SignalToEmit> sd = new ArrayList<SignalToEmit>();
             var dest_to_remove = new ArrayList<Destination>();
             var paths_to_add_to_all_paths = new ArrayList<EtpPath>();
             for (int l = 0; l < levels; l++) foreach (Destination d in destinations[l].values)
@@ -952,7 +953,7 @@ namespace Netsukuku.Qspn
                     if (np.arc.i_qspn_equals(removed_arc))
                     {
                         d.paths.remove_at(i);
-                        path_removed(get_ret_path(np));
+                        sd.add(new SignalToEmit.path_removed(get_ret_path(np)));
                         EtpPath p = prepare_path_for_sending(np);
                         p.cost = new DeadCost();
                         paths_to_add_to_all_paths.add(p);
@@ -966,8 +967,23 @@ namespace Netsukuku.Qspn
             }
             foreach (Destination d in dest_to_remove)
             {
-                destination_removed(d.dest);
                 destinations[d.dest.lvl].unset(d.dest.pos);
+                sd.add(new SignalToEmit.destination_removed(d.dest));
+            }
+
+            // Then, when data is coherent, emit signals.
+            foreach (SignalToEmit s in sd)
+            {
+                if (s.is_destination_added)
+                    destination_added(s.h);
+                else if (s.is_path_added)
+                    path_added(s.p);
+                else if (s.is_path_changed)
+                    path_changed(s.p);
+                else if (s.is_path_removed)
+                    path_removed(s.p);
+                else if (s.is_destination_removed)
+                    destination_removed(s.h);
             }
 
             // Then proceed in a tasklet
@@ -2034,6 +2050,7 @@ namespace Netsukuku.Qspn
                             }
                         }
                     }
+                    assert(fp_d != null); // must not exist in 'destinations' one with empty 'paths'
                     fp_set.add(fp_d);
                     nn_tot += nn_d;
                 }
